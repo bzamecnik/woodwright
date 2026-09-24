@@ -9,3 +9,10 @@ Install the environment and dependencies:
 ```shell
 uv sync
 ```
+
+## Examples
+
+```sh
+# outputs (STL/STEP/SVG written) to output/
+uv run python examples/mortise_tenon.py
+```
