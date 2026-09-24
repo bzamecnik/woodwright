@@ -15,4 +15,5 @@ uv sync
 ```sh
 # outputs (STL/STEP/SVG written) to output/
 uv run python examples/mortise_tenon.py
+uv run python examples/dovetail_corner.py
 ```
