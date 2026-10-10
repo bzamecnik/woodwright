@@ -68,9 +68,7 @@ mortise = Pos(stile_width - mortise_depth, cheek_y, rail_z + tenon_shoulder) * B
 stile = stile_blank - mortise
 
 # Rail: body from the stile edge outward, plus the tenon reaching into the stile.
-rail_body = Pos(stile_width, 0, rail_z) * Box(
-    rail_shoulder_length, stock_t, rail_width, align=MIN
-)
+rail_body = Pos(stile_width, 0, rail_z) * Box(rail_shoulder_length, stock_t, rail_width, align=MIN)
 tenon = Pos(stile_width - tenon_length, cheek_y, rail_z + tenon_shoulder) * Box(
     tenon_length, tenon_thickness, tenon_width, align=MIN
 )
@@ -86,8 +84,7 @@ overlap_volume = overlap.volume if overlap is not None else 0.0
 assert overlap_volume < 1e-6, f"parts interfere: {overlap_volume:.3f} mm^3"
 
 expected_rail_volume = (
-    rail_shoulder_length * rail_width * stock_t
-    + tenon_length * tenon_width * tenon_thickness
+    rail_shoulder_length * rail_width * stock_t + tenon_length * tenon_width * tenon_thickness
 )
 assert abs(rail.volume - expected_rail_volume) < 1e-6
 

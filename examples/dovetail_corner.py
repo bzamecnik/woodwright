@@ -106,10 +106,7 @@ top_blank = Pos(0, 0, joint_z) * Box(top_length, depth, stock_t, align=MIN)
 corner = Pos(0, 0, joint_z) * Box(stock_t, depth, stock_t, align=MIN)
 
 # Pins: trapezoidal prisms through the whole corner block, extruded along Z.
-pin_solids = [
-    extrude(Pos(0, 0, joint_z) * Polygon(*pts), amount=stock_t)
-    for pts in pin_profiles()
-]
+pin_solids = [extrude(Pos(0, 0, joint_z) * Polygon(*pts), amount=stock_t) for pts in pin_profiles()]
 pins = Solid.fuse(*pin_solids) if len(pin_solids) > 1 else pin_solids[0]
 # Tails: whatever of the corner block is not a pin.
 tails = corner - pins
@@ -178,7 +175,7 @@ def main():
     print("Cut list:")
     print(f"  side  1x  {side_height:.0f} x {depth:.0f} x {stock_t:.0f} mm")
     print(f"  top   1x  {top_length:.0f} x {depth:.0f} x {stock_t:.0f} mm")
-    print("Joinery (through dovetails, slope 1:{:.0f}):".format(slope_ratio))
+    print(f"Joinery (through dovetails, slope 1:{slope_ratio:.0f}):")
     print(
         f"  tails  {tail_count}x on top left end, "
         f"{tail_wide:.1f} -> {tail_narrow:.1f} mm wide, {stock_t:.0f} long"
