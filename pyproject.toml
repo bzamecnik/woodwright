@@ -5,7 +5,9 @@ description = "A semantic CAD library for woodworking."
 readme = "README.md"
 authors = [{ name = "Bohumir Zamecnik", email = "bohumir.zamecnik@gmail.com" }]
 requires-python = ">=3.14,<3.15"
-dependencies = []
+dependencies = [
+    "build123d>=0.13.0"
+]
 
 [build-system]
 requires = ["hatchling"]
