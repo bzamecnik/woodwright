@@ -8,6 +8,15 @@ See [docs/vision.md](docs/vision.md).
 Install the environment and dependencies:
 ```shell
 uv sync
+pre-commit install  # ruff lint + format on commit
+```
+
+## Development
+
+```shell
+uv run pytest
+uv run ruff format
+uv run ruff check --fix
 ```
 
 ## Examples

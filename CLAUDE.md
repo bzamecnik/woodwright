@@ -5,10 +5,12 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 ## Commands
 
 - `uv sync` – install the environment (Python 3.14, uv project)
-- `python examples/<name>.py` – examples, they write to `output/`
+- `uv run python examples/<name>.py` – examples, they write to `output/`
+- `uv run pytest` – run tests
+- `uv run ruff format` / `uv run ruff check --fix` – format and lint (also run by the pre-commit hook: `pre-commit install`)
 
 ## Conventions
 
-- Source in `src/woodwright/`, examples in `examples/`.
+- Source in `src/woodwright/`, tests in `tests/` (pytest), examples in `examples/`.
 - Use type hints wherever they help (public functions, dataclasses); don't contort code to satisfy the checker.
 - Commit coherent pieces of work separately, with a descriptive message.
