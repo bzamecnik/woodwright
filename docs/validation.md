@@ -1,0 +1,119 @@
+- single piece in different dimensions
+  - rectangular board 
+  - cylindrical dowel/rod
+- cuts
+  - cross - across the grain
+  - rip - along the grain
+  - mitre - angled cross cut
+  - chamfer - angled rip cut
+  - groove - partial rip cut 
+  - dado - partial cross cut
+  - rabbet - groove at the edge of the board, groove from two faces
+  - "endgrain rabbet" - dado at the end of the board 
+  - slot mortise - "endgrain groove", like a groove but open at the endgrain side
+  - tongue - rabbets at the edge from two opposite faces 
+  - mortise - a hole through the board across the grain
+    - through mortice
+    - blind mortice - not all the way through the board
+  - tenon - "endgrain rabbet" from multiple sides at once
+  - dovetail dado - dado where the sides are not perpendicular, but angled inward
+  - dovetail tongue - tongue where the sides are not perpendicular, but angled outward
+  - drilled hole
+    - through
+    - blind
+    - chamfered hole (countersink)
+- joints
+  - butt joint (glued)
+    - edges - panel
+    - faces - thick leg
+    - perpendicular
+      - face on face - bench hook
+      - edge on face - corner
+    - box - four corner joint + bottom
+    - shelf with just butt joints
+  - dado
+    - T-joint with a dado
+    - shelf with dados
+  - groove
+    - tongue and groove panel - tongue + groove
+    - tongue and groove panel - two grooves + inserted tongue
+    - frame panel - butt-joint frame with a groove inside, panel with a tongue on all edges
+  - rabbet
+    - corner with rabbet and plain board
+    - corner with two interlocking rabbets
+    - box with rabbet corners and rabbetted bottom
+  - mitre joint - "butt" joint of two mitred boards
+    - two pieces
+      - perpendicular L corner
+      - splice (mitre along the face, mitre along the edge)
+    - four pieces - picture frame
+  - lap joint
+    - two boards with overlapping rabbets to make panel
+    - half-lap corner - two perpendicular boards with "endgrain rabbet"
+    - half-lap T - one board with dado, other board with "endgrain rabbet"
+    - picture frame
+    - shoji frame
+    - angled half-lap joint
+  - bridle joint
+    - L-joint - one board with a deep slot mortise, one board with a two-sided tenon
+      - shop square
+    - T-joint - slot mortise, two dados
+  - mortise and tenon - one board with a tenon mortise, another with tenon
+    - mallet
+    - frame for a bow saw (two tenons)
+    - blind mortice
+    - tenon extending out of the through mortice
+    - multiple tenon
+    - table leg accepting two perpendicular tenons with mitred ends
+  - box joint - both boards have a set of shallow regular slot motrices of equal widths
+  - sliding dovetail - one board with dovetail groove, another with dovetail tongue
+  - dovetail - similar to box joint, but the slot mortices are angled
+    - two boards (corner)
+    - shelf with dovetailed corners
+    - drawer with dovetailed corners with a groove and rabbeted bottom
+    - dovetail with mitred corner
+  - chamfer joint 
+    - full 45˚ chamfer
+      - two pieces - long L-shaped piece
+      - four pieces - hollow leg
+  - dowel joint
+    - two boards with blind drill holes + dowel
+    - one board with a blind hole, one with open hole + dowel
+    - board with a hole + bigger rod
+  - half-lap mitre
+    - like a half-lap corner, but one side is mitred
+  - half-lap dovetail
+    - like a half-lap T-joint, but the
+  - wedged mortice and tenon
+    - through half-dovetail mortice with edges angled outward
+    - tenon with one or two slots ended with a drilled hole + wedge
+  - drawbore mortice and tenon
+    - mortice and tenon plus each has a drill hole which is slightly offset + dowel
+  - tusk mortice and tenon
+    - tenon extends out of the through mortice
+    - there's another smaller mortice going through the tenon
+    - a wedge goes through the second mortice
+    - the second mortice can go through the face or through the edge
+  - stub tenon - L-joint, mortice offset from the endgrain, tenon has three shoulders 
+  - haunched stub tenon - tenon 
+  - loose tenon - two blind mortices, tenon is a separate piece
+  - shouldered tenon
+    - T-joint, tenon board extends into the board with the mortice as variants of a triangle
+    - L-joint
+  - mitred face tenon
+  - round tenon
+    - mortice is a drilled hole, tenon is round
+    - can be wedged
+  - half-blind dovetail
+  - blind mitred dovetail
+  - kumiko asanoha pattern
+    - 3-way mitre joint
+- furniture (besides example above)
+  - table with four legs, wide aprons with stub tenon joint, panel desk
+  - side table with aprons and stretchers, desk made as mitre frame with panel inside
+  - step stool with sliding dovetail cross pieces and angled legs with wedged round tenons
+  - workbench
+    - two leg assemblies, beams glued up from boards, then half-laps
+    - stretchers with trough tusk tenons
+    - desk (covering the front half) made of beams glued up by face
+    - drawer (covering the back half)
