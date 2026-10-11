@@ -1,3 +1,9 @@
+# Validation catalogue
+
+Cuts, joints and pieces that could eventually make up the standard library.
+Not every item needs an example; see [plan.md](plan.md#6-roadmap) for the order
+in which they are tackled and [vision.md](vision.md#11-scope) for the current scope.
+
 - single piece in different dimensions
   - rectangular board 
   - cylindrical dowel/rod
