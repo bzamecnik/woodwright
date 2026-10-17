@@ -30,20 +30,55 @@
    resolved model. You can resolve the same design repeatedly, e.g. with a
    different workshop profile.
 7. **Plain data where possible.** Stock, parts, cuts and joints are
-   dataclasses with numeric/string parameters and references to faces, so a
+   dataclasses with numeric/string parameters and references to sides, so a
    declarative front-end or serialization is possible later. Code is needed
    only to *define* new kinds of objects.
 
 ## 2. Object model
 
-```
-Stock ──< Part ──< FaceRef                Workshop (chisels, kerf, ...)
-            │
-            ├──< Feature (cut)  ── removal(): build123d Part in part frame
-            │
-Assembly ──< Part, Joint, Assembly (nested), Alignment
-            │
-Joint ── parts: FaceRef × 2  ── allowances(), mating(), features()
+```mermaid
+classDiagram
+    direction LR
+    class Stock {
+        thickness
+        species
+    }
+    class Part {
+        name
+        length, width
+    }
+    class SideRef {
+        plane
+    }
+    class ArrisRef {
+        sides: SideRef × 2
+    }
+    class Cut {
+        removal() build123d Part
+    }
+    class Joint {
+        allowances()
+        mating()
+        features()
+    }
+    class Workshop {
+        chisels, kerf
+    }
+    Part --> Stock : made from
+    Part *-- "6" SideRef : sides
+    Part *-- ArrisRef : arrises
+    Part *-- "*" Cut : explicit cuts
+    Cut --> SideRef : on
+    Cut --> ArrisRef : or along
+    Joint --> "2" SideRef : joins
+    Joint ..> Cut : generates
+    Joint ..> Allowance : contributes
+    Joint ..> Workshop : defaults from
+    Allowance --> SideRef : at
+    Assembly o-- "*" Part
+    Assembly o-- "*" Joint
+    Assembly o-- "*" Alignment
+    Assembly o-- "*" Assembly : nested
 ```
 
 - **Stock**: material and cross-section. `Stock.board(thickness, species)`;
@@ -52,38 +87,47 @@ Joint ── parts: FaceRef × 2  ── allowances(), mating(), features()
   `length`, `width` (thickness comes from stock). The design box is what the
   user thinks of as the part's visible extent between joints, e.g. a rail
   from shoulder to shoulder.
-- **FaceRef**: a reference to a named face of a part (`rail.end.left`,
-  `stile.edge.back`, see vision §7). It gives a `Plane` in the part frame:
-  origin at the face's reference corner, x along the face's longer direction
-  (along the grain where possible), z pointing **into the material**, so that
-  a positive depth cuts into the wood. **[OPEN]** whether the outward normal
-  is more natural for mating; both are available as properties anyway.
-- **Feature (cut)**: material removed from one part. It knows its face,
-  its parameters, and how to build its removal volume. It also describes
-  itself for cut lists, drawings and (later) instructions: its name, key
-  dimensions and the kind of operation (rip, crosscut, chop with a chisel...).
+- **SideRef**: a reference to one of the six named sides of a part
+  (`rail.left_end`, `stile.back_edge`, `board.ref_face`, see vision
+  §7). It gives a `Plane` in the part frame with its origin on the side's
+  reference corner, x along the side's longer direction (along the grain
+  where possible) and z along the side's normal. Joints mate and align parts
+  by their reference sides unless told otherwise. **[OPEN]** whether the
+  normal points into the material (a positive depth cuts into the wood) or
+  out of it (two mating sides have opposite normals).
+- **ArrisRef**: a geometric edge where two adjacent sides meet, named by
+  those two sides: `board.top_right_arris`, `board.ref_arris` (=
+  `top_front_arris`), or `board.arris(board.top_face, board.front_edge)` when
+  the sides are only known at run time. Cuts made along an arris refer to it:
+  chamfer, rabbet, later roundovers.
+- **Feature (cut)**: material removed from one part. It knows its side or
+  arris, its parameters, and how to build its removal volume. It also
+  describes itself for cut lists and drawings: its name and key dimensions.
+  It does not say *how* it is cut: the same rabbet can be made with a
+  rabbet plane, a chisel or a table saw, depending on the woodworker's tools
+  and choice. That belongs to the process plan, later.
 - **Allowance**: an extension of a part's blank beyond its design box at one
-  face, e.g. +40 mm at `rail.end.left` for a tenon. Cut dimensions = design
+  side, e.g. +40 mm at `rail.left_end` for a tenon. Cut dimensions = design
   dimensions + allowances.
-- **Joint**: a relation between two FaceRefs. It contributes allowances to
+- **Joint**: a relation between two SideRefs. It contributes allowances to
   both parts, a mating transform between them, and features on each.
   Parameters (tenon thickness...) are fields with `None` meaning "use the
   library rule".
 - **Alignment**: `flush(a, b)`, `offset(a, b, d)`, `centered(...)` between
-  faces of two joined parts. Joints carry their own alignment with sensible
+  sides of two joined parts. Joints carry their own alignment with sensible
   defaults (reference faces flush); standalone alignments are for the rare
   cases where a joint leaves freedom.
 - **Assembly**: a container of parts, joints and sub-assemblies with one root
   part (or an explicit placement of the root). Components are Python
-  functions/classes returning an Assembly and exposing FaceRefs to join
+  functions/classes returning an Assembly and exposing SideRefs to join
   against.
 - **Workshop**: the tools at hand. Rules of thumb round to them (a tenon
   thickness snaps to an available chisel width).
 
 ### Anchors refer to the design box, not to the blank
 
-`rail.end.left` is the shoulder plane, the end of the design box, not the
-tip of the tenon. Joints mate design faces; allowances then extend the blank
+`rail.left_end` is the shoulder plane, the end of the design box, not the
+tip of the tenon. Joints mate design sides; allowances then extend the blank
 past them. Because of this, placement doesn't depend on allowances, and the
 user can always measure things the way they see them in the finished piece.
 
@@ -100,14 +144,14 @@ dimension may be enough.
 
 | | Semantic (woodwright) | Geometric (build123d) |
 |---|---|---|
-| Where | Parameters, face references, allowances, mating, descriptions | Removal volumes, blanks, transforms |
+| Where | Parameters, side references, allowances, mating, descriptions | Removal volumes, blanks, transforms |
 | Needs OpenCascade | No | Yes (except `Location`/`Vector`/`Plane` maths) |
 | Used for | Cut list, placement, loop checks, instructions | 3D export, drawings, interference/fit checks |
 
 A built-in cut such as `Rabbet` is semantic *and* geometric: its parameters
-(width, depth, face) are visible to the cut list and drawings, and its
-`removal()` builds a box in the face's plane. A user-defined cut can be
-geometry-heavy and semantics-light. It still has a face, a name and a
+(arris, width, depth) are visible to the cut list and drawings, and its
+`removal()` builds a box along that arris. A user-defined cut can be
+geometry-heavy and semantics-light. It still has a side, a name and a
 place in the part, but its dimensions may be opaque ("cut as drawn").
 
 ### Why no kernel-neutral layer
@@ -124,7 +168,10 @@ From least to most effort, each level is ordinary Python:
 
 1. **Use** a library joint with its defaults.
 2. **Override** parameters: `MortiseTenon(..., tenon_thickness=10)`.
-3. **Add cuts** directly to a part: `part.cut(Chamfer(part.edge.front, 3))`.
+3. **Add cuts** directly to a part:
+   `part.cut(Chamfer(part.top_front_arris, 3))`.
+   A chamfer runs along an arris, so it is named by the two sides that meet
+   there. (A signed angle on one side would be shorter but harder to read.)
 4. **Compose** a new joint from existing cuts (a bridle joint = slot mortise
    on one part, two-sided tenon on the other).
 5. **Write geometry** for a new cut or joint with build123d in a provided
@@ -144,36 +191,35 @@ import woodwright as ww
 
 @dataclass
 class VNotch(ww.Cut):
-    """A V-shaped notch across a face, e.g. a decorative groove."""
+    """A V-shaped notch across a side, e.g. a decorative groove."""
 
-    face: ww.FaceRef
-    at: float  # distance from the face's reference end
+    side: ww.SideRef
+    at: float  # distance along the grain from the side's origin
     depth: float
     angle: float = 90  # included angle
 
     def removal(self) -> bd.Part:
-        # face.plane: x along the grain, y across the face, z into the wood
+        # side.plane: x along the grain, y across the side, z into the wood
         half = self.depth * math.tan(math.radians(self.angle / 2))
         # The profile is drawn in the plane spanned by the grain (x) and depth (z),
-        # then extruded across the whole face (y).
-        side = bd.Plane(
-            self.face.plane.origin, x_dir=self.face.plane.x_dir, z_dir=self.face.plane.y_dir
-        )
+        # then extruded across the whole side (y).
+        plane = self.side.plane
+        profile_plane = bd.Plane(plane.origin, x_dir=plane.x_dir, z_dir=plane.y_dir)
         triangle = bd.Polygon(
             (self.at - half, 0), (self.at + half, 0), (self.at, self.depth), align=None
         )
-        return bd.extrude(side * triangle, amount=self.face.width)
+        return bd.extrude(profile_plane * triangle, amount=self.side.width)
 
     def describe(self) -> str:
         return f"V-notch {self.angle}°, {self.depth} mm deep, at {self.at} mm"
 ```
 
-(Sign conventions of the side plane are glossed over here; getting such
-details right once, inside FaceRef helpers, is part of the library's job.)
+(Sign conventions of the profile plane are glossed over here; getting such
+details right once, inside SideRef helpers, is part of the library's job.)
 
 The library places the removal in the part frame, subtracts it from the
 blank, lists it in the part's drawing, and checks it doesn't break through
-an unexpected face.
+an unexpected side.
 
 ### Two ways a joint produces geometry
 
@@ -196,8 +242,8 @@ either:
 ```python
 @dataclass
 class ThroughDovetail(ww.Joint):
-    tails: ww.FaceRef  # end of the tail board
-    pins: ww.FaceRef  # end of the pin board
+    tails: ww.SideRef  # end of the tail board
+    pins: ww.SideRef  # end of the pin board
     tail_count: int | None = None
     slope: float | None = None  # 1:slope
 
@@ -222,19 +268,24 @@ gap.
 
 ## 4. Resolution ("compilation") pipeline
 
-```
-design (Assembly)
-  │ 1. params    fill joint parameters from rules + workshop
-  │ 2. allow.    collect allowances → blank (cut) size per part
-  │ 3. place     walk the joint graph: mating + alignment → Location per part
-  │              non-tree joints: check loop closure
-  │ 4. features  per part: explicit cuts + cuts from joints
-  │              (shared-region removals mapped into part frames)
-  ▼
-resolved model ── cut list, describe(), to_json()      (no OpenCascade so far)
-  │ 5. realize   per part: Box(blank) − ∪ removals, cached; placed copies
-  ▼
-geometry ── export STEP/STL/glTF/SVG, interference & fit checks
+```mermaid
+flowchart TD
+    design["design (Assembly)"]
+    params["1. params<br/>fill joint parameters from rules + workshop"]
+    allow["2. allowances<br/>blank (cut) size per part"]
+    place["3. place<br/>walk the joint graph: mating + alignment → Location per part;<br/>non-tree joints: check loop closure"]
+    features["4. features<br/>per part: explicit cuts + cuts from joints<br/>(shared-region removals mapped into part frames)"]
+    resolved["resolved model"]
+    realize["5. realize<br/>per part: Box(blank) − ∪ removals, cached; placed copies"]
+    geometry["geometry"]
+
+    subgraph kernel_free["no OpenCascade"]
+        params --> allow --> place --> features --> resolved
+    end
+    design --> params
+    resolved --> realize --> geometry
+    resolved -.-> cutlist["cut list, describe(), to_json()"]
+    geometry -.-> export["export STEP/STL/glTF/SVG,<br/>interference & fit checks"]
 ```
 
 ### Placement
@@ -247,8 +298,9 @@ part, and joining two parts means making the frames coincide. build123d's
 so the result depends on the order of calls, and it has no notion of loops.
 We need the same algebra applied differently:
 
-- Mating frames come from FaceRefs and the joint's alignment (flush,
-  centered, offset, which face of the part meets which).
+- Mating frames come from SideRefs and the joint's alignment (flush,
+  centered, offset, which side of the part meets which), by default
+  relative to the parts' reference sides.
 - The resolver picks a spanning tree of the joint graph from the root part
   and composes `Location`s along it. The order in which joints were
   declared doesn't matter.
@@ -256,7 +308,7 @@ We need the same algebra applied differently:
   If it doesn't, the loop doesn't close, and the library reports by how
   much and along which part's axis, so the user can fix the dimension.
 - A joint that leaves degrees of freedom open (a butt joint with no
-  position along the face) is an error that names the missing alignment.
+  position along the side) is an error that names the missing alignment.
   Defaults should make this rare.
 - First version: rotations are multiples of 90°, which covers orthogonal
   furniture and makes placement exact. Mitres don't need more; splayed legs
@@ -286,7 +338,7 @@ passing a value. **[OPEN]** how to version rules (vision §15).
 - With geometry: pairwise interference between parts (bounding-box
   prefilter), joint fit (what one part loses in the joint region equals what
   the other keeps there), and volume sanity per part.
-- Later: cross-grain gluing (grain directions of glued faces), assembly
+- Later: cross-grain gluing (grain directions of glued sides), assembly
   feasibility (can a part be slid in along some direction).
 
 ## 5. Package layout (proposed)
@@ -295,7 +347,7 @@ passing a value. **[OPEN]** how to version rules (vision §15).
 src/woodwright/
   __init__.py      # public API re-exports
   stock.py         # Stock, species
-  part.py          # Part, Board (Rod later), FaceRef, part frames
+  part.py          # Part, Board (Rod later), SideRef, ArrisRef, part frames
   cuts/            # Cut base class + library: planar, rabbet, dado, groove, mortise, tenon, ...
   joints/          # Joint base class + library: butt, dado, rabbet, mt, lap, bridle, dovetail, ...
   rules.py         # rules of thumb
@@ -318,18 +370,19 @@ that each one tests a new piece of the architecture.
 ### M0: Spike (throwaway allowed)
 
 Re-express `mortise_tenon.py` and `dovetail_corner.py` through a minimal
-prototype API (Board, FaceRef, one cut per pattern, one joint per pattern),
+prototype API (Board, SideRef, one cut per pattern, one joint per pattern),
 to check §2–§4 against reality before building them properly. Output: the
 same STEP/SVG as the plain versions, and notes on what felt wrong.
 
 ### M1: A single board and its cuts
 
-- `Stock.board`, `Board`, part frame, the six named faces with planes.
+- `Stock.board`, `Board`, part frame, the six named sides and the arrises,
+  with planes.
 - `Cut` base class; cuts on a single board: crosscut, rip, mitre, chamfer,
   groove, dado, rabbet, end rabbet, slot mortise, tongue, mortise
   (through/blind), tenon (shoulders + cheeks).
 - Realize, export, per-part SVG view, cut list entry.
-- Tests: volumes and bounding boxes of each cut; cuts on every face.
+- Tests: volumes and bounding boxes of each cut; cuts on every side.
 
 Covers the "single piece" and "cuts" sections of validation.md (without
 drilling).
@@ -359,7 +412,7 @@ drilling).
 - Loop closure check and error messages.
 - Box (four corners + bottom in a groove), picture frame (mitres or
   half-laps), drawer box.
-- Components: functions returning assemblies with exposed faces; nested
+- Components: functions returning assemblies with exposed sides; nested
   assemblies.
 
 ### M6: Outputs for the shop

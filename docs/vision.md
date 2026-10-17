@@ -84,29 +84,20 @@ what builds the actual geometry.
 
 ## 4. The pipeline
 
-```
- ┌──────────────────────┐
- │ 1. Design            │  Python objects built by user code:
- │  stock, parts,       │  parameters are Python values,
- │  joints, alignments  │  components are Python functions/classes
- └─────────┬────────────┘
-           │ resolve (kernel-free: defaults, allowances, placement, features)
- ┌─────────▼────────────┐
- │ 2. Resolved model    │  every part has cut dimensions, a list of
- │  parts + features +  │  features in its local frame, and a placement
- │  placements          │  in the assembly; serializable
- └─────────┬────────────┘
-           │ realize (build123d: blank − cuts, placed)        │ plan (later)
- ┌─────────▼────────────┐                         ┌────────────▼─────────┐
- │ 3. Geometry          │                         │ 3'. Process plan     │
- │  solids, assembly    │                         │  operations, order,  │
- │                      │                         │  glue-up sequence    │
- └─────────┬────────────┘                         └────────────┬─────────┘
-           │ export / check                                    │
- ┌─────────▼───────────────────────────────────────────────────▼─────────┐
- │ 4. Outputs: STEP/STL/glTF, part drawings (SVG), cut list (CSV/MD),    │
- │    interference and fit checks, later instructions (MD/HTML)          │
- └───────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    design["<b>1. Design</b><br/>stock, parts, joints, alignments<br/><i>Python objects built by user code</i>"]
+    resolved["<b>2. Resolved model</b><br/>cut dimensions, features in part frames,<br/>placements; serializable"]
+    geometry["<b>3. Geometry</b><br/>solids, assembly"]
+    process["<b>3'. Process plan</b> (later)<br/>operations, order, glue-up sequence"]
+    outputs["<b>4. Outputs</b><br/>STEP/STL/glTF, part drawings (SVG), cut list (CSV/MD),<br/>interference and fit checks, later instructions (MD/HTML)"]
+
+    design -->|"resolve (kernel-free):<br/>defaults, allowances, placement, features"| resolved
+    resolved -->|"realize (build123d):<br/>blank − cuts, placed"| geometry
+    resolved -->|plan| process
+    resolved -->|cut list| outputs
+    geometry -->|export, check| outputs
+    process --> outputs
 ```
 
 The resolved model is computed without building any solids, so cut lists
@@ -122,7 +113,7 @@ apron 3 mm too short?").
 | Overall size | Key dimensions and parameters, as Python values | Derived dimensions are ordinary Python expressions |
 | Materials | Species, stock thickness | Grain direction defaults, volume / board length |
 | Parts | Name, stock, design dimensions | Cut dimensions including joinery allowances |
-| Joints | Type, which faces/ends meet, alignment (flush, offset, centered) | Joint geometry from rules of thumb (e.g. tenon ≈ ⅓ thickness), overridable |
+| Joints | Type, which sides meet, alignment (flush, offset, centered) | Joint geometry from rules of thumb (e.g. tenon ≈ ⅓ thickness), overridable |
 | Placement | Almost nothing, only the root part or overall orientation | All part placements, from joint and alignment relations |
 | Validation | Tolerances, warnings to ignore | Interference, joint fit, closed loops, cross-grain gluing, stock limits |
 | Stock usage | Available stock or "buy standard" | Cut layout, waste, shopping list (later) |
@@ -140,7 +131,7 @@ suggests and the user can still decide.
 - **Stock**: `Stock.board(thickness=20, species="oak")`; later a cylindrical
   rod/dowel. Carries grain direction and nominal vs actual sizes.
 - **Parts**: an instance of stock with a name and design dimensions. Each
-  part has a local frame tied to the grain and named faces (see §7).
+  part has a local frame tied to the grain and named sides (see §7).
 - **Features (cuts)**: material removed from one part (rip, crosscut, mitre,
   chamfer, rabbet, dado, groove, slot mortise, mortise, tenon, ...). Joints
   generate most of them; users can add them directly and define their own.
@@ -148,11 +139,11 @@ suggests and the user can still decide.
   generates features on each, adds allowances to their cut dimensions, and
   determines their relative placement. They come from a standard library
   (see [validation.md](validation.md)) and users can define their own.
-- **Alignment relations**: `flush`, `offset`, `centered` between named faces.
+- **Alignment relations**: `flush`, `offset`, `centered` between named sides.
 - **Assemblies and components**: an assembly groups parts and joints and can
   be nested. A component is a Python function or class that builds a
   parametric assembly (a "frame-and-panel door", a "leg-and-apron end
-  frame") and exposes faces for joining it to the rest. This is how a
+  frame") and exposes sides for joining it to the rest. This is how a
   standard library and shared designs grow beyond primitives.
 - **Workshop profile**: available tools (chisel widths, saw kerf, later drill
   bits), so that defaults round to sizes you can actually cut.
@@ -174,8 +165,8 @@ rail = frame.add(ww.Board("rail", oak, length=300, width=60))  # shoulder to sho
 
 frame.join(
     ww.MortiseTenon(
-        tenon=rail.end.left,
-        mortise=stile.edge.back,
+        tenon=rail.left_end,
+        mortise=stile.back_edge,
         position=ww.centered(),  # rail centered along the stile
         # tenon_thickness=8,     # override a library default
     )
@@ -192,28 +183,39 @@ rail's cut length.
 
 ## 7. Coordinate system
 
-Proposal: **named faces on a grain-aligned local frame, and no global
+Proposal: **named sides on a grain-aligned local frame, and no global
 coordinates in normal use.**
 
 - Each board has axes **L** (length, along grain), **W** (width), and
-  **T** (thickness), mapped to the local x, y, z.
-- Faces are named as if the board lies on the bench, length left to right,
-  **reference face down and reference edge towards you**, as it would sit on
-  a table saw against the fence:
-  - `face.bottom` / `face.top`: the wide faces (`face.bottom` is the
-    reference face),
-  - `edge.front` / `edge.back`: the long narrow faces (`edge.front` is the
-    reference edge),
-  - `end.left` / `end.right`: the end grain (`end.left` is the reference end).
-- The local origin is the corner where the three reference faces meet, so
-  all measurements in the part frame are positive, as with a marking gauge.
+  **T** (thickness).
+- A board has six **sides**: two **faces** (the wide sides), two **edges**
+  (the long narrow sides) and two **ends** (end grain). Where two sides meet
+  is an **arris**, the geometric edge; the traditional word avoids a clash
+  with "edge" as a side.
+- One arris is the **reference arris**. The face and the edge next to it are
+  the reference face and reference edge, the sides that get the face side
+  and face edge marks in the shop.
+- Sides are named as if the board lies flat on the bench, length left to
+  right, **reference face up and reference arris towards the woodworker**:
+  - `top_face` (the reference face, alias `ref_face`), `bottom_face`,
+  - `front_edge` (the reference edge, alias `ref_edge`), `back_edge`,
+  - `left_end`, `right_end`.
+- The names are flat attributes of the part (`rail.left_end`,
+  `stile.back_edge`), because "left" is not a kind of "end".
+- The twelve arrises are named after the two sides that meet there, in the
+  order face, edge, end: `top_front_arris` (the reference arris, alias
+  `ref_arris`), `top_right_arris`, `back_left_arris`, and so on.
+- Measurements are taken from the reference face and reference edge, as with
+  a marking gauge. The local origin lies on the reference arris, at the left
+  end. **[OPEN]** the exact axis directions, and whether a side's normal
+  points into or out of the material.
 - Names describe the board, not its position in the furniture: a leg's
-  `end.left` is its foot. Components may add aliases (`leg.foot`). **[OPEN]**
-  whether these names read well in practice.
+  `left_end` may be its foot. Components may add aliases (`leg.foot`).
+  **[OPEN]** whether these names read well in practice.
 - The whole assembly has one global frame (X = width, Y = depth, Z = height)
   that you only need for orienting the root and for export.
-- Positions *along* a face are given as offsets from named faces/ends
-  ("50 mm from `stile.end.left`").
+- Positions *along* a side are given as offsets from named sides
+  ("50 mm from `stile.left_end`").
 - Units are millimetres (plain floats) and degrees. Imperial may come later
   as input helpers.
 
@@ -294,7 +296,7 @@ gives full power and debugging for free, and makes extending the library
 A declarative front-end (YAML or similar, or a custom syntax) may come later
 on top of the same object model, once the model has settled. To keep that
 door open, the core objects should be plain data (dataclasses with numeric
-and string parameters and references to faces), with code needed only for
+and string parameters and references to sides), with code needed only for
 extensions such as custom geometry.
 
 ## 13. Validation ladder
