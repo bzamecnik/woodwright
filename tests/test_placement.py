@@ -89,3 +89,12 @@ def test_mate_across() -> None:
     assert apply(centered, (0, 30, 0)) == pytest.approx((300, 60, -5))
     set_back = ww.mate(stile.back_edge, rail.left_end, flush=flush, across=ww.offset(2))
     assert apply(set_back, (0, 30, 0)) == pytest.approx((300, 60, -2))
+
+
+def test_mate_with_a_gap() -> None:
+    stile, rail = stile_and_rail()
+    flush = (stile.top_face, rail.top_face)
+    apart = ww.mate(stile.back_edge, rail.left_end, flush=flush, gap=5)
+    assert apply(apart, (0, 30, -10)) == pytest.approx((300, 65, -10))
+    overlapping = ww.mate(stile.back_edge, rail.left_end, flush=flush, gap=-60)
+    assert apply(overlapping, (0, 30, -10)) == pytest.approx((300, 0, -10))

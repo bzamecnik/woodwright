@@ -142,3 +142,79 @@ def test_mortise_tenon_with_offset_tenon() -> None:
     assert tenon.tenon_box()[2] == (-12, -4)
     mortise = model[stile].cuts[0]
     assert mortise.ranges()[2] == pytest.approx((-12, -4))
+
+
+def test_bridle_with_a_rail_as_thin_as_the_slot() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", ww.Stock.board(24), length=150, width=40))
+    blade = asm.add(ww.Board("blade", ww.Stock.board(8), length=250, width=30))
+    asm.join(
+        ww.Bridle(
+            tenon=blade.left_end,
+            slot=stile.back_edge,
+            position=ww.flush_with(stile.right_end),
+            tenon_thickness=8,
+            across=ww.centered(),
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, stile) == ["slot mortise 8 mm, 30 deep, in stile.right_end"]
+    assert cuts(model, blade) == []  # it goes in whole
+    assert model[blade].size == (290, 30, 8)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_mitre_corner_with_unequal_widths() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=60))
+    asm.join(ww.MitreCorner(a.right_end, b.left_end, a.back_edge, b.back_edge))
+    model = asm.resolve()
+    mitre_a, mitre_b = model[a].cuts[0], model[b].cuts[0]
+    assert isinstance(mitre_a, ww.Mitre)
+    assert isinstance(mitre_b, ww.Mitre)
+    assert (mitre_a.shortening, mitre_b.shortening) == (pytest.approx(60), pytest.approx(40))
+    # Outside lengths: the corner is at (300, 0) of part a.
+    assert bbox(model[b].placed_shape) == (240, 0, -20, 300, 200, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    volume = 300 * 40 * 20 + 200 * 60 * 20 - 40 * 60 * 20  # the corner block is shared
+    assert model[a].shape.volume + model[b].shape.volume == pytest.approx(volume)
+
+
+def test_mitre_corner_needs_the_inside_sides() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    asm.join(ww.MitreCorner(a.right_end, b.left_end, a.back_edge, b.front_edge))
+    with pytest.raises(ValueError, match=r"b\.front_edge is not inside the corner"):
+        asm.resolve()
+
+
+@pytest.mark.parametrize(
+    ("short", "b_short", "overlap"),
+    [("back_edge", "front_edge", 40), ("bottom_face", "top_face", 20)],
+)
+def test_mitre_splice(short: str, b_short: str, overlap: float) -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    asm.join(ww.MitreSplice(a.right_end, b.left_end, short=getattr(a, short)))
+    model = asm.resolve()
+    assert cuts(model, b) == [f"mitre 45 deg on b.left_end, b.{b_short} inside"]
+    assert bbox(model[b].placed_shape) == (300 - overlap, 0, -20, 500 - overlap, 40, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    volume = (300 + 200 - overlap) * 40 * 20
+    assert model[a].shape.volume + model[b].shape.volume == pytest.approx(volume)
+
+
+def test_cross_lap() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", ww.Stock.board(30), length=200, width=50))
+    asm.join(ww.CrossLap(a.back_edge, b.left_end, position=ww.offset(100, a.left_end), overhang=20))
+    model = asm.resolve()
+    assert cuts(model, a) == ["dado 50 mm, 10 deep, in a.top_face"]
+    assert cuts(model, b) == ["dado 40 mm, 20 deep, in b.bottom_face"]
+    # b crosses from the back edge of a, 20 mm beyond its front edge.
+    assert bbox(model[b].placed_shape) == (100, -20, -30, 150, 180, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)

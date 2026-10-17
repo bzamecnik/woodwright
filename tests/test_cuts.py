@@ -195,3 +195,45 @@ def test_mitre_across_the_edge() -> None:
     assert pytest.approx(40) == bottom.bounding_box().min.X
     with pytest.raises(ValueError, match="between 0 and 90"):
         ww.Mitre(b.left_end, inside=b.bottom_face, angle=90)
+
+
+def test_taper_over_the_whole_length() -> None:
+    b = board(length=100, width=20)
+    taper = ww.Taper(b.back_edge, end=b.right_end, amount=8)
+    assert taper.describe() == "taper 8 mm on b.back_edge towards b.right_end"
+    shape = cut_part(b, taper)
+    assert shape.volume == pytest.approx(100 * 20 * 40 - 100 * 8 / 2 * 40)
+    right = shape.faces().sort_by(bd.Axis.X)[-1]
+    assert pytest.approx(12) == right.bounding_box().max.Y
+
+
+def test_taper_over_part_of_the_length() -> None:
+    b = board(length=450, width=40)
+    taper = ww.Taper(b.bottom_face, end=b.left_end, amount=15, length=300)
+    shape = cut_part(b, taper)
+    assert shape.volume == pytest.approx(450 * 40 * 40 - 300 * 15 / 2 * 40)
+    # Full thickness from 300 mm on, 15 mm thinner at the left end.
+    left = shape.faces().sort_by(bd.Axis.X)[0]
+    assert pytest.approx(-25) == left.bounding_box().min.Z
+    assert pytest.approx(-40) == shape.bounding_box().min.Z
+
+
+def test_taper_errors() -> None:
+    b = board(width=20)
+    with pytest.raises(ValueError, match="face or an edge"):
+        ww.Taper(b.left_end, end=b.right_end, amount=5)
+    with pytest.raises(ValueError, match="towards an end"):
+        ww.Taper(b.back_edge, end=b.top_face, amount=5)
+    with pytest.raises(ValueError, match="between 0 and 20"):
+        ww.Taper(b.back_edge, end=b.right_end, amount=20)
+
+
+def test_tenon_kinds() -> None:
+    b = board(width=60)
+    assert ww.Tenon(b.left_end, length=10, thickness=20, width=40).kind() == "tenon"
+    barefaced = ww.Tenon(b.left_end, length=10, thickness=20, width=40, thickness_offset=0)
+    assert barefaced.kind() == "barefaced tenon"
+    whole = ww.Tenon(b.left_end, length=10, thickness=40)
+    assert whole.cheeks() == 0
+    assert not whole.removes_material
+    assert ww.Tenon(b.left_end, length=10, thickness=40, width=50).removes_material

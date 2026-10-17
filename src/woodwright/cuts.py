@@ -265,16 +265,25 @@ class Tenon(Cut):
     def allowances(self) -> list[Allowance]:
         return [Allowance(self.side, self.length)]
 
-    def kind(self) -> str:
+    def cheeks(self) -> int:
+        """How many cheeks are cut: 0, 1 or 2."""
         t = self.part.thickness
         offset = self.thickness_offset
         offset = (t - self.thickness) / 2 if offset is None else offset
-        one_cheek = abs(offset) < _EPS or abs(offset + self.thickness - t) < _EPS
-        if self.width is None and one_cheek:
-            return "lap"
-        if self.width is None and self.side.axis == 1:
-            return "tongue"
-        return "tenon"
+        return int(offset > _EPS) + int(offset + self.thickness < t - _EPS)
+
+    @property
+    def removes_material(self) -> bool:
+        """False for a tenon as thick and wide as the part, e.g. a thin rail in a slot."""
+        return self.cheeks() > 0 or self.width is not None
+
+    def kind(self) -> str:
+        cheeks = self.cheeks()
+        if self.width is None:
+            if cheeks == 1:
+                return "lap"
+            return "tongue" if self.side.axis == 1 else "tenon"
+        return "barefaced tenon" if cheeks == 1 else "tenon"
 
     def describe(self) -> str:
         kind = self.kind()
@@ -379,6 +388,49 @@ class Mitre(Cut):
 
     def describe(self) -> str:
         return f"mitre {self.angle:g} deg on {self.side}, {self.inside} inside"
+
+
+@dataclass
+class Taper(Cut):
+    """A face or an edge planed at a slope, so that the part is `amount` thinner
+    (or narrower) at `end` than at the start of the taper.
+
+    The taper starts `length` from `end` (by default at the other end).
+    """
+
+    side: SideRef
+    end: SideRef
+    amount: float
+    length: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.side.axis == 0:
+            raise ValueError(f"a taper is planed on a face or an edge, not on {self.side}")
+        if self.end.part is not self.side.part or self.end.axis != 0:
+            raise ValueError(f"a taper runs towards an end of {self.side.part.name}")
+        if not 0 < self.amount < self.side.depth:
+            raise ValueError(f"taper amount must be between 0 and {self.side.depth:g}")
+
+    def removal(self) -> bd.Part:
+        side, end = self.side, self.end
+        length = self.part.length if self.length is None else self.length
+        s, c = side.side.sign, side.coordinate
+        x1 = end.coordinate
+        x0 = x1 - end.side.sign * length
+        start, stop = (x0, c), (x1, c - s * self.amount)
+        v = (stop[0] - start[0], stop[1] - start[1])
+        p1 = (start[0] - v[0], start[1] - v[1])
+        p2 = (stop[0] + v[0], stop[1] + v[1])
+        out = s * (2 * self.amount + _margin(self.part))
+        # Beyond the sloped line, but not before the start of the taper.
+        points = [(x0, c), p2, (p2[0], p2[1] + out), (x0, c + out)]
+        if self.length is None:
+            points = [p1, p2, (p2[0], p2[1] + out), (p1[0], p1[1] + out)]
+        return _prism(self.part, 0, side.axis, points)
+
+    def describe(self) -> str:
+        over = "" if self.length is None else f" over {self.length:g}"
+        return f"taper {self.amount:g} mm{over} on {self.side} towards {self.end}"
 
 
 @dataclass

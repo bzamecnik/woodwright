@@ -7,6 +7,7 @@ rabbet, groove, mortise, ...).
 """
 
 import functools
+import math
 import operator
 from dataclasses import dataclass, replace
 from typing import Self
@@ -14,19 +15,22 @@ from typing import Self
 import build123d as bd
 
 from woodwright import rules
-from woodwright.cuts import INF, Allowance, Cut, Pocket, Range, ShapeCut, Tenon, Tongue
+from woodwright.cuts import INF, Allowance, Cut, Mitre, Pocket, Range, ShapeCut, Tenon, Tongue
 from woodwright.part import Board, Side, SideRef
-from woodwright.placement import CENTERED, FLUSH, Position, mate, offset
+from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, offset
 
 __all__ = [
     "Allowance",
     "Bridle",
     "Butt",
+    "CrossLap",
     "DadoJoint",
     "GrooveJoint",
     "HalfLap",
     "Housing",
     "Joint",
+    "MitreCorner",
+    "MitreSplice",
     "MortiseTenon",
     "RabbetJoint",
     "ThroughDovetail",
@@ -156,7 +160,9 @@ class Housing(Joint):
         else:
             inserted = tenon.tenon_box()
         pocket = Pocket(socket, self.socket_box(placement, inserted))
-        return [pocket] if tenon is None else [pocket, tenon]
+        if tenon is None or not tenon.removes_material:
+            return [pocket]
+        return [pocket, tenon]
 
     def socket_box(
         self, placement: bd.Location, inserted: tuple[Range, Range, Range]
@@ -533,3 +539,150 @@ class ThroughDovetail(Joint):
         u0 = u + tail_wide
         profiles.append([(u0, 0), (u0 - flare, -t), (width, -t), (width, 0)])
         return profiles
+
+
+@dataclass
+class MitreCorner(Joint):
+    """Two ends meeting at a right-angled corner, both mitred.
+
+    `a_inside` and `b_inside` are the sides inside the corner: edges for a
+    picture frame (mitre across the face), faces for a carcase (mitre across
+    the edge). Design lengths are outside lengths, to the long points. The
+    mitres meet on the diagonal of the corner: at 45 degrees for parts of
+    equal width (or thickness, for a carcase).
+    """
+
+    a: SideRef
+    b: SideRef
+    a_inside: SideRef
+    b_inside: SideRef
+    flush: tuple[SideRef, SideRef] | None = None
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.a.part, self.b.part
+
+    def placement(self) -> bd.Location:
+        a, b = self.parts()
+        flush = self.flush or (
+            (a.ref_face, b.ref_face) if self.a_inside.axis == 1 else (a.ref_edge, b.ref_edge)
+        )
+        # The end of b lies against the inside of a, moved out to a's outside.
+        loc = mate(
+            self.a_inside,
+            self.b,
+            flush=flush,
+            position=flush_with(self.a),
+            gap=-self.a_inside.depth,
+        )
+        if (_direction(loc, self.b_inside.normal) + self.a.normal).length > _EPS:
+            raise ValueError(
+                f"{self.b_inside} is not inside the corner; give the opposite side, "
+                "or turn the part over with `flush`"
+            )
+        return loc
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a_width, b_width = self.a_inside.depth, self.b_inside.depth
+        return [
+            Mitre(self.a, inside=self.a_inside, angle=math.degrees(math.atan2(b_width, a_width))),
+            Mitre(self.b, inside=self.b_inside, angle=math.degrees(math.atan2(a_width, b_width))),
+        ]
+
+
+@dataclass
+class MitreSplice(Joint):
+    """Two parts end to end, lengthened by a mitre across both ends.
+
+    `short` is the side of part a that the mitre shortens: an edge for a
+    mitre across the face, a face for a mitre across the edge. The reference
+    faces and edges of both parts are flush. Design lengths are to the long
+    points, so the overall length is shorter by the overlap of the mitres.
+    """
+
+    a: SideRef
+    b: SideRef
+    short: SideRef
+    angle: float = 45.0
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.a.part, self.b.part
+
+    def _mitre_a(self) -> Mitre:
+        return Mitre(self.a, inside=self.short, angle=self.angle)
+
+    def placement(self) -> bd.Location:
+        a, b = self.parts()
+        return mate(
+            self.a,
+            self.b,
+            flush=(a.ref_face, b.ref_face),
+            position=flush_with(a.ref_edge),
+            gap=-self._mitre_a().shortening,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        # On part b the opposite side is short.
+        b_short = next(
+            side
+            for side in map(self.b.part.side, Side)
+            if (_direction(placement, side.normal) + self.short.normal).length < _EPS
+        )
+        return [self._mitre_a(), Mitre(self.b, inside=b_short, angle=self.angle)]
+
+
+@dataclass
+class CrossLap(Joint):
+    """Two parts crossing each other, each with a dado where the other one crosses.
+
+    Part b crosses part a at its edge `a`, with its end `b` first, and
+    reaches `overhang` beyond a's other edge (by default the parts cross in
+    their middles). The reference faces are flush; part a is cut `depth`
+    deep from its reference face (by default half its thickness), part b
+    from the other face, so b lies over a at the crossing.
+    """
+
+    a: SideRef
+    b: SideRef
+    position: Position = CENTERED
+    overhang: float | None = None
+    depth: float | None = None
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.a.part, self.b.part
+
+    def with_defaults(self) -> Self:
+        a, b = self.parts()
+        overhang = (b.length - self.a.depth) / 2 if self.overhang is None else self.overhang
+        return replace(
+            self, overhang=overhang, depth=self.depth or rules.lap_thickness(a.thickness)
+        )
+
+    def placement(self) -> bd.Location:
+        a, b = self.parts()
+        return mate(
+            self.a,
+            self.b,
+            flush=(a.ref_face, b.ref_face),
+            position=self.position,
+            gap=-(self.a.depth + _require(self.overhang)),
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a, b = self.parts()
+        depth = _require(self.depth)
+
+        def crossing(side: SideRef, loc: bd.Location, other: Board, z: Range) -> Pocket:
+            lo, hi = other.box
+            box = list(_socket(side, loc, tuple(zip(lo, hi, strict=True)), 0.0))
+            box[2] = z
+            return Pocket(side, (box[0], box[1], box[2]))
+
+        return [
+            crossing(a.top_face, placement, b, (-depth, INF)),
+            crossing(b.bottom_face, placement.inverse(), a, (-INF, -depth)),
+        ]
+
+
+def _direction(loc: bd.Location, vector: bd.Vector) -> bd.Vector:
+    """A direction mapped by a location (rotation only)."""
+    return (loc * bd.Location(tuple(vector))).position - loc.position
