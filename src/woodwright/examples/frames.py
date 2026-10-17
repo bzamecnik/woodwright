@@ -9,8 +9,9 @@ from woodwright.part import Board, SideRef
 from woodwright.placement import Position, flush_with
 from woodwright.stock import Stock
 
-# Makes the joint of a rail end with a stile edge, at a position along the stile.
-CornerJoint = Callable[[SideRef, SideRef, Position], Joint]
+# Makes the joint of a rail end with a stile edge, at a position along the
+# stile; the last side is the rail's outer edge.
+CornerJoint = Callable[[SideRef, SideRef, Position, SideRef], Joint]
 
 
 def _frame(
@@ -28,14 +29,20 @@ def _frame(
     rail_top = asm.add(Board("rail_top", stock, length=rail_length, width=width))
     rail_bottom = asm.add(Board("rail_bottom", stock, length=rail_length, width=width))
     # The stiles face each other with their back and front edges; their
-    # right ends are at the top.
-    for rail_end, stile_edge, stile_end in [
-        (rail_top.left_end, stile_left.back_edge, stile_left.right_end),
-        (rail_top.right_end, stile_right.front_edge, stile_right.right_end),
-        (rail_bottom.left_end, stile_left.back_edge, stile_left.left_end),
-        (rail_bottom.right_end, stile_right.front_edge, stile_right.left_end),
+    # right ends are at the top. The rails' outer edges are their front edge
+    # (top rail) and back edge (bottom rail).
+    for rail_end, stile_edge, stile_end, outer in [
+        (rail_top.left_end, stile_left.back_edge, stile_left.right_end, rail_top.front_edge),
+        (rail_top.right_end, stile_right.front_edge, stile_right.right_end, rail_top.front_edge),
+        (rail_bottom.left_end, stile_left.back_edge, stile_left.left_end, rail_bottom.back_edge),
+        (
+            rail_bottom.right_end,
+            stile_right.front_edge,
+            stile_right.left_end,
+            rail_bottom.back_edge,
+        ),
     ]:
-        asm.join(corner(rail_end, stile_edge, flush_with(stile_end)))
+        asm.join(corner(rail_end, stile_edge, flush_with(stile_end), outer))
     return asm, [stile_left, stile_right, rail_top, rail_bottom]
 
 
@@ -48,7 +55,7 @@ def mortise_tenon_frame(
 ) -> Assembly:
     """Two stiles and two rails, the rails tenoned into the stiles at their ends."""
 
-    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position) -> Joint:
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
         return MortiseTenon(
             tenon=rail_end, mortise=stile_edge, position=position, shoulder=shoulder
         )
@@ -65,7 +72,7 @@ def bridle_frame(
 ) -> Assembly:
     """A frame with bridle joints at the corners."""
 
-    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position) -> Joint:
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
         return Bridle(tenon=rail_end, slot=stile_edge, position=position)
 
     asm, _ = _frame("bridle_frame", corner, stile_length, rail_length, width, stock)
@@ -80,7 +87,7 @@ def half_lap_frame(
 ) -> Assembly:
     """A frame with half-lap corners."""
 
-    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position) -> Joint:
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
         return HalfLap(lap=rail_end, socket=stile_edge, position=position)
 
     asm, _ = _frame("half_lap_frame", corner, stile_length, rail_length, width, stock)
@@ -98,11 +105,18 @@ def frame_and_panel(
     """A mortise-and-tenon frame with a panel in grooves along its inside edges.
 
     The panel's design size is the opening of the frame; the grooves add to it.
+    The grooves run through the stiles, so the tenons are as thick as the
+    grooves are wide and have haunches filling the grooves out to the ends.
     """
 
-    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position) -> Joint:
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
         return MortiseTenon(
-            tenon=rail_end, mortise=stile_edge, position=position, shoulder=shoulder
+            tenon=rail_end,
+            mortise=stile_edge,
+            position=position,
+            shoulder=shoulder,
+            tenon_thickness=panel_stock.thickness,
+            haunch=outer,
         )
 
     asm, (stile_left, stile_right, rail_top, rail_bottom) = _frame(

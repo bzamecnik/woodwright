@@ -5,6 +5,7 @@ import itertools
 import build123d as bd
 
 from woodwright.assembly import Assembly
+from woodwright.cuts import Groove
 from woodwright.examples._common import OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
@@ -239,6 +240,38 @@ def mortise_tenon(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge))
+    return asm
+
+
+def haunched_mortise_tenon_corner(
+    stile_length: float = 300,
+    rail_length: float = 200,
+    width: float = 60,
+    groove_width: float = 8,
+    groove_depth: float = 10,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A frame corner with grooves along the inside edges and a haunched tenon.
+
+    The groove runs out of the end of the stile; the haunch on the outer
+    side of the tenon fills it, the tenon being as thick as the groove is wide.
+    """
+    asm = Assembly("haunched_mortise_tenon_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    for edge in (stile.back_edge, rail.back_edge):
+        edge.part.cut(Groove(edge, width=groove_width, depth=groove_depth))
+    asm.join(
+        MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=flush_with(stile.right_end),
+            shoulder=groove_depth,
+            tenon_thickness=groove_width,
+            haunch=rail.front_edge,
+            haunch_length=groove_depth,
+        )
+    )
     return asm
 
 

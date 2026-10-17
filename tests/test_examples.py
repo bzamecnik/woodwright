@@ -43,3 +43,19 @@ def test_frame_and_panel_sizes() -> None:
     sizes = {part.part.name: part.size for part in model.parts}
     assert sizes["panel"] == (500, 320, 10)  # the opening plus the grooves
     assert sizes["rail_top"] == (380, 60, 20)  # shoulder to shoulder plus the tenons
+
+
+def test_frame_and_panel_fills_the_grooves() -> None:
+    import build123d as bd
+
+    model = frames.frame_and_panel().resolve()
+    parts = {part.part.name: part for part in model.parts}
+    stile = parts["stile_left"]
+    groove = next(cut for cut in stile.cuts if cut.describe().startswith("groove"))
+    design_box = bd.Box(600, 60, 20, align=(bd.Align.MIN, bd.Align.MIN, bd.Align.MAX))
+    region = stile.location * (groove.removal() & design_box)
+    filled = sum(
+        (region & parts[name].placed_shape).volume for name in ("rail_top", "rail_bottom", "panel")
+    )
+    # The haunches, the tenons and the panel fill the groove running through the stile.
+    assert filled == pytest.approx(region.volume)

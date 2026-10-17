@@ -49,6 +49,7 @@ ALL: list[Example] = [
     joints.half_lap_t,
     joints.bridle_corner,
     joints.mortise_tenon,
+    joints.haunched_mortise_tenon_corner,
     joints.through_mortise_tenon,
     joints.mortise_tenon_thin_rail,
     joints.dovetail_corner,

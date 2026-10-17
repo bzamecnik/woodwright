@@ -116,6 +116,8 @@ Done items name their example in `woodwright.examples`
     - a wedge goes through the second mortice
     - the second mortice can go through the face or through the edge
   - [ ] stub tenon - L-joint, mortice offset from the endgrain, tenon has three shoulders
+  - [x] haunched tenon - a stub filling a groove that runs out of the mortised part –
+    `joints.haunched_mortise_tenon_corner`, `frames.frame_and_panel`
   - [ ] haunched stub tenon - tenon
   - [ ] loose tenon - two blind mortices, tenon is a separate piece
   - shouldered tenon
