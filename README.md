@@ -11,6 +11,12 @@ uv sync
 pre-commit install  # ruff lint + format on commit
 ```
 
+Optionally, for notebooks with an interactive 3D viewer:
+```shell
+uv sync --group notebook
+uv run jupyter lab
+```
+
 ## Development
 
 ```shell
