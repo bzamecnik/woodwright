@@ -1,12 +1,33 @@
-"""Cuts: material removed from a part, built in the part's frame."""
+"""Cuts: material removed from a part, built in the part's frame.
 
+Most cuts remove an axis-aligned box from a board (`BoxCut`): grooves, dados,
+rabbets, mortises. They are described by ranges along the three axes of the
+part frame, measured on the design box; an infinite bound means the cut is
+open on that side (it runs out of the board), so it also goes through any
+allowance there. The cut list names such cuts by their shape, whichever class
+made them: a `Groove` at the very edge of a board is listed as a rabbet.
+"""
+
+import math
 from dataclasses import dataclass
 
 import build123d as bd
 
-from woodwright.part import Board, SideRef
+from woodwright.part import ArrisRef, Board, Side, SideRef
 
 _MIN = (bd.Align.MIN, bd.Align.MIN, bd.Align.MIN)
+_EPS = 1e-6
+INF = math.inf
+
+Range = tuple[float, float]
+
+
+@dataclass(frozen=True)
+class Allowance:
+    """Extension of a part's blank beyond its design box at one side."""
+
+    side: SideRef
+    amount: float
 
 
 class Cut:
@@ -22,12 +43,153 @@ class Cut:
         """The removed volume in the part frame."""
         raise NotImplementedError
 
+    def allowances(self) -> list[Allowance]:
+        """Extensions of the blank the cut needs, e.g. for a tenon."""
+        return []
+
     def describe(self) -> str:
         return type(self).__name__
 
 
+# --- Box cuts ---------------------------------------------------------------
+
+
+class BoxCut(Cut):
+    """A cut removing an axis-aligned box, given by ranges in the part frame."""
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        raise NotImplementedError
+
+    def removal(self) -> bd.Part:
+        return _box(self.part, self.ranges())
+
+    def describe(self) -> str:
+        return _describe_box(self.side, self.ranges())
+
+
 @dataclass
-class Mortise(Cut):
+class Pocket(BoxCut):
+    """A box cut given directly by its ranges, e.g. a socket derived by a joint."""
+
+    side: SideRef
+    box: tuple[Range, Range, Range]
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        return self.box
+
+
+@dataclass
+class Groove(BoxCut):
+    """A groove along the grain in a face or an edge, from end to end.
+
+    It lies `distance` from `ref`, an adjacent side along the grain (by
+    default the reference edge for faces and the reference face for edges),
+    or in the middle when `distance` is None.
+    """
+
+    side: SideRef
+    width: float
+    depth: float
+    distance: float | None = None
+    ref: SideRef | None = None
+
+    def __post_init__(self) -> None:
+        if self.side.axis == 0:
+            raise ValueError(f"a groove goes along the grain, not into {self.side}")
+        if self.ref is None:
+            board = self.side.part
+            self.ref = board.ref_edge if self.side.axis == 2 else board.ref_face
+        _check_adjacent(self.side, self.ref)
+        if self.ref.axis == 0:
+            raise ValueError(f"a groove is positioned from a side along the grain, not {self.ref}")
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
+
+
+@dataclass
+class Dado(BoxCut):
+    """A dado across the grain in a face or an edge, from side to side.
+
+    It lies `distance` from `ref`, an end (by default the left end), or in the
+    middle when `distance` is None.
+    """
+
+    side: SideRef
+    width: float
+    depth: float
+    distance: float | None = None
+    ref: SideRef | None = None
+
+    def __post_init__(self) -> None:
+        if self.side.axis == 0:
+            raise ValueError(f"a dado goes across the grain, not into {self.side}")
+        if self.ref is None:
+            self.ref = self.side.part.left_end
+        if self.ref.part is not self.side.part or self.ref.axis != 0:
+            raise ValueError(f"a dado is positioned from an end of {self.side.part.name}")
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
+
+
+@dataclass
+class Rabbet(BoxCut):
+    """A rabbet into `side`, open to the adjacent side `at`, along their arris.
+
+    `width` is measured on `side` from `at`, `depth` into `side`. With `at`
+    an end it is an end rabbet.
+    """
+
+    side: SideRef
+    at: SideRef
+    width: float
+    depth: float
+
+    def __post_init__(self) -> None:
+        _check_adjacent(self.side, self.at)
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        return _ranges(_into(self.side, self.depth), _into(self.at, self.width))
+
+
+@dataclass
+class EndRabbet(Rabbet):
+    """A rabbet at an end of a board, across the grain."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.at.axis != 0:
+            raise ValueError(f"an end rabbet is at an end, not at {self.at}")
+
+
+@dataclass
+class SlotMortise(BoxCut):
+    """A slot into an end, open at the end and on two opposite sides.
+
+    The slot lies `distance` from `ref` (by default the reference face, so the
+    slot goes through the width), or in the middle when `distance` is None.
+    """
+
+    side: SideRef
+    width: float
+    depth: float
+    distance: float | None = None
+    ref: SideRef | None = None
+
+    def __post_init__(self) -> None:
+        if self.side.axis != 0:
+            raise ValueError(f"a slot mortise goes into an end, not into {self.side}")
+        if self.ref is None:
+            self.ref = self.side.part.ref_face
+        _check_adjacent(self.side, self.ref)
+
+    def ranges(self) -> tuple[Range, Range, Range]:
+        return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
+
+
+@dataclass
+class Mortise(BoxCut):
     """A rectangular pocket into a side, in the side's plane coordinates."""
 
     side: SideRef
@@ -37,13 +199,14 @@ class Mortise(Cut):
     width: float
     depth: float
 
-    def removal(self) -> bd.Part:
-        return side_box(
+    def ranges(self) -> tuple[Range, Range, Range]:
+        box = side_box(
             self.side, self.start, self.offset, -self.depth, self.length, self.width, self.depth
-        )
+        ).bounding_box()
+        return tuple(zip(box.min, box.max, strict=True))  # type: ignore[return-value]
 
-    def describe(self) -> str:
-        return f"mortise {self.length:g} x {self.width:g} mm, {self.depth:g} deep, in {self.side}"
+
+# --- Tenons -----------------------------------------------------------------
 
 
 @dataclass
@@ -51,33 +214,171 @@ class Tenon(Cut):
     """Shoulders and cheeks cut beyond a side (usually an end), leaving a tenon.
 
     The side is the shoulder plane; the material beyond it comes from an
-    allowance. The tenon is centered on the side unless offsets are given.
+    allowance the tenon asks for. Across the thickness the tenon lies
+    `thickness_offset` below the top face; along the side (across the width
+    for an end, along the length for an edge) `width_offset` from the front
+    edge or the left end. Either is centered when None. Without `width` the
+    tenon spans the whole side, with cheeks but no shoulders.
     """
 
     side: SideRef
     length: float
-    thickness: float  # along the side's y
-    width: float  # along the side's x
+    thickness: float
+    width: float | None = None
     width_offset: float | None = None
     thickness_offset: float | None = None
 
+    def __post_init__(self) -> None:
+        if self.side.axis == 2:
+            raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+
+    def tenon_box(self) -> tuple[Range, Range, Range]:
+        """Ranges of the tenon itself in the part frame."""
+        lo, hi = self.part.box
+        width_axis = 1 - self.side.axis  # across the width for ends, the length for edges
+        boxes: dict[int, Range] = {self.side.axis: _beyond(self.side, self.length)}
+        t, offset = self.part.thickness, self.thickness_offset
+        offset = (t - self.thickness) / 2 if offset is None else offset
+        boxes[2] = (-offset - self.thickness, -offset)
+        if self.width is None:
+            boxes[width_axis] = (lo[width_axis], hi[width_axis])
+        else:
+            extent = hi[width_axis] - lo[width_axis]
+            w_offset = (extent - self.width) / 2 if self.width_offset is None else self.width_offset
+            start = lo[width_axis] + w_offset
+            boxes[width_axis] = (start, start + self.width)
+        return boxes[0], boxes[1], boxes[2]
+
     def tenon(self) -> bd.Part:
         """The tenon itself, in the part frame."""
-        u, v = self.side.size
-        width_offset = (u - self.width) / 2 if self.width_offset is None else self.width_offset
-        thickness_offset = (
-            (v - self.thickness) / 2 if self.thickness_offset is None else self.thickness_offset
-        )
-        return side_box(
-            self.side, width_offset, thickness_offset, 0, self.width, self.thickness, self.length
-        )
+        return _box(self.part, self.tenon_box())
 
     def removal(self) -> bd.Part:
-        u, v = self.side.size
-        return side_box(self.side, 0, 0, 0, u, v, self.length) - self.tenon()
+        beyond = _ranges(_into(self.side, 0))
+        # Open the tenon where it reaches the sides of the design box and the
+        # end of the blank, so that no slivers are left between the two boxes.
+        tenon = list(_open(self.part, self.tenon_box(), skip=self.side.axis))
+        a, b = tenon[self.side.axis]
+        tenon[self.side.axis] = (a, INF) if self.side.side.sign > 0 else (-INF, b)
+        return _box(self.part, beyond) - _box(self.part, (tenon[0], tenon[1], tenon[2]))
+
+    def allowances(self) -> list[Allowance]:
+        return [Allowance(self.side, self.length)]
+
+    def kind(self) -> str:
+        t = self.part.thickness
+        offset = self.thickness_offset
+        offset = (t - self.thickness) / 2 if offset is None else offset
+        one_cheek = abs(offset) < _EPS or abs(offset + self.thickness - t) < _EPS
+        if self.width is None and one_cheek:
+            return "lap"
+        if self.width is None and self.side.axis == 1:
+            return "tongue"
+        return "tenon"
 
     def describe(self) -> str:
-        return f"tenon {self.width:g} x {self.thickness:g} mm, {self.length:g} long, on {self.side}"
+        kind = self.kind()
+        if self.width is None:
+            return f"{kind} {self.thickness:g} mm thick, {self.length:g} long, on {self.side}"
+        return (
+            f"{kind} {self.width:g} x {self.thickness:g} mm, {self.length:g} long, on {self.side}"
+        )
+
+
+@dataclass
+class Tongue(Tenon):
+    """A tongue along an edge: a tenon over the whole edge, without shoulders."""
+
+    def __post_init__(self) -> None:
+        if self.side.axis != 1:
+            raise ValueError(f"a tongue is cut on an edge, not on {self.side}")
+        if self.width is not None:
+            raise ValueError("a tongue runs along the whole edge, it has no width")
+
+
+# --- Angled cuts ------------------------------------------------------------
+
+
+@dataclass
+class Chamfer(Cut):
+    """A chamfer along an arris, `size` wide on its first side, `size_b` on the second.
+
+    With `size_b` None the chamfer is at 45 degrees.
+    """
+
+    arris: ArrisRef
+    size: float
+    size_b: float | None = None
+
+    @property
+    def part(self) -> Board:
+        return self.arris.a.part
+
+    def removal(self) -> bd.Part:
+        a, b = self.arris.a, self.arris.b
+        size_b = self.size if self.size_b is None else self.size_b
+        m = _margin(self.part)
+        sa, sb = a.side.sign, b.side.sign
+        ca, cb = a.coordinate, b.coordinate
+        # Corner region in the (a.axis, b.axis) plane, beyond the chamfer line.
+        points = [
+            (ca, cb - sb * self.size),
+            (ca + sa * m, cb - sb * self.size),
+            (ca + sa * m, cb + sb * m),
+            (ca - sa * size_b, cb + sb * m),
+            (ca - sa * size_b, cb),
+        ]
+        return _prism(self.part, a.axis, b.axis, points)
+
+    def describe(self) -> str:
+        size_b = "" if self.size_b is None else f" x {self.size_b:g}"
+        return f"chamfer {self.size:g}{size_b} mm on {self.arris}"
+
+
+@dataclass
+class Mitre(Cut):
+    """An end cut at `angle` from square, shortening the `inside` side.
+
+    The opposite side keeps the full design length (the long point), so the
+    design length is the outside length, as for a picture frame. With
+    `inside` an edge the mitre is across the face (picture frame), with
+    `inside` a face it is across the edge (carcase corner).
+    """
+
+    side: SideRef
+    inside: SideRef
+    angle: float = 45.0
+
+    def __post_init__(self) -> None:
+        if self.side.axis != 0:
+            raise ValueError(f"a mitre is cut on an end, not on {self.side}")
+        _check_adjacent(self.side, self.inside)
+        if not 0 < self.angle < 90:
+            raise ValueError(f"mitre angle must be between 0 and 90 degrees, got {self.angle}")
+
+    @property
+    def shortening(self) -> float:
+        """How much shorter the inside side is than the design length."""
+        return self.inside.depth * math.tan(math.radians(self.angle))
+
+    def removal(self) -> bd.Part:
+        end, inside = self.side, self.inside
+        lo, hi = self.part.box
+        e, a = end.axis, inside.axis
+        se = end.side.sign
+        ce, ci = end.coordinate, inside.coordinate
+        co = (lo if inside.side.sign > 0 else hi)[a]  # the opposite side
+        long_point = (ce, co)
+        short_point = (ce - se * self.shortening, ci)
+        v = (short_point[0] - long_point[0], short_point[1] - long_point[1])
+        p1 = (long_point[0] - v[0], long_point[1] - v[1])
+        p2 = (short_point[0] + v[0], short_point[1] + v[1])
+        out = se * (2 * self.shortening + _margin(self.part))
+        points = [p1, p2, (p2[0] + out, p2[1]), (p1[0] + out, p1[1])]
+        return _prism(self.part, e, a, points)
+
+    def describe(self) -> str:
+        return f"mitre {self.angle:g} deg on {self.side}, {self.inside} inside"
 
 
 @dataclass
@@ -107,3 +408,160 @@ def side_box(
     w is along the outward normal: negative into the part, positive beyond it.
     """
     return bd.Location(side.plane) * bd.Pos(u, v, w) * bd.Box(du, dv, dw, align=_MIN)
+
+
+# --- Helpers ----------------------------------------------------------------
+
+
+def _check_adjacent(side: SideRef, other: SideRef) -> None:
+    if other.part is not side.part or other.axis == side.axis:
+        raise ValueError(f"{other} is not adjacent to {side}")
+
+
+def _into(side: SideRef, depth: float) -> tuple[int, Range]:
+    """From `side` into the part by `depth`, open outwards."""
+    c = side.coordinate
+    return side.axis, ((c - depth, INF) if side.side.sign > 0 else (-INF, c + depth))
+
+
+def _beyond(side: SideRef, length: float) -> Range:
+    """From `side` outwards by `length`."""
+    c = side.coordinate
+    return (c, c + length) if side.side.sign > 0 else (c - length, c)
+
+
+def _across(ref: SideRef, width: float, distance: float | None) -> tuple[int, Range]:
+    """`width` wide, `distance` from `ref` inwards, or centered when None."""
+    lo, hi = ref.part.box
+    axis = ref.axis
+    if distance is None:
+        distance = (hi[axis] - lo[axis] - width) / 2
+    c = ref.coordinate
+    if ref.side.sign > 0:
+        return axis, (c - distance - width, c - distance)
+    return axis, (c + distance, c + distance + width)
+
+
+def _ranges(*given: tuple[int, Range]) -> tuple[Range, Range, Range]:
+    """Ranges on the given axes, the others through the whole part."""
+    ranges = [(-INF, INF)] * 3
+    for axis, r in given:
+        ranges[axis] = r
+    return ranges[0], ranges[1], ranges[2]
+
+
+def _open(
+    part: Board, ranges: tuple[Range, Range, Range], skip: int | None = None
+) -> tuple[Range, Range, Range]:
+    """Make bounds open where they reach the sides of the design box."""
+    lo, hi = part.box
+    opened = []
+    for axis, (a, b) in enumerate(ranges):
+        if axis != skip:
+            a = -INF if a <= lo[axis] + _EPS else a
+            b = INF if b >= hi[axis] - _EPS else b
+        opened.append((a, b))
+    return opened[0], opened[1], opened[2]
+
+
+def _margin(part: Board) -> float:
+    """How far open cuts reach beyond the design box (to clear any allowance)."""
+    return part.length + part.width + part.thickness
+
+
+def _box(part: Board, ranges: tuple[Range, Range, Range]) -> bd.Part:
+    lo, hi = part.box
+    m = _margin(part)
+    corner, size = [], []
+    for axis, (a, b) in enumerate(ranges):
+        a = lo[axis] - m if a == -INF else a
+        b = hi[axis] + m if b == INF else b
+        corner.append(a)
+        size.append(b - a)
+    return bd.Pos(*corner) * bd.Box(*size, align=_MIN)
+
+
+def _unit(axis: int) -> bd.Vector:
+    coords = [0.0, 0.0, 0.0]
+    coords[axis] = 1.0
+    return bd.Vector(*coords)
+
+
+def _prism(part: Board, i: int, j: int, points: list[tuple[float, float]]) -> bd.Part:
+    """A polygon in (i, j) coordinates of the part frame, through the part along the third axis."""
+    t = 3 - i - j
+    lo, hi = part.box
+    origin = [0.0, 0.0, 0.0]
+    origin[t] = (lo[t] + hi[t]) / 2
+    x_dir, y_dir = _unit(i), _unit(j)
+    plane = bd.Plane(tuple(origin), x_dir=x_dir, z_dir=x_dir.cross(y_dir))
+    face = plane * bd.Polygon(*points)
+    return bd.extrude(face, amount=(hi[t] - lo[t]) / 2 + _margin(part), both=True)
+
+
+def _describe_box(side: SideRef, ranges: tuple[Range, Range, Range]) -> str:
+    """Name a box cut by its shape, with its sizes, e.g. 'groove 10 mm, 5 deep, in b.top_face'."""
+    part = side.part
+    lo, hi = part.box
+    # How each axis is open: both ways, one way (to which side), or not at all.
+    full, open_sides, closed = set(), {}, set()
+    for axis, (a, b) in enumerate(_open(part, ranges)):
+        if a == -INF and b == INF:
+            full.add(axis)
+        elif a == -INF:
+            open_sides[axis] = SideRef(part, _side(axis, -1))
+        elif b == INF:
+            open_sides[axis] = SideRef(part, _side(axis, +1))
+        else:
+            closed.add(axis)
+
+    # The side the cut is entered from: the given one if open, else a face,
+    # an edge or an end the cut is open to.
+    if side.axis in open_sides:
+        entry_axis = side.axis
+    elif open_sides:
+        entry_axis = max(open_sides)
+    else:
+        entry_axis = side.axis
+    entry = open_sides.get(entry_axis, side)
+    others = [s for axis, s in sorted(open_sides.items()) if axis != entry_axis]
+
+    if len(full) == 3:
+        name = "removal"
+    elif len(full) == 2:
+        name = "recess"
+    elif len(full) == 1 and not others:
+        (along,) = full
+        if along == entry_axis:
+            name = "through mortise"
+        elif entry_axis not in open_sides:
+            name = "notch"
+        elif along == 0:
+            name = "groove"
+        elif entry_axis == 0:
+            name = "slot mortise"
+        else:
+            name = "dado"
+    elif len(full) == 1:
+        name = "rabbet" if full == {0} else "end rabbet"
+    elif not others and entry_axis in open_sides:
+        name = "mortise"
+    else:
+        name = "notch"
+
+    def extent(axis: int) -> float:
+        a, b = ranges[axis]
+        return min(b, hi[axis]) - max(a, lo[axis])
+
+    sizes = " x ".join(f"{extent(axis):g}" for axis in entry._plane_axes if axis not in full)
+    text = f"{name} {sizes} mm" if sizes else name
+    if entry_axis not in full:
+        text += f", {extent(entry_axis):g} deep,"
+    text += f" in {entry}"
+    if others:
+        text += " at " + ", ".join(str(s) for s in others)
+    return text
+
+
+def _side(axis: int, sign: int) -> Side:
+    return next(s for s in Side if s.axis == axis and s.sign == sign)

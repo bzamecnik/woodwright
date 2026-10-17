@@ -1,33 +1,90 @@
 """Semantic CAD library for woodworking."""
 
 from woodwright.assembly import Assembly, ResolvedModel, ResolvedPart
-from woodwright.cuts import Cut, Mortise, ShapeCut, Tenon
-from woodwright.joints import Allowance, Joint, MortiseTenon, ThroughDovetail
+from woodwright.cuts import (
+    Allowance,
+    BoxCut,
+    Chamfer,
+    Cut,
+    Dado,
+    EndRabbet,
+    Groove,
+    Mitre,
+    Mortise,
+    Pocket,
+    Rabbet,
+    ShapeCut,
+    SlotMortise,
+    Tenon,
+    Tongue,
+)
+from woodwright.joints import (
+    Bridle,
+    Butt,
+    DadoJoint,
+    GrooveJoint,
+    HalfLap,
+    Housing,
+    Joint,
+    MortiseTenon,
+    RabbetJoint,
+    ThroughDovetail,
+    TongueAndGroove,
+)
 from woodwright.part import ArrisRef, Board, Side, SideRef
-from woodwright.placement import Centered, Offset, Position, centered, mate, offset
+from woodwright.placement import (
+    FLUSH,
+    Centered,
+    Offset,
+    Position,
+    centered,
+    flush_with,
+    mate,
+    offset,
+)
 from woodwright.stock import Stock
 
 __all__ = [
+    "FLUSH",
     "Allowance",
     "ArrisRef",
     "Assembly",
     "Board",
+    "BoxCut",
+    "Bridle",
+    "Butt",
     "Centered",
+    "Chamfer",
     "Cut",
+    "Dado",
+    "DadoJoint",
+    "EndRabbet",
+    "Groove",
+    "GrooveJoint",
+    "HalfLap",
+    "Housing",
     "Joint",
+    "Mitre",
     "Mortise",
     "MortiseTenon",
     "Offset",
+    "Pocket",
     "Position",
+    "Rabbet",
+    "RabbetJoint",
     "ResolvedModel",
     "ResolvedPart",
     "ShapeCut",
     "Side",
     "SideRef",
+    "SlotMortise",
     "Stock",
     "Tenon",
     "ThroughDovetail",
+    "Tongue",
+    "TongueAndGroove",
     "centered",
+    "flush_with",
     "mate",
     "offset",
 ]

@@ -12,3 +12,28 @@ def tenon_thickness(stock_thickness: float, chisels: tuple[float, ...] = CHISEL_
 def tenon_length(mortise_depth: float) -> float:
     """Two thirds of the material behind the mortised side."""
     return mortise_depth * 2 / 3
+
+
+def _round(length: float, step: float = 0.5) -> float:
+    """To a length that can be set on a tool."""
+    return round(length / step) * step
+
+
+def dado_depth(stock_thickness: float) -> float:
+    """A third of the housing board."""
+    return _round(stock_thickness / 3)
+
+
+def rabbet_depth(stock_thickness: float) -> float:
+    """Half of the rabbeted board."""
+    return _round(stock_thickness / 2)
+
+
+def groove_depth(stock_thickness: float) -> float:
+    """Half of the stock thickness, a common depth for panel grooves and tongues."""
+    return _round(stock_thickness / 2)
+
+
+def lap_thickness(stock_thickness: float) -> float:
+    """Half of the stock: the two laps together make up its thickness."""
+    return _round(stock_thickness / 2)

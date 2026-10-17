@@ -38,14 +38,15 @@ class Assembly:
                     raise ValueError(f"{part.name} is joined but not added to {self.name}")
 
         blanks = {part: (list(part.box[0]), list(part.box[1])) for part in self.parts}
-        for joint in joints:
-            for allowance in joint.allowances():
-                lo, hi = blanks[allowance.side.part]
-                axis = allowance.side.axis
-                if allowance.side.side.sign > 0:
-                    hi[axis] += allowance.amount
-                else:
-                    lo[axis] -= allowance.amount
+        allowances = [a for joint in joints for a in joint.allowances()]
+        allowances += [a for part in self.parts for cut in part.cuts for a in cut.allowances()]
+        for allowance in allowances:
+            lo, hi = blanks[allowance.side.part]
+            axis = allowance.side.axis
+            if allowance.side.side.sign > 0:
+                hi[axis] += allowance.amount
+            else:
+                lo[axis] -= allowance.amount
 
         placements = [joint.placement() for joint in joints]
         locations = self._place(joints, placements)

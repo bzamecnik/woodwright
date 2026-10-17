@@ -1,9 +1,20 @@
+import math
+
 import build123d as bd
 import pytest
 
 import woodwright as ww
 
 OAK = ww.Stock.board(20, "oak")
+
+
+def cut_part(board: ww.Board, *cuts: ww.Cut) -> bd.Part:
+    """The board with the cuts, as resolved alone in an assembly."""
+    for cut in cuts:
+        board.cut(cut)
+    asm = ww.Assembly("test")
+    asm.add(board)
+    return asm.resolve()[board].shape
 
 
 def bbox(shape: bd.Part) -> tuple[tuple, tuple]:
@@ -32,8 +43,9 @@ def test_centered_tenon_on_an_end() -> None:
     lo, hi = bbox(tenon.tenon())
     assert lo == (-40, 5, -14)
     assert hi == (0, 55, -6)
-    assert tenon.removal().volume == pytest.approx(40 * 60 * 20 - 40 * 50 * 8)
+    assert tenon.allowances() == [ww.Allowance(rail.left_end, 40)]
     assert tenon.describe() == "tenon 50 x 8 mm, 40 long, on rail.left_end"
+    assert cut_part(rail, tenon).volume == pytest.approx(300 * 60 * 20 + 40 * 50 * 8)
 
 
 def test_tenon_with_offsets() -> None:
@@ -41,10 +53,10 @@ def test_tenon_with_offsets() -> None:
     tenon = ww.Tenon(
         rail.right_end, length=30, thickness=10, width=40, width_offset=0, thickness_offset=2
     )
-    # The right end's plane: x across the width, y up from the bottom face.
+    # Offsets from the front edge and from the top face.
     lo, hi = bbox(tenon.tenon())
-    assert lo == (300, 0, -18)
-    assert hi == (330, 40, -8)
+    assert lo == (300, 0, -12)
+    assert hi == (330, 40, -2)
 
 
 def test_shape_cut() -> None:
@@ -54,3 +66,132 @@ def test_shape_cut() -> None:
     assert cut.part is board
     assert cut.removal() is box
     assert cut.describe() == "notch"
+
+
+def board(length: float = 600, width: float = 300) -> ww.Board:
+    return ww.Board("b", ww.Stock.board(40), length=length, width=width)
+
+
+def test_groove() -> None:
+    b = board()
+    groove = ww.Groove(b.top_face, width=10, depth=20, distance=50)
+    assert cut_part(b, groove).volume == pytest.approx(600 * 300 * 40 - 600 * 10 * 20)
+    assert groove.ranges() == ((-ww.cuts.INF, ww.cuts.INF), (50, 60), (-20, ww.cuts.INF))
+    assert groove.describe() == "groove 10 mm, 20 deep, in b.top_face"
+
+
+def test_groove_centered_and_from_another_side() -> None:
+    b = board()
+    centered = ww.Groove(b.top_face, width=10, depth=20)
+    assert centered.ranges()[1] == (145, 155)
+    from_back = ww.Groove(b.top_face, width=10, depth=20, distance=50, ref=b.back_edge)
+    assert from_back.ranges()[1] == (240, 250)
+    in_edge = ww.Groove(b.back_edge, width=10, depth=5)
+    assert in_edge.ranges() == ((-ww.cuts.INF, ww.cuts.INF), (295, ww.cuts.INF), (-25, -15))
+
+
+def test_groove_at_the_edge_is_a_rabbet() -> None:
+    b = board()
+    assert (
+        ww.Groove(b.top_face, width=10, depth=20, distance=0).describe()
+        == "rabbet 10 mm, 20 deep, in b.top_face at b.front_edge"
+    )
+
+
+def test_dado() -> None:
+    b = board()
+    dado = ww.Dado(b.top_face, width=30, depth=10, distance=100, ref=b.right_end)
+    assert dado.ranges()[0] == (470, 500)
+    assert cut_part(b, dado).volume == pytest.approx(600 * 300 * 40 - 30 * 300 * 10)
+    assert dado.describe() == "dado 30 mm, 10 deep, in b.top_face"
+
+
+def test_rabbets() -> None:
+    b = board()
+    rabbet = ww.Rabbet(b.top_face, at=b.back_edge, width=10, depth=20)
+    assert rabbet.describe() == "rabbet 10 mm, 20 deep, in b.top_face at b.back_edge"
+    end_rabbet = ww.EndRabbet(b.bottom_face, at=b.right_end, width=30, depth=10)
+    assert end_rabbet.describe() == "end rabbet 30 mm, 10 deep, in b.bottom_face at b.right_end"
+    volume = 600 * 300 * 40 - 600 * 10 * 20 - 30 * 300 * 10
+    assert cut_part(b, rabbet, end_rabbet).volume == pytest.approx(volume)
+    with pytest.raises(ValueError, match="at an end"):
+        ww.EndRabbet(b.top_face, at=b.back_edge, width=10, depth=10)
+
+
+def test_slot_mortise() -> None:
+    b = board(width=60)
+    slot = ww.SlotMortise(b.left_end, width=14, depth=60)
+    assert slot.ranges() == ((-ww.cuts.INF, 60), (-ww.cuts.INF, ww.cuts.INF), (-27, -13))
+    assert slot.describe() == "slot mortise 14 mm, 60 deep, in b.left_end"
+    with pytest.raises(ValueError, match="into an end"):
+        ww.SlotMortise(b.top_face, width=14, depth=60)
+
+
+def test_cuts_along_the_grain_only_into_faces_and_edges() -> None:
+    b = board()
+    with pytest.raises(ValueError, match="along the grain"):
+        ww.Groove(b.left_end, width=10, depth=10)
+    with pytest.raises(ValueError, match="across the grain"):
+        ww.Dado(b.right_end, width=10, depth=10)
+    with pytest.raises(ValueError, match="not adjacent"):
+        ww.Rabbet(b.top_face, at=b.bottom_face, width=10, depth=10)
+
+
+def test_through_mortise() -> None:
+    b = board(width=60)
+    mortise = ww.Mortise(b.back_edge, start=275, length=50, offset=13, width=14, depth=60)
+    assert mortise.describe() == "through mortise 50 x 14 mm in b.back_edge"
+
+
+def test_tongue() -> None:
+    b = board(width=150)
+    tongue = ww.Tongue(b.back_edge, length=10, thickness=12)
+    assert tongue.describe() == "tongue 12 mm thick, 10 long, on b.back_edge"
+    assert cut_part(b, tongue).volume == pytest.approx(600 * 150 * 40 + 600 * 10 * 12)
+    with pytest.raises(ValueError, match="on an edge"):
+        ww.Tongue(b.left_end, length=10, thickness=12)
+
+
+def test_lap() -> None:
+    b = board(width=60)
+    lap = ww.Tenon(b.left_end, length=60, thickness=20, thickness_offset=20)
+    assert lap.describe() == "lap 20 mm thick, 60 long, on b.left_end"
+    assert cut_part(b, lap).volume == pytest.approx(600 * 60 * 40 + 60 * 60 * 20)
+
+
+def test_chamfer() -> None:
+    b = board(width=60)
+    chamfer = ww.Chamfer(b.arris(b.top_face, b.back_edge), size=5, size_b=10)
+    assert chamfer.describe() == "chamfer 5 x 10 mm on b.top_face_back_edge_arris"
+    shape = cut_part(b, chamfer)
+    assert shape.volume == pytest.approx(600 * 60 * 40 - 600 * 5 * 10 / 2)
+    # 5 mm on the top face, 10 mm down the back edge.
+    top = shape.faces().sort_by(bd.Axis.Z)[-1]
+    assert pytest.approx(55) == top.bounding_box().max.Y
+    back = shape.faces().sort_by(bd.Axis.Y)[-1]
+    assert pytest.approx(-10) == back.bounding_box().max.Z
+
+
+@pytest.mark.parametrize("angle", [45, 30])
+def test_mitre_across_the_face(angle: float) -> None:
+    b = board(width=60)
+    mitre = ww.Mitre(b.right_end, inside=b.back_edge, angle=angle)
+    short = 60 * math.tan(math.radians(angle))
+    assert mitre.shortening == pytest.approx(short)
+    shape = cut_part(b, mitre)
+    assert shape.volume == pytest.approx(600 * 60 * 40 - 60 * short / 2 * 40)
+    # The front edge keeps the full length, the back edge is shorter.
+    assert pytest.approx(600) == shape.bounding_box().max.X
+    back = shape.faces().sort_by(bd.Axis.Y)[-1]
+    assert pytest.approx(600 - short) == back.bounding_box().max.X
+
+
+def test_mitre_across_the_edge() -> None:
+    b = board()
+    mitre = ww.Mitre(b.left_end, inside=b.bottom_face)
+    shape = cut_part(b, mitre)
+    assert shape.volume == pytest.approx(600 * 300 * 40 - 40 * 40 / 2 * 300)
+    bottom = shape.faces().sort_by(bd.Axis.Z)[0]
+    assert pytest.approx(40) == bottom.bounding_box().min.X
+    with pytest.raises(ValueError, match="between 0 and 90"):
+        ww.Mitre(b.left_end, inside=b.bottom_face, angle=90)
