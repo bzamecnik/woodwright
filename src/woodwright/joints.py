@@ -15,7 +15,18 @@ from typing import Self
 import build123d as bd
 
 from woodwright import rules
-from woodwright.cuts import INF, Allowance, Cut, Mitre, Pocket, Range, ShapeCut, Tenon, Tongue
+from woodwright.cuts import (
+    INF,
+    Allowance,
+    Cut,
+    DovetailTongue,
+    Mitre,
+    Pocket,
+    Range,
+    ShapeCut,
+    Tenon,
+    Tongue,
+)
 from woodwright.part import Board, Side, SideRef
 from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, offset
 
@@ -33,6 +44,7 @@ __all__ = [
     "MitreSplice",
     "MortiseTenon",
     "RabbetJoint",
+    "SlidingDovetail",
     "ThroughDovetail",
     "TongueAndGroove",
 ]
@@ -242,13 +254,16 @@ class RabbetJoint(Housing):
 
     E.g. the top of a carcase in rabbets at the top ends of the sides. The
     reference face of part b is flush with `at`; along the arris b is
-    centered (or as given by `position`).
+    centered (or as given by `position`). With `lap`, part b gets a rabbet
+    too, keeping a lip `lap` thick at its reference face: the two rabbets
+    interlock.
     """
 
     rabbet: SideRef
     end: SideRef
     at: SideRef
     depth: float | None = None
+    lap: float | None = None
     position: Position = CENTERED
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
@@ -265,6 +280,65 @@ class RabbetJoint(Housing):
 
     def reach(self) -> float:
         return _require(self.depth)
+
+    def tenon_cut(self) -> Tenon | None:
+        if self.lap is None:
+            return None
+        return Tenon(self.end, length=self.reach(), thickness=self.lap, thickness_offset=0)
+
+
+@dataclass
+class SlidingDovetail(Housing):
+    """An end of part b with a dovetail tongue, slid into a dovetail socket across part a.
+
+    Like a dado joint (see `DadoJoint` for the placement), but the socket is
+    narrower at the face than at its bottom, so the parts can only slide
+    together along it. `thickness` is the tongue's thickness at the shoulder;
+    with `half` only one cheek is angled.
+    """
+
+    socket: SideRef
+    end: SideRef
+    depth: float | None = None
+    thickness: float | None = None
+    slope: float = 7.0
+    half: bool = False
+    position: Position = CENTERED
+    across: Position = FLUSH
+    flush: tuple[SideRef, SideRef] | None = None
+    clearance: float = 0.0
+
+    def sides(self) -> tuple[SideRef, SideRef]:
+        return self.socket, self.end
+
+    def with_defaults(self) -> Self:
+        return replace(
+            self,
+            depth=self.depth or rules.dado_depth(self.socket.depth),
+            thickness=self.thickness or rules.dovetail_thickness(self.end.part.thickness),
+        )
+
+    def reach(self) -> float:
+        return _require(self.depth)
+
+    def tongue(self) -> DovetailTongue:
+        return DovetailTongue(
+            self.end,
+            length=self.reach(),
+            thickness=_require(self.thickness),
+            slope=self.slope,
+            half=self.half,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tongue = self.tongue()
+        # The socket is the tongue seen from part a, reaching out of its face.
+        socket = placement * tongue.solid(back=self.reach(), beyond=self.clearance)
+        description = (
+            f"dovetail socket {tongue.thickness:g} mm at the face, {self.reach():g} deep, "
+            f"1:{self.slope:g}, in {self.socket}"
+        )
+        return [ShapeCut(self.socket.part, socket, description), tongue]
 
 
 @dataclass

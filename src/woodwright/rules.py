@@ -37,3 +37,8 @@ def groove_depth(stock_thickness: float) -> float:
 def lap_thickness(stock_thickness: float) -> float:
     """Half of the stock: the two laps together make up its thickness."""
     return _round(stock_thickness / 2)
+
+
+def dovetail_thickness(stock_thickness: float) -> float:
+    """Of a sliding dovetail's tongue at the shoulder: half of the stock."""
+    return _round(stock_thickness / 2)

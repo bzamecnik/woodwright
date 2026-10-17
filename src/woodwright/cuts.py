@@ -305,6 +305,64 @@ class Tongue(Tenon):
             raise ValueError("a tongue runs along the whole edge, it has no width")
 
 
+@dataclass
+class DovetailTongue(Cut):
+    """A dovetail-shaped tongue beyond an end (or an edge), for a sliding dovetail.
+
+    The tongue runs along the whole side. It is `thickness` thick at the
+    shoulder, `thickness_offset` below the top face (centered when None), and
+    its cheeks flare outwards by 1:`slope`; with `half` only the bottom one.
+    Like a tenon, it asks for an allowance of its length.
+    """
+
+    side: SideRef
+    length: float
+    thickness: float
+    slope: float = 7.0
+    thickness_offset: float | None = None
+    half: bool = False
+
+    def __post_init__(self) -> None:
+        if self.side.axis == 2:
+            raise ValueError(f"a dovetail tongue is cut on an end or an edge, not on {self.side}")
+
+    def solid(self, back: float = 0.0, beyond: float = 0.0) -> bd.Part:
+        """The tongue in the part frame, its cheeks extended `back` behind the
+        shoulder and `beyond` its end (e.g. for the socket's clearance)."""
+        side = self.side
+        t = self.part.thickness
+        offset = (
+            (t - self.thickness) / 2 if self.thickness_offset is None else self.thickness_offset
+        )
+        c, s = side.coordinate, side.side.sign
+
+        def cheeks(d: float) -> tuple[float, float]:
+            """z of the top and bottom cheek, at distance d beyond the shoulder."""
+            flare = d / self.slope
+            top = -offset + (0 if self.half else flare)
+            return top, -offset - self.thickness - flare
+
+        points = []
+        for d in (-back, self.length + beyond):
+            top, bottom = cheeks(d)
+            points.extend([(c + s * d, top), (c + s * d, bottom)])
+        points[2:] = points[:1:-1]  # around the outline
+        return _prism(self.part, side.axis, 2, points)
+
+    def removal(self) -> bd.Part:
+        return _box(self.part, _ranges(_into(self.side, 0))) - self.solid()
+
+    def allowances(self) -> list[Allowance]:
+        return [Allowance(self.side, self.length)]
+
+    def describe(self) -> str:
+        kind = "half dovetail tongue" if self.half else "dovetail tongue"
+        return (
+            f"{kind} {self.thickness:g} mm at the shoulder, {self.length:g} long, "
+            f"1:{self.slope:g}, on {self.side}"
+        )
+
+
 # --- Angled cuts ------------------------------------------------------------
 
 

@@ -237,3 +237,24 @@ def test_tenon_kinds() -> None:
     assert whole.cheeks() == 0
     assert not whole.removes_material
     assert ww.Tenon(b.left_end, length=10, thickness=40, width=50).removes_material
+
+
+@pytest.mark.parametrize("half", [False, True])
+def test_dovetail_tongue(half: bool) -> None:
+    b = board(length=300, width=200)
+    tongue = ww.DovetailTongue(b.left_end, length=7, thickness=10, slope=7, half=half)
+    assert tongue.allowances() == [ww.Allowance(b.left_end, 7)]
+    # 10 mm at the shoulder, wider by 1 mm (or 2 mm on both cheeks) at its end.
+    wide = 11 if half else 12
+    shape = cut_part(b, tongue)
+    assert shape.volume == pytest.approx(300 * 200 * 40 + (10 + wide) / 2 * 7 * 200)
+    end = shape.faces().sort_by(bd.Axis.X)[0]
+    lo, hi = end.bounding_box().min, end.bounding_box().max
+    assert (pytest.approx(-7), pytest.approx(wide)) == (lo.X, hi.Z - lo.Z)
+    assert tongue.describe().startswith("half dovetail tongue" if half else "dovetail tongue")
+
+
+def test_dovetail_tongue_not_on_a_face() -> None:
+    b = board()
+    with pytest.raises(ValueError, match="end or an edge"):
+        ww.DovetailTongue(b.top_face, length=7, thickness=10)

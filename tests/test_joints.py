@@ -218,3 +218,42 @@ def test_cross_lap() -> None:
     # b crosses from the back edge of a, 20 mm beyond its front edge.
     assert bbox(model[b].placed_shape) == (100, -20, -30, 150, 180, 0)
     assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+@pytest.mark.parametrize("half", [False, True])
+def test_sliding_dovetail(half: bool) -> None:
+    asm = ww.Assembly("test")
+    side = asm.add(ww.Board("side", OAK, length=400, width=200))
+    shelf = asm.add(ww.Board("shelf", OAK, length=300, width=200))
+    asm.join(
+        ww.SlidingDovetail(
+            socket=side.bottom_face,
+            end=shelf.left_end,
+            position=ww.offset(150, side.right_end),
+            half=half,
+        )
+    )
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert (joint.depth, joint.thickness) == (6.5, 10)
+    assert cuts(model, side) == [
+        "dovetail socket 10 mm at the face, 6.5 deep, 1:7, in side.bottom_face"
+    ]
+    assert model[shelf].size == (306.5, 200, 20)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # The tongue fills the socket exactly.
+    total = model[side].shape.volume + model[shelf].shape.volume
+    assert total == pytest.approx((400 + 300) * 200 * 20)
+
+
+def test_interlocking_rabbets() -> None:
+    asm, side, top = stile_and_rail()
+    asm.join(ww.RabbetJoint(rabbet=side.bottom_face, end=top.left_end, at=side.right_end, lap=10))
+    model = asm.resolve()
+    assert cuts(model, side) == [
+        "end rabbet 10 mm, 10 deep, in stile.bottom_face at stile.right_end"
+    ]
+    assert cuts(model, top) == ["lap 10 mm thick, 10 long, on rail.left_end"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    total = model[side].shape.volume + model[top].shape.volume
+    assert total == pytest.approx((300 + 200) * 40 * 20)
