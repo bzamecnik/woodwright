@@ -34,6 +34,7 @@ __all__ = [
     "Allowance",
     "Bridle",
     "Butt",
+    "Button",
     "CrossLap",
     "DadoJoint",
     "GrooveJoint",
@@ -840,6 +841,73 @@ class CrossLap(Joint):
             crossing(a.top_face, placement, b, (-depth, INF)),
             crossing(b.bottom_face, placement.inverse(), a, (-INF, -depth)),
         ]
+
+
+@dataclass
+class Button(Joint):
+    """A wooden button holding a top down: a block screwed to the underside of
+    the top, with a tongue at its end in a short mortise in the inside of an apron.
+
+    The button's end `tongue` faces side `mortise` of the apron, `gap` away
+    from it, and its top face is level with the apron's side `level` (its
+    top edge, where the top lies); along the apron it is placed by
+    `position`. The tongue is at the bottom of the button, `thickness`
+    thick, and reaches `depth` into the apron. The mortise is `pull` higher
+    than the tongue, so screwing the button pulls the top down onto the
+    apron, `clearance` deeper, so the top can move towards the apron, and
+    longer by `play` at either end, so it can move along it.
+    """
+
+    mortise: SideRef
+    tongue: SideRef
+    level: SideRef
+    position: Position = CENTERED
+    thickness: float = 6.0
+    depth: float = 4.0
+    gap: float = 2.0
+    pull: float = 2.0
+    clearance: float = 2.0
+    play: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.tongue.axis != 0:
+            raise ValueError(f"a button's tongue is on an end, not on {self.tongue}")
+        if not 0 < self.thickness < self.tongue.part.thickness:
+            raise ValueError("the tongue must be thinner than the button")
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.mortise.part, self.tongue.part
+
+    def tongue_cut(self) -> Tongue:
+        button = self.tongue.part
+        return Tongue(
+            self.tongue,
+            length=self.gap + self.depth,
+            thickness=self.thickness,
+            thickness_offset=button.thickness - self.thickness,
+        )
+
+    def allowances(self) -> list[Allowance]:
+        return self.tongue_cut().allowances()
+
+    def placement(self) -> bd.Location:
+        return mate(
+            self.mortise,
+            self.tongue,
+            flush=(self.level, self.tongue.part.top_face),
+            position=self.position,
+            gap=self.gap,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tongue = self.tongue_cut()
+        box = list(_socket(self.mortise, placement, tongue.tenon_box(), self.clearance))
+        up, along = self.level.axis, 3 - self.mortise.axis - self.level.axis
+        a, b = box[up]
+        box[up] = (a, b + self.pull) if self.level.side.sign > 0 else (a - self.pull, b)
+        a, b = box[along]
+        box[along] = (a - self.play, b + self.play)
+        return [Pocket(self.mortise, (box[0], box[1], box[2])), tongue]
 
 
 def _direction(loc: bd.Location, vector: bd.Vector) -> bd.Vector:

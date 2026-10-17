@@ -457,3 +457,32 @@ def test_haunched_tenon_of_a_wide_apron() -> None:
         "haunch mortise 40 x 8 mm, 10 deep, in leg.back_edge at leg.right_end",
     ]
     assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+@pytest.mark.parametrize("play", [1.0, 5.0])
+def test_button(play: float) -> None:
+    asm = ww.Assembly("test")
+    apron = asm.add(ww.Board("apron", OAK, length=600, width=120))
+    button = asm.add(ww.Board("button", OAK, length=30, width=40))
+    # The apron's reference face outside, its back edge up.
+    asm.join(
+        ww.Button(
+            mortise=apron.bottom_face,
+            tongue=button.right_end,
+            level=apron.back_edge,
+            position=ww.offset(100, ref=apron.left_end),
+            play=play,
+        )
+    )
+    model = asm.resolve()
+    assert model[button].size == (36, 40, 20)
+    assert cuts(model, button) == [
+        "end rabbet 6 mm, 14 deep, in button.top_face at button.right_end"
+    ]
+    assert cuts(model, apron) == [f"mortise {40 + 2 * play:g} x 8 mm, 6 deep, in apron.bottom_face"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # The button's top is level with the apron's, at 100 mm from its left end.
+    box = model[button].placed_shape.bounding_box()
+    assert pytest.approx(120) == box.max.Y
+    assert pytest.approx((100, 140)) == (box.min.X, box.max.X)
+    assert pytest.approx(-20 + 4) == box.max.Z  # the tongue reaches 4 mm into the apron

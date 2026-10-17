@@ -23,6 +23,7 @@ from woodwright.cuts import (
 from woodwright.joints import (
     Bridle,
     Butt,
+    Button,
     CrossLap,
     DadoJoint,
     GrooveJoint,
@@ -75,6 +76,7 @@ __all__ = [
     "BoxCut",
     "Bridle",
     "Butt",
+    "Button",
     "Centered",
     "Chamfer",
     "CrossLap",
