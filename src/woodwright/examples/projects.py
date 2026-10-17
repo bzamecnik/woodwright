@@ -1,14 +1,15 @@
 """Small practical projects: shop tools, boxes, a shelf, a drawer, a picture frame."""
 
+import itertools
 import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.cuts import Groove, Tongue
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
+    Button,
     DadoJoint,
     HalfBlindDovetail,
     MitreCorner,
@@ -385,6 +386,7 @@ def table(
     overhang: float = 40,
     apron_width: float = 120,
     setback: float = 3,
+    top_boards: int = 4,
     buttons: tuple[int, int] = (3, 2),
     leg_stock: Stock = TABLE_LEG_STOCK,
     stock: Stock = OAK,
@@ -395,12 +397,13 @@ def table(
     `width` and `depth` are those of the frame, the top overhangs it by
     `overhang`. The aprons are wide, so their tenons are set down from the
     top of the legs, with haunches filling the wide shoulders: the legs
-    keep their tops whole, and the aprons can't twist. The top is not
-    glued: wooden buttons screwed to its underside engage a groove along
-    the inside of each apron (`buttons` along the front and back, and along
-    the sides), so it can move across its grain. The buttons' tongues are
-    a bit thinner than the groove, so screwing them pulls the top down
-    onto the aprons, and short of its bottom, so the top can move in and out.
+    keep their tops whole, and the aprons can't twist. The top is glued up
+    from `top_boards` boards edge to edge, its grain from side to side. It
+    is not glued to the frame: wooden buttons screwed to its underside have
+    tongues in short mortises in the inside of the aprons (`buttons` along
+    the front and back, and along the sides), so it can move across its
+    grain: in and out of the mortises at the front and back, along them at
+    the sides, where they are longer.
     """
     asm = Assembly("table", root_location=STANDING)
     _, aprons = _table_frame(
@@ -415,64 +418,40 @@ def table(
         shoulder=(10, 30),
         haunch_length=10,
     )
-    top = asm.add(Board("top", top_stock, length=width + 2 * overhang, width=depth + 2 * overhang))
     # The top lies on the aprons (their back edges are up), overhanging the legs.
-    apron_front = aprons[0]
+    top_width = (depth + 2 * overhang) / top_boards
+    boards = [
+        asm.add(Board(f"top_{i + 1}", top_stock, length=width + 2 * overhang, width=top_width))
+        for i in range(top_boards)
+    ]
+    for a, b in itertools.pairwise(boards):
+        asm.join(Butt(a.back_edge, b.front_edge))
+    apron_front, front_board = aprons[0], boards[0]
     asm.join(
         Butt(
             apron_front.back_edge,
-            top.bottom_face,
+            front_board.bottom_face,
             position=offset(-(leg_stock.thickness + overhang), ref=apron_front.left_end),
-            flush=(apron_front.ref_face, top.front_edge),
+            flush=(apron_front.ref_face, front_board.front_edge),
             across=offset(-(setback + overhang)),
         )
     )
 
-    # The buttons' groove is 8 mm wide and 6 deep, 12 below the top of the apron.
-    groove_top, groove_width, groove_depth = 12.0, 8.0, 6.0
-    button_width, gap = 40.0, 2.0  # gap: between the button and the apron, and in the groove
-    tongue_length = groove_depth  # across the gap, and short of the groove's bottom by as much
-    for apron in aprons:
-        apron.cut(
-            Groove(
-                apron.bottom_face,
-                width=groove_width,
-                depth=groove_depth,
-                distance=groove_top,
-                ref=apron.back_edge,
-            )
-        )
-    # A button is as thick as the groove's bottom is below the top; its tongue
-    # at the bottom of its right end, `gap` thinner than the groove.
-    button_stock = Stock.board(thickness=groove_top + groove_width, species=stock.species)
-    inside = overhang + setback + stock.thickness + gap  # from the top's edge to a button
-    for apron, top_edge, along, count in [
-        (aprons[0], top.front_edge, top.left_end, buttons[0]),
-        (aprons[1], top.right_end, top.front_edge, buttons[1]),
-        (aprons[2], top.back_edge, top.right_end, buttons[0]),
-        (aprons[3], top.left_end, top.back_edge, buttons[1]),
-    ]:
-        span = apron.length
-        for i in range(count):
-            name = f"button_{apron.name.removeprefix('apron_')}_{i + 1}"
-            button = asm.add(Board(name, button_stock, length=30, width=button_width))
-            button.cut(
-                Tongue(
-                    button.right_end,
-                    length=tongue_length,
-                    thickness=groove_width - gap,
-                    thickness_offset=groove_top + gap,
-                )
-            )
+    button_width = 40.0
+    for i, apron in enumerate(aprons):
+        count, play = (buttons[0], 1.0) if i % 2 == 0 else (buttons[1], 5.0)
+        for j in range(count):
+            name = f"button_{apron.name.removeprefix('apron_')}_{j + 1}"
+            button = asm.add(Board(name, stock, length=30, width=button_width))
             # Spread along the apron, between the legs.
-            distance = overhang + leg_stock.thickness + span * (i + 0.5) / count
+            distance = apron.length * (j + 0.5) / count - button_width / 2
             asm.join(
-                Butt(
-                    top.bottom_face,
-                    button.top_face,
-                    position=offset(distance - button_width / 2, ref=along),
-                    flush=(top_edge, button.right_end),
-                    across=offset(inside),
+                Button(
+                    mortise=apron.bottom_face,
+                    tongue=button.right_end,
+                    level=apron.back_edge,
+                    position=offset(distance, ref=apron.left_end),
+                    play=play,
                 )
             )
     return asm

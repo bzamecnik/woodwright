@@ -84,6 +84,7 @@ def test_drawer_sizes_and_bottom() -> None:
 def test_table_top_and_buttons() -> None:
     import build123d as bd
 
+    import woodwright as ww
     from woodwright.examples import projects
 
     model = projects.table().resolve()
@@ -91,16 +92,19 @@ def test_table_top_and_buttons() -> None:
     assert tuple(box.min) == pytest.approx((-40, -40, 0))  # the top overhangs the legs
     assert tuple(box.size) == pytest.approx((1280, 830, 750))
     parts = {part.part.name: part for part in model.parts}
-    # Each button's tongue is in the groove of its apron, short of its bottom.
+    # Each button's tongue reaches 4 mm into its mortise and its top touches the top.
     for button, apron in [("button_front_2", "apron_front"), ("button_left_1", "apron_left")]:
-        groove = next(c for c in parts[apron].cuts if c.describe().startswith("groove"))
         board = parts[apron].part
         design_box = bd.Pos(0, 0, -board.thickness) * bd.Box(
             board.length, board.width, board.thickness, align=(bd.Align.MIN,) * 3
         )
-        groove_region = parts[apron].location * (groove.removal() & design_box)
-        tongue = parts[button].placed_shape & groove_region
-        assert tongue.volume == pytest.approx(4 * 6 * 40)
+        mortises = [
+            cut.removal() & design_box for cut in parts[apron].cuts if isinstance(cut, ww.Pocket)
+        ]
+        placed = parts[button].placed_shape
+        tongue = sum((placed & (parts[apron].location * m)).volume for m in mortises)
+        assert tongue == pytest.approx(4 * 6 * 40)
+        assert pytest.approx(720) == placed.bounding_box().max.Z
 
 
 def test_drawer_groove_is_hidden_in_the_tails() -> None:

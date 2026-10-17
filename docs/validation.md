@@ -133,9 +133,9 @@ Done items name their example in `woodwright.examples`
   - kumiko asanoha pattern
     - [ ] 3-way mitre joint
 - furniture (besides example above)
-  - [ ] table with four legs, wide aprons with stub tenon joint, panel desk
-    (so far `projects.table`: wide aprons with haunched, mitred tenons, a solid top in one
-    board held by buttons in grooves along the aprons; `projects.table_frame` without a top)
+  - [x] table with four legs, wide aprons with stub tenon joint, panel desk
+    (so far `projects.table`: wide aprons with haunched, mitred tenons, a top glued up from
+    boards held by buttons in short mortises in the aprons; `projects.table_frame` without a top)
   - [ ] side table with aprons and stretchers, desk made as mitre frame with panel inside
   - [ ] step stool with sliding dovetail cross pieces and angled legs with wedged round tenons
   - [ ] workbench

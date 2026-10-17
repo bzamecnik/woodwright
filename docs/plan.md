@@ -488,10 +488,14 @@ Lessons from the examples:
   narrower than the tail board (a drawer back on its bottom). A rabbeted
   drawer bottom is a one-sided `Tongue` in a groove, listed as the rabbet
   that leaves it.
-- A table top is held by buttons: small parts screwed (for now: `Butt`)
-  to the top, with a tongue in a plain `Groove` along each apron. The
-  groove is cut explicitly rather than derived from the buttons, as one
-  groove serves several of them.
+- A table top is held by buttons (`Button`): small parts screwed to the
+  top, placed against an apron, with a tongue in a short mortise derived
+  from it, with room to pull the top down and to let it move. A groove
+  along the whole apron would weaken it. The screws are not modelled yet.
+- The drawer's bottom groove runs out of the front's ends; its half pins
+  are narrowed so the groove passes through the bottom tails and doesn't
+  show on the side. A check that a feature runs out only where hidden
+  would catch such things.
 
 Still open: the twelve named arrises (item 6), y coordinates of side planes (item 3, now hidden
 by the named cuts but still visible in `Mortise`), stopped grooves and
