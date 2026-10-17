@@ -41,6 +41,8 @@ ALL: list[Example] = [
     joints.butt_corner,
     joints.dado_shelf,
     joints.rabbet_corner,
+    joints.sliding_dovetail_shelf,
+    joints.interlocking_rabbet_corner,
     joints.panel_in_groove,
     joints.tongue_and_groove_panel,
     joints.half_lap_corner,

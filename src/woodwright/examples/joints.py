@@ -17,6 +17,7 @@ from woodwright.joints import (
     MitreSplice,
     MortiseTenon,
     RabbetJoint,
+    SlidingDovetail,
     ThroughDovetail,
     TongueAndGroove,
 )
@@ -102,6 +103,52 @@ def rabbet_corner(
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(RabbetJoint(rabbet=side.bottom_face, end=top.left_end, at=side.right_end))
+    return asm
+
+
+def sliding_dovetail_shelf(
+    side_height: float = 400,
+    shelf_length: float = 300,
+    depth: float = 200,
+    shelf_height: float = 150,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A shelf with a dovetail tongue slid into a dovetail socket across the side.
+
+    Like the dado shelf, but the shelf can't be pulled out of the side.
+    """
+    asm = Assembly("sliding_dovetail_shelf", root_location=CARCASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height, width=depth))
+    shelf = asm.add(Board("shelf", stock, length=shelf_length, width=depth))
+    asm.join(
+        SlidingDovetail(
+            socket=side.bottom_face,
+            end=shelf.left_end,
+            position=offset(shelf_height, side.right_end),
+        )
+    )
+    return asm
+
+
+def interlocking_rabbet_corner(
+    side_height: float = 400, top_length: float = 500, depth: float = 200, stock: Stock = OAK
+) -> Assembly:
+    """A carcase corner with two interlocking rabbets: a lip of the top in a rabbet of the side.
+
+    The side's outer lip covers the top's end grain. The top's length is
+    between the sides, the side's height is overall.
+    """
+    asm = Assembly("interlocking_rabbet_corner", root_location=CARCASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height, width=depth))
+    top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
+    asm.join(
+        RabbetJoint(
+            rabbet=side.bottom_face,
+            end=top.left_end,
+            at=side.right_end,
+            lap=stock.thickness / 2,
+        )
+    )
     return asm
 
 

@@ -28,8 +28,10 @@ Done items name their example in `woodwright.examples`
     - [x] through mortice – `cuts.mortise(depth=60)`, `joints.through_mortise_tenon`
     - [x] blind mortice - not all the way through the board – `cuts.mortise`
   - [x] tenon - "endgrain rabbet" from multiple sides at once – `cuts.tenon`
-  - [ ] dovetail dado - dado where the sides are not perpendicular, but angled inward
-  - [ ] dovetail tongue - tongue where the sides are not perpendicular, but angled outward
+  - [x] dovetail dado - dado where the sides are not perpendicular, but angled inward –
+    derived by `SlidingDovetail`, in `joints.sliding_dovetail_shelf`
+  - [x] dovetail tongue - tongue where the sides are not perpendicular, but angled outward –
+    `DovetailTongue`, in `joints.sliding_dovetail_shelf`
   - drilled hole
     - [ ] through
     - [ ] blind
@@ -54,7 +56,7 @@ Done items name their example in `woodwright.examples`
       `joints.panel_in_groove`)
   - rabbet
     - [x] corner with rabbet and plain board – `joints.rabbet_corner`, `projects.bookshelf`
-    - [ ] corner with two interlocking rabbets
+    - [x] corner with two interlocking rabbets – `joints.interlocking_rabbet_corner`
     - [ ] box with rabbet corners and rabbetted bottom
   - mitre joint - "butt" joint of two mitred boards
     - two pieces
@@ -82,7 +84,8 @@ Done items name their example in `woodwright.examples`
     - [ ] multiple tenon
     - [ ] table leg accepting two perpendicular tenons with mitred ends
   - [ ] box joint - both boards have a set of shallow regular slot motrices of equal widths
-  - [ ] sliding dovetail - one board with dovetail groove, another with dovetail tongue
+  - [x] sliding dovetail - one board with dovetail groove, another with dovetail tongue –
+    `joints.sliding_dovetail_shelf`
   - dovetail - similar to box joint, but the slot mortices are angled
     - [x] two boards (corner) – `joints.dovetail_corner`
     - [ ] shelf with dovetailed corners
