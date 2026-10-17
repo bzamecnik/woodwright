@@ -181,18 +181,24 @@ def dovetail_drawer(
 ) -> Assembly:
     """A drawer box with through dovetails at all four corners (no bottom); outside sizes.
 
-    Each board has tails at its left end and pins at its right end, going
-    around the drawer. (Tails on the sides only need dovetails on any end.)
+    The front and the back have pins at both ends, the sides tails at both
+    ends, so the front can't be pulled off. All boards have their reference
+    faces outside and reference edges at the bottom; the mirror images (the
+    back of the front, the right side of the left one) have their ends swapped.
     """
     t = stock.thickness
     asm = Assembly("dovetail_drawer", root_location=FRONT)
     front = asm.add(Board("front", stock, length=width - 2 * t, width=height))
-    right = asm.add(Board("right", stock, length=depth - 2 * t, width=height))
     back = asm.add(Board("back", stock, length=width - 2 * t, width=height))
     left = asm.add(Board("left", stock, length=depth - 2 * t, width=height))
-    boards = [front, right, back, left]
-    for a, b in zip(boards, boards[1:] + boards[:1], strict=True):
-        asm.join(ThroughDovetail(tails=b.left_end, pins=a.right_end, tail_count=2))
+    right = asm.add(Board("right", stock, length=depth - 2 * t, width=height))
+    for tails, pins in [
+        (left.right_end, front.left_end),
+        (right.left_end, front.right_end),
+        (left.left_end, back.right_end),
+        (right.right_end, back.left_end),
+    ]:
+        asm.join(ThroughDovetail(tails=tails, pins=pins, tail_count=3))
     return asm
 
 

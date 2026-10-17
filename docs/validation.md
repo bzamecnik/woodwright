@@ -90,7 +90,8 @@ Done items name their example in `woodwright.examples`
     - [x] two boards (corner) – `joints.dovetail_corner`
     - [ ] shelf with dovetailed corners
     - [ ] drawer with dovetailed corners with a groove and rabbeted bottom
-      (so far `projects.dovetail_drawer`, without a bottom, each board with tails at one end)
+      (so far `projects.dovetail_drawer`: pins on the front and back, tails on the sides,
+      without a groove and a bottom)
     - [ ] dovetail with mitred corner
   - chamfer joint
     - full 45˚ chamfer

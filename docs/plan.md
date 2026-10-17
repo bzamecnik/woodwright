@@ -407,9 +407,9 @@ What felt wrong, to address before or during M1:
 3. The y coordinate of some side planes (`front_edge`, `right_end`, ...)
    starts at the bottom face rather than at a reference side. Predictable,
    but not what a woodworker expects.
-4. `ThroughDovetail` supports only pins on a right end and tails on a left
+4. ~~`ThroughDovetail` supports only pins on a right end and tails on a left
    end. Generalizing it needs a better way to describe corners where both
-   boards reach through each other.
+   boards reach through each other.~~ Done: any ends.
 5. Outside dimensions are awkward: the dovetail example computes
    `side_height - thickness` for the design length (see the open question
    in §2 about an "overall cut length" switch).
@@ -470,10 +470,10 @@ Lessons from the examples:
   their ends swapped: the right side's *left* end is at the top. Correct,
   but easy to get wrong; loop closure catches it. Consider naming ends
   relative to the reference arris, or a `mirror` flag on a part.
-- `ThroughDovetail` (pins on a right end, tails on a left end) is enough
-  for a drawer if every board has tails at one end and pins at the other.
-  A usual drawer (tails on both ends of the sides) needs the generalization
-  in item 4.
+- `ThroughDovetail` now takes pins and tails on any ends (item 4): the
+  tail board is placed from the named pin end, and the geometry is built
+  beyond it. A classic drawer has pins at both ends of the front and back
+  and tails at both ends of the sides.
 - A part housed with a face (the shooting board's stop) needs `flush`
   given explicitly to lie across the other part.
 
