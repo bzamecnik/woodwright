@@ -6,6 +6,8 @@ import build123d as bd
 
 from woodwright.part import Board, SideRef
 
+_MIN = (bd.Align.MIN, bd.Align.MIN, bd.Align.MIN)
+
 
 class Cut:
     """Base class of cuts. Most cuts are made into one side of a part."""
@@ -36,10 +38,12 @@ class Mortise(Cut):
     depth: float
 
     def removal(self) -> bd.Part:
-        raise NotImplementedError
+        return side_box(
+            self.side, self.start, self.offset, -self.depth, self.length, self.width, self.depth
+        )
 
     def describe(self) -> str:
-        raise NotImplementedError
+        return f"mortise {self.length:g} x {self.width:g} mm, {self.depth:g} deep, in {self.side}"
 
 
 @dataclass
@@ -59,13 +63,21 @@ class Tenon(Cut):
 
     def tenon(self) -> bd.Part:
         """The tenon itself, in the part frame."""
-        raise NotImplementedError
+        u, v = self.side.size
+        width_offset = (u - self.width) / 2 if self.width_offset is None else self.width_offset
+        thickness_offset = (
+            (v - self.thickness) / 2 if self.thickness_offset is None else self.thickness_offset
+        )
+        return side_box(
+            self.side, width_offset, thickness_offset, 0, self.width, self.thickness, self.length
+        )
 
     def removal(self) -> bd.Part:
-        raise NotImplementedError
+        u, v = self.side.size
+        return side_box(self.side, 0, 0, 0, u, v, self.length) - self.tenon()
 
     def describe(self) -> str:
-        raise NotImplementedError
+        return f"tenon {self.width:g} x {self.thickness:g} mm, {self.length:g} long, on {self.side}"
 
 
 @dataclass
@@ -85,3 +97,13 @@ class ShapeCut(Cut):
 
     def describe(self) -> str:
         return self.name
+
+
+def side_box(
+    side: SideRef, u: float, v: float, w: float, du: float, dv: float, dw: float
+) -> bd.Part:
+    """A box in the side's plane coordinates, from corner (u, v, w) with sizes (du, dv, dw).
+
+    w is along the outward normal: negative into the part, positive beyond it.
+    """
+    return bd.Location(side.plane) * bd.Pos(u, v, w) * bd.Box(du, dv, dw, align=_MIN)
