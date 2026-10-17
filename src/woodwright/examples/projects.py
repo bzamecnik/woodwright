@@ -1,5 +1,7 @@
 """Small practical projects: shop tools, boxes, a shelf, a drawer, a picture frame."""
 
+import math
+
 from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.cuts import Groove, Tongue
@@ -220,7 +222,8 @@ def drawer(
     """A classic drawer with a bottom; outside sizes.
 
     The front has half-blind dovetails, so the tails don't show from the
-    front; the back is through dovetailed. The bottom slides in grooves in
+    front; its bottom half pins are narrow, so that the groove runs through
+    the bottom tails and is hidden. The back is through dovetailed. The bottom slides in grooves in
     the sides and the front, under the back, which is narrower and sits on
     it. The bottom's edges are rabbeted on its underside to fit the grooves,
     its top flush with their tops; its grain runs from side to side, so it
@@ -251,12 +254,22 @@ def drawer(
             across=offset(groove_height + groove_width - b),
         )
 
+    # The groove runs out of the front's ends: it must pass through the bottom
+    # tail, not through the half pin below it, which shows on the side. The
+    # half pin is narrowest at the lap and widens by the slope towards the
+    # inside (by 1:7); the groove stays at least 2 mm above it.
+    socket_depth = stock.thickness - rules.dovetail_lap(stock.thickness)
+    half_pin = math.floor(groove_height - socket_depth / 7 - 2)
     # The sides' right ends are at the front; the back's top edge is flush with theirs.
     for side, front_end, back_end, bottom_end in [
         (left, front.left_end, back.left_end, bottom.left_end),
         (right, front.right_end, back.right_end, bottom.right_end),
     ]:
-        asm.join(HalfBlindDovetail(tails=side.right_end, pins=front_end, tail_count=3))
+        asm.join(
+            HalfBlindDovetail(
+                tails=side.right_end, pins=front_end, tail_count=3, half_pin_width=half_pin
+            )
+        )
         asm.join(
             ThroughDovetail(
                 tails=side.left_end,

@@ -101,3 +101,21 @@ def test_table_top_and_buttons() -> None:
         groove_region = parts[apron].location * (groove.removal() & design_box)
         tongue = parts[button].placed_shape & groove_region
         assert tongue.volume == pytest.approx(4 * 6 * 40)
+
+
+def test_drawer_groove_is_hidden_in_the_tails() -> None:
+    import build123d as bd
+
+    from woodwright.examples import projects
+
+    model = projects.drawer().resolve()
+    front = next(part for part in model.parts if part.part.name == "front")
+    # The front's ends beyond the sides' inside faces hold only the pins; the
+    # groove running out of the front doesn't cut them.
+    sockets = [cut for cut in front.cuts if cut.describe().startswith("sockets")]
+    for x0 in (-12, front.part.length):
+        end = bd.Pos(x0, 0, -20) * bd.Box(12, 150, 20, align=(bd.Align.MIN,) * 3)
+        pins = end
+        for cut in sockets:
+            pins -= cut.removal()
+        assert (front.shape & end).volume == pytest.approx(pins.volume)
