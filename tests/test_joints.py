@@ -280,6 +280,69 @@ def test_through_dovetail_on_any_ends(pins_end: str, tails_end: str) -> None:
     assert bbox(model[tails].placed_shape) == (x0, 0, -220, x0 + 20, 100, 0)
 
 
+def test_through_dovetail_with_a_narrower_pin_board() -> None:
+    asm = ww.Assembly("test")
+    pins = asm.add(ww.Board("pins", OAK, length=300, width=80))
+    tails = asm.add(ww.Board("tails", OAK, length=200, width=100))
+    # The top edges flush, the pin board 20 mm above the bottom of the tail board.
+    flush = (pins.back_edge, tails.back_edge)
+    asm.join(
+        ww.ThroughDovetail(tails=tails.left_end, pins=pins.right_end, tail_count=2, flush=flush)
+    )
+    model = asm.resolve()
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    total = model[pins].shape.volume + model[tails].shape.volume
+    assert total == pytest.approx(320 * 80 * 20 + 200 * 100 * 20 + 20 * 20 * 20)
+    with pytest.raises(ValueError, match="not be wider"):
+        ww.ThroughDovetail(tails=pins.left_end, pins=tails.left_end)
+
+
+def test_half_blind_dovetail() -> None:
+    asm = ww.Assembly("test")
+    front = asm.add(ww.Board("front", OAK, length=300, width=100))
+    side = asm.add(ww.Board("side", ww.Stock.board(12, "oak"), length=200, width=100))
+    asm.join(ww.HalfBlindDovetail(tails=side.left_end, pins=front.right_end, tail_count=2))
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert isinstance(joint, ww.HalfBlindDovetail)
+    assert joint.lap == 5
+    assert model[front].size == (312, 100, 20)
+    assert model[side].size == (215, 100, 12)
+    assert cuts(model, front) == ["sockets for 2 half-blind dovetails, 15 deep, lap 5"]
+    assert cuts(model, side) == ["2 half-blind dovetails, 15 long, slope 1:7"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # The tails fill the sockets: no gaps.
+    total = model[front].shape.volume + model[side].shape.volume
+    assert total == pytest.approx(312 * 100 * 20 + 200 * 100 * 12)
+    # The lap stays whole: the outside face of the front is not cut.
+    lap = bd.Pos(300, 0, -5) * bd.Box(12, 100, 5, align=(bd.Align.MIN,) * 3)
+    assert (model[front].shape & lap).volume == pytest.approx(lap.volume)
+    # The side's end lies inside the front, behind the lap.
+    assert bbox(model[side].placed_shape) == (300, 0, -220, 312, 100, -5)
+    with pytest.raises(ValueError, match="thinner than the pin board"):
+        ww.HalfBlindDovetail(tails=side.left_end, pins=front.right_end, lap=20).reach()
+
+
+def test_tongue_flush_with_the_reference_face() -> None:
+    asm = ww.Assembly("test")
+    rail = asm.add(ww.Board("rail", OAK, length=300, width=60))
+    panel = asm.add(ww.Board("panel", ww.Stock.board(10, "oak"), length=300, width=200))
+    asm.join(
+        ww.TongueAndGroove(
+            tongue=panel.front_edge,
+            groove=rail.back_edge,
+            tongue_thickness=6,
+            tongue_length=8,
+            tongue_offset=0,
+            across=ww.centered(),
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, panel) == ["rabbet 8 mm, 4 deep, in panel.bottom_face at panel.front_edge"]
+    assert cuts(model, rail)[0].startswith("groove 6 mm, 8 deep")
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 def test_through_dovetail_only_on_ends() -> None:
     _, stile, rail = stile_and_rail()
     with pytest.raises(ValueError, match="on the ends"):

@@ -387,13 +387,32 @@ class Tenon(Cut):
 
 @dataclass
 class Tongue(Tenon):
-    """A tongue along an edge: a tenon over the whole edge, without shoulders."""
+    """A tongue along an edge (or across an end): a tenon over the whole side,
+    without shoulders.
+
+    With a cheek only on one face (`thickness_offset` 0, or the tongue at
+    the bottom face) it is listed as the rabbet that leaves it, e.g. the
+    edges of a drawer bottom thinned to fit their grooves.
+    """
 
     def __post_init__(self) -> None:
-        if self.side.axis != 1:
-            raise ValueError(f"a tongue is cut on an edge, not on {self.side}")
+        if self.side.axis == 2:
+            raise ValueError(f"a tongue is cut on an edge or an end, not on {self.side}")
         if self.width is not None:
-            raise ValueError("a tongue runs along the whole edge, it has no width")
+            raise ValueError("a tongue runs along the whole side, it has no width")
+
+    def kind(self) -> str:
+        if self.cheeks() == 1:
+            return "rabbet" if self.side.axis == 1 else "end rabbet"
+        return "tongue"
+
+    def describe(self) -> str:
+        if self.cheeks() != 1:
+            return super().describe()
+        (_, _), (_, _), (z0, _) = self.tenon_box()
+        face = self.part.bottom_face if z0 > -self.part.thickness + _EPS else self.part.top_face
+        depth = self.part.thickness - self.thickness
+        return f"{self.kind()} {self.length:g} mm, {depth:g} deep, in {face} at {self.side}"
 
 
 @dataclass

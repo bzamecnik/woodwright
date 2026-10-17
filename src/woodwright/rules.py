@@ -42,3 +42,8 @@ def lap_thickness(stock_thickness: float) -> float:
 def dovetail_thickness(stock_thickness: float) -> float:
     """Of a sliding dovetail's tongue at the shoulder: half of the stock."""
     return _round(stock_thickness / 2)
+
+
+def dovetail_lap(stock_thickness: float) -> float:
+    """Of the pin board of half-blind dovetails, left in front of the tails: a quarter."""
+    return _round(stock_thickness / 4)

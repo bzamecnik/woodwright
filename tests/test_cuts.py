@@ -148,8 +148,17 @@ def test_tongue() -> None:
     tongue = ww.Tongue(b.back_edge, length=10, thickness=12)
     assert tongue.describe() == "tongue 12 mm thick, 10 long, on b.back_edge"
     assert cut_part(b, tongue).volume == pytest.approx(600 * 150 * 40 + 600 * 10 * 12)
-    with pytest.raises(ValueError, match="on an edge"):
-        ww.Tongue(b.left_end, length=10, thickness=12)
+    with pytest.raises(ValueError, match="on an edge or an end"):
+        ww.Tongue(b.top_face, length=10, thickness=12)
+
+
+def test_one_sided_tongues_are_listed_as_rabbets() -> None:
+    b = board(width=150)
+    edge = ww.Tongue(b.back_edge, length=10, thickness=12, thickness_offset=0)
+    assert edge.describe() == "rabbet 10 mm, 28 deep, in b.bottom_face at b.back_edge"
+    end = ww.Tongue(b.left_end, length=10, thickness=12, thickness_offset=28)
+    assert end.describe() == "end rabbet 10 mm, 28 deep, in b.top_face at b.left_end"
+    assert cut_part(b, end).volume == pytest.approx(600 * 150 * 40 + 150 * 10 * 12)
 
 
 def test_lap() -> None:

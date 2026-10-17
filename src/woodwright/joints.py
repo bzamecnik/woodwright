@@ -37,6 +37,7 @@ __all__ = [
     "CrossLap",
     "DadoJoint",
     "GrooveJoint",
+    "HalfBlindDovetail",
     "HalfLap",
     "Housing",
     "Joint",
@@ -378,15 +379,19 @@ class GrooveJoint(Housing):
 
 @dataclass
 class TongueAndGroove(Housing):
-    """A tongue along an edge of part b in a groove along a side of part a.
+    """A tongue along an edge (or across an end) of part b in a groove in a side of part a.
 
     The boards' design widths are their visible faces; the tongue is added.
+    It is centered across the thickness unless `tongue_offset` (from the
+    reference face) is given: with 0 it is flush with the reference face,
+    as on a drawer bottom rabbeted on its underside.
     """
 
     tongue: SideRef
     groove: SideRef
     tongue_thickness: float | None = None
     tongue_length: float | None = None
+    tongue_offset: float | None = None
     through: bool = True  # the groove runs the whole length of part a
     position: Position = CENTERED
     across: Position = FLUSH
@@ -408,7 +413,12 @@ class TongueAndGroove(Housing):
         return _require(self.tongue_length)
 
     def tenon_cut(self) -> Tenon:
-        return Tongue(self.tongue, length=self.reach(), thickness=_require(self.tongue_thickness))
+        return Tongue(
+            self.tongue,
+            length=self.reach(),
+            thickness=_require(self.tongue_thickness),
+            thickness_offset=self.tongue_offset,
+        )
 
 
 @dataclass
@@ -550,21 +560,23 @@ class HalfLap(Housing):
 
 @dataclass
 class ThroughDovetail(Joint):
-    """Through dovetails at a corner of two boards of equal width.
+    """Through dovetails at a corner of two boards.
 
     The tails are cut on an end of one board, the pins on an end of the
     other (any ends, so a board may have pins or tails at both ends). Both
     boards reach through each other, so each gets an allowance of the
     other's thickness. The pin board's reference face is outside; `flush`
     are the sides kept flush along the corner (by default the reference
-    edges). The geometry is built once in the frame of the pin board and split.
+    edges). The pin board may be narrower than the tail board, e.g. the back
+    of a drawer sitting on its bottom; the tails are laid out across it. The
+    geometry is built once in the frame of the pin board and split.
     """
 
     tails: SideRef
     pins: SideRef
     tail_count: int = 4
     slope: float = 7.0  # 1:slope, between 1:6 (softwood) and 1:8 (hardwood)
-    pin_width: float = 8.0  # narrowest, on the outside of the pin board
+    pin_width: float = 8.0  # narrowest, at the end of the tails
     half_pin_width: float = 10.0
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -574,13 +586,17 @@ class ThroughDovetail(Joint):
     def __post_init__(self) -> None:
         if self.pins.axis != 0 or self.tails.axis != 0:
             raise ValueError("dovetails are cut on the ends of boards")
-        if self.pins.part.width != self.tails.part.width:
-            raise ValueError("dovetailed boards must have the same width")
+        if self.pins.part.width > self.tails.part.width:
+            raise ValueError("the pin board must not be wider than the tail board")
+
+    def reach(self) -> float:
+        """How far the tails reach into the pin board, from its inside face."""
+        return self.pins.part.thickness
 
     def allowances(self) -> list[Allowance]:
-        # Both boards reach through each other.
+        # The tails reach into the pin board, the pin board past the tail board.
         return [
-            Allowance(self.tails, self.pins.part.thickness),
+            Allowance(self.tails, self.reach()),
             Allowance(self.pins, self.tails.part.thickness),
         ]
 
@@ -597,12 +613,11 @@ class ThroughDovetail(Joint):
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         pins, tails = self.parts()
-        # Corner block where the boards overlap, beyond the pin board's end,
-        # in its frame.
+        # The block where the tails go, beyond the pin board's end, in its frame.
         c = self.pins.coordinate
         x0 = c if self.pins.side.sign > 0 else c - tails.thickness
         block = bd.Pos(x0, 0, -pins.thickness) * bd.Box(
-            tails.thickness, pins.width, pins.thickness, align=(bd.Align.MIN,) * 3
+            tails.thickness, pins.width, self.reach(), align=(bd.Align.MIN,) * 3
         )
         # Pin profiles are drawn across the width (x) and the thickness (y) of
         # the pin board and extruded along its length, through the tail board.
@@ -612,39 +627,71 @@ class ThroughDovetail(Joint):
             for points in self._pin_profiles()
         ]
         pin_solid = functools.reduce(operator.add, pin_solids)
+        sockets, dovetails = self._descriptions()
         return [
-            ShapeCut(pins, block - pin_solid, f"sockets for {self.tail_count} dovetails"),
-            ShapeCut(
-                tails,
-                placement.inverse() * pin_solid,
-                f"{self.tail_count} dovetails, slope 1:{self.slope:g}",
-            ),
+            ShapeCut(pins, block - pin_solid, sockets),
+            ShapeCut(tails, placement.inverse() * pin_solid, dovetails),
         ]
+
+    def _descriptions(self) -> tuple[str, str]:
+        """Of the cuts on the pin board and on the tail board."""
+        n = self.tail_count
+        return f"sockets for {n} dovetails", f"{n} dovetails, slope 1:{self.slope:g}"
 
     def _pin_profiles(self) -> list[list[tuple[float, float]]]:
         """Outlines of the pins (incl. half pins) as (across the width, along the normal).
 
-        Pins are narrowest on the outside face of the pin board (y = 0) and
-        widest on its inside face (y = -thickness). Along the width the joint
-        is laid out as: half pin | tail | pin | tail | ... | pin | tail | half pin
+        Pins are narrowest where the tails end (on the outside face of the
+        pin board for through dovetails) and widest on its inside face
+        (y = -thickness). Along the width the joint is laid out as:
+        half pin | tail | pin | tail | ... | pin | tail | half pin
         """
         t, width = self.pins.part.thickness, self.pins.part.width
-        flare = t / self.slope  # how far each sloped flank leans over the thickness
+        top, bottom = self.reach() - t, -t
+        flare = self.reach() / self.slope  # how far each sloped flank leans
         n = self.tail_count
         tail_wide = (width - 2 * self.half_pin_width - (n - 1) * self.pin_width) / n
         if tail_wide - 2 * flare <= 0:
             raise ValueError("tails too narrow for this slope and pin width")
 
         u = self.half_pin_width
-        profiles = [[(0, 0), (0, -t), (u + flare, -t), (u, 0)]]
+        profiles = [[(0, top), (0, bottom), (u + flare, bottom), (u, top)]]
         for _ in range(n - 1):
             u0 = u + tail_wide
             u1 = u0 + self.pin_width
-            profiles.append([(u0, 0), (u0 - flare, -t), (u1 + flare, -t), (u1, 0)])
+            profiles.append([(u0, top), (u0 - flare, bottom), (u1 + flare, bottom), (u1, top)])
             u = u1
         u0 = u + tail_wide
-        profiles.append([(u0, 0), (u0 - flare, -t), (width, -t), (width, 0)])
+        profiles.append([(u0, top), (u0 - flare, bottom), (width, bottom), (width, top)])
         return profiles
+
+
+@dataclass
+class HalfBlindDovetail(ThroughDovetail):
+    """Half-blind dovetails, e.g. at the front of a drawer.
+
+    Like through dovetails, but the tails stop short of the pin board's
+    outside face, so it keeps a `lap` that hides them (by default a quarter
+    of its thickness). The tails are as long as the sockets are deep.
+    """
+
+    lap: float | None = None
+
+    def with_defaults(self) -> Self:
+        return replace(self, lap=self.lap or rules.dovetail_lap(self.pins.part.thickness))
+
+    def reach(self) -> float:
+        lap = _require(self.lap)
+        if not 0 < lap < self.pins.part.thickness:
+            raise ValueError("the lap must be thinner than the pin board")
+        return self.pins.part.thickness - lap
+
+    def _descriptions(self) -> tuple[str, str]:
+        n, depth = self.tail_count, self.reach()
+        return (
+            f"sockets for {n} half-blind dovetails, {depth:g} deep, lap {self.lap:g}",
+            f"{n} half-blind dovetails, {depth:g} long, slope 1:{self.slope:g}",
+        )
 
 
 @dataclass
