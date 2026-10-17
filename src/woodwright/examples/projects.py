@@ -2,18 +2,20 @@
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, STANDING, THIN_OAK
+from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
     DadoJoint,
+    HalfBlindDovetail,
     MitreCorner,
     MortiseTenon,
     RabbetJoint,
     ThroughDovetail,
+    TongueAndGroove,
 )
-from woodwright.part import Board
-from woodwright.placement import CENTERED, flush_with, offset
+from woodwright.part import Board, SideRef
+from woodwright.placement import CENTERED, Position, flush_with, offset
 from woodwright.stock import Stock
 
 SQUARE_STOCK = Stock.board(thickness=24, species="oak")
@@ -199,6 +201,72 @@ def dovetail_drawer(
     ]:
         asm.join(ThroughDovetail(tails=side.right_end, pins=front_end, tail_count=3))
         asm.join(ThroughDovetail(tails=side.left_end, pins=back_end, tail_count=3))
+    return asm
+
+
+def drawer(
+    width: float = 400,
+    depth: float = 450,
+    height: float = 150,
+    groove_height: float = 10,
+    groove_width: float = 6,
+    groove_depth: float = 5,
+    stock: Stock = OAK,
+    side_stock: Stock = SIDE_OAK,
+    bottom_stock: Stock = THIN_OAK,
+) -> Assembly:
+    """A classic drawer with a bottom; outside sizes.
+
+    The front has half-blind dovetails, so the tails don't show from the
+    front; the back is through dovetailed. The bottom slides in grooves in
+    the sides and the front, under the back, which is narrower and sits on
+    it. The bottom's edges are rabbeted on its underside to fit the grooves,
+    its top flush with their tops; its grain runs from side to side, so it
+    moves towards the back. The groove's lower wall is `groove_height` above
+    the bottom edges. The back and the right side are mirror images of the
+    front and the left side, all with their reference faces outside.
+    """
+    s, b = side_stock.thickness, bottom_stock.thickness
+    side_length = depth - stock.thickness - s
+    asm = Assembly("drawer", root_location=BOX_FRONT)
+    front = asm.add(Board("front", stock, length=width - 2 * s, width=height))
+    back_height = height - groove_height - groove_width
+    back = asm.add(Board("back", side_stock, length=width - 2 * s, width=back_height, mirror=True))
+    left = asm.add(Board("left", side_stock, length=side_length, width=height))
+    right = asm.add(Board("right", side_stock, length=side_length, width=height, mirror=True))
+    bottom = asm.add(Board("bottom", bottom_stock, length=width - 2 * s, width=side_length + s))
+
+    def in_groove(tongue: SideRef, groove: SideRef, position: Position) -> TongueAndGroove:
+        """The bottom's edge or end in a groove in the inside face of the front or a side."""
+        return TongueAndGroove(
+            tongue=tongue,
+            groove=groove,
+            tongue_thickness=groove_width,
+            tongue_length=groove_depth,
+            tongue_offset=0,
+            position=position,
+            flush=(groove.part.ref_edge, bottom.bottom_face),
+            across=offset(groove_height + groove_width - b),
+        )
+
+    # The sides' right ends are at the front; the back's top edge is flush with theirs.
+    for side, front_end, back_end, bottom_end in [
+        (left, front.left_end, back.left_end, bottom.left_end),
+        (right, front.right_end, back.right_end, bottom.right_end),
+    ]:
+        asm.join(HalfBlindDovetail(tails=side.right_end, pins=front_end, tail_count=3))
+        asm.join(
+            ThroughDovetail(
+                tails=side.left_end,
+                pins=back_end,
+                tail_count=2,
+                flush=(back.back_edge, side.back_edge),
+            )
+        )
+        asm.join(in_groove(bottom_end, side.bottom_face, flush_with(side.right_end)))
+    asm.join(in_groove(bottom.front_edge, front.bottom_face, flush_with(front.left_end)))
+    # The back sits on the bottom, which reaches to its outside face.
+    asm.join(Butt(bottom.top_face, back.ref_edge, flush=(bottom.back_edge, back.ref_face)))
     return asm
 
 

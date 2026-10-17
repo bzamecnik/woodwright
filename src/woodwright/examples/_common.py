@@ -5,6 +5,7 @@ from woodwright.stock import Stock
 
 OAK = Stock.board(thickness=20, species="oak")
 THIN_OAK = Stock.board(thickness=10, species="oak")  # for panels
+SIDE_OAK = Stock.board(thickness=12, species="oak")  # for the sides of drawers
 
 # A board standing up, its back edge to the right and its reference face
 # away from the viewer: a stile, a leg.

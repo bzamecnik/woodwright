@@ -5,13 +5,14 @@ import itertools
 from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.cuts import Groove
-from woodwright.examples._common import CASE_SIDE, OAK, STANDING, THIN_OAK
+from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
     CrossLap,
     DadoJoint,
     GrooveJoint,
+    HalfBlindDovetail,
     HalfLap,
     MitreCorner,
     MitreSplice,
@@ -372,6 +373,26 @@ def dovetail_corner(
     side = asm.add(Board("side", stock, length=side_height - stock.thickness, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(ThroughDovetail(tails=top.left_end, pins=side.right_end, tail_count=tail_count))
+    return asm
+
+
+def half_blind_dovetail_corner(
+    front_length: float = 400,
+    side_length: float = 300,
+    height: float = 150,
+    tail_count: int = 3,
+    stock: Stock = OAK,
+    side_stock: Stock = SIDE_OAK,
+) -> Assembly:
+    """The front corner of a drawer: half-blind dovetails, the tails hidden behind a lap.
+
+    The front's length is overall, the side's from the inside of the front.
+    """
+    asm = Assembly("half_blind_dovetail_corner", root_location=BOX_FRONT)
+    t = side_stock.thickness
+    front = asm.add(Board("front", stock, length=front_length - t, width=height))
+    side = asm.add(Board("side", side_stock, length=side_length, width=height))
+    asm.join(HalfBlindDovetail(tails=side.right_end, pins=front.left_end, tail_count=tail_count))
     return asm
 
 

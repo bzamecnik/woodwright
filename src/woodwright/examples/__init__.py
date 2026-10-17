@@ -55,6 +55,7 @@ ALL: list[Example] = [
     joints.through_mortise_tenon,
     joints.mortise_tenon_thin_rail,
     joints.dovetail_corner,
+    joints.half_blind_dovetail_corner,
     joints.butt_frame_corner,
     joints.mitre_corner,
     joints.edge_mitre_corner,
@@ -70,6 +71,7 @@ ALL: list[Example] = [
     projects.butt_box,
     projects.bookshelf,
     projects.dovetail_drawer,
+    projects.drawer,
     projects.picture_frame,
     projects.table_frame,
 ]

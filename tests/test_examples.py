@@ -66,3 +66,16 @@ def _volume(shape) -> float:
     if shape is None:
         return 0.0
     return sum(s.volume for s in shape) if isinstance(shape, list) else shape.volume
+
+
+def test_drawer_sizes_and_bottom() -> None:
+    from woodwright.examples import projects
+
+    model = projects.drawer().resolve()
+    sizes = {part.part.name: part.size for part in model.parts}
+    assert sizes["front"] == (400, 150, 20)  # the overall width
+    assert sizes["left"] == (445, 150, 12)  # the tails reach 15 into the front
+    assert sizes["back"] == (400, 134, 12)  # sits on the bottom
+    assert sizes["bottom"] == (386, 435, 10)  # in the grooves, under the back
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((400, 450, 150))

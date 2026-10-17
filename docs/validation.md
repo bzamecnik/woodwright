@@ -90,9 +90,9 @@ Done items name their example in `woodwright.examples`
   - dovetail - similar to box joint, but the slot mortices are angled
     - [x] two boards (corner) – `joints.dovetail_corner`
     - [ ] shelf with dovetailed corners
-    - [ ] drawer with dovetailed corners with a groove and rabbeted bottom
-      (so far `projects.dovetail_drawer`: pins on the front and back, tails on the sides,
-      without a groove and a bottom)
+    - [x] drawer with dovetailed corners with a groove and rabbeted bottom – `projects.drawer`
+      (half-blind at the front, through at the back; through at all four corners without a
+      bottom: `projects.dovetail_drawer`)
     - [ ] dovetail with mitred corner
   - chamfer joint
     - full 45˚ chamfer
@@ -128,7 +128,7 @@ Done items name their example in `woodwright.examples`
   - round tenon
     - [ ] mortice is a drilled hole, tenon is round
     - [ ] can be wedged
-  - [ ] half-blind dovetail
+  - [x] half-blind dovetail – `joints.half_blind_dovetail_corner`, `projects.drawer`
   - [ ] blind mitred dovetail
   - kumiko asanoha pattern
     - [ ] 3-way mitre joint
