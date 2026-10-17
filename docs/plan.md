@@ -367,12 +367,56 @@ Every milestone ends with examples from [validation.md](validation.md)
 running end-to-end (3D + cut list) and with tests. Milestones are ordered so
 that each one tests a new piece of the architecture.
 
-### M0: Spike (throwaway allowed)
+### M0: Spike (throwaway allowed) ✅ done
 
 Re-express `mortise_tenon.py` and `dovetail_corner.py` through a minimal
 prototype API (Board, SideRef, one cut per pattern, one joint per pattern),
 to check §2–§4 against reality before building them properly. Output: the
 same STEP/SVG as the plain versions, and notes on what felt wrong.
+
+**Outcome.** Both examples are rewritten with woodwright. Tests confirm
+the resolved geometry matches the plain build123d versions (volumes,
+bounding boxes, no interference). A design now states only stock, design
+dimensions and the joint; the library derives the joinery, cut lengths and
+placement.
+
+Decisions taken in the spike:
+
+- Part frame: origin at the left end of the reference arris, x along the
+  length, y towards the back edge, z up along the reference face normal.
+  The design box is [0, L] × [0, W] × [−T, 0].
+- Side normals point outward. Cuts into a side go to negative depth;
+  tenons, cut from the allowance beyond the shoulder, go to positive depth.
+- Side plane coordinates: x from the left end (faces, edges) or from the
+  front edge (ends); y follows from the right-hand rule.
+- The mortise is derived from the tenon: it is cut where the tenon lands,
+  mapped through the placement, so the two fit by construction. This mixes
+  the two patterns of §3 and may be the right default for most joints.
+- Joint parameters left as `None` are filled by `with_defaults()`, which
+  returns a copy; the design itself is not changed by resolving.
+
+What felt wrong, to address before or during M1:
+
+1. Orienting the root part needs a raw build123d `Plane` with
+   hand-picked axis directions. We need a readable way to say e.g. "stand
+   the stile up, back edge facing right".
+2. Offsets along an arris run in the direction given by the right-hand
+   rule, so `offset(100)` on the stile counts from its *right* end.
+   Offsets should be measured from a named side ("100 mm from
+   `stile.left_end`").
+3. The y coordinate of some side planes (`front_edge`, `right_end`, ...)
+   starts at the bottom face rather than at a reference side. Predictable,
+   but not what a woodworker expects.
+4. `ThroughDovetail` supports only pins on a right end and tails on a left
+   end. Generalizing it needs a better way to describe corners where both
+   boards reach through each other.
+5. Outside dimensions are awkward: the dovetail example computes
+   `side_height - thickness` for the design length (see the open question
+   in §2 about an "overall cut length" switch).
+6. The twelve named arris properties (`top_right_arris`, ...) are not
+   implemented yet, only `arris(a, b)` and `ref_arris`.
+7. The examples' SVG export triggers a build123d deprecation warning
+   (0–255 RGB colours).
 
 ### M1: A single board and its cuts
 
