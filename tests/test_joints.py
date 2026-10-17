@@ -430,3 +430,30 @@ def leg_with_two_aprons(tenon_length: float, mitred: bool) -> ww.Assembly:
 def test_two_tenons_meeting_in_a_leg(tenon_length: float, mitred: bool, clash: bool) -> None:
     model = leg_with_two_aprons(tenon_length, mitred).resolve()
     assert (interference(model) > 1e-6) == clash
+
+
+def test_haunched_tenon_of_a_wide_apron() -> None:
+    asm = ww.Assembly("test")
+    leg = asm.add(ww.Board("leg", ww.Stock.board(45, "oak"), length=700, width=45))
+    apron = asm.add(ww.Board("apron", OAK, length=400, width=150))
+    asm.join(
+        ww.MortiseTenon(
+            tenon=apron.left_end,
+            mortise=leg.back_edge,
+            position=ww.flush_with(leg.right_end),
+            shoulder=(40, 10),
+            haunch=apron.front_edge,
+            haunch_length=10,
+        )
+    )
+    model = asm.resolve()
+    # The apron's front edge is flush with the top of the leg; the haunch
+    # fills the wide shoulder there, the mortise stops below the top.
+    assert cuts(model, apron) == [
+        "haunched tenon 100 x 8 mm, 30 long, haunch 10 long, on apron.left_end"
+    ]
+    assert cuts(model, leg) == [
+        "mortise 100 x 8 mm, 32 deep, in leg.back_edge",
+        "haunch mortise 40 x 8 mm, 10 deep, in leg.back_edge at leg.right_end",
+    ]
+    assert interference(model) == pytest.approx(0, abs=1e-6)

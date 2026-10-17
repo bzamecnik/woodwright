@@ -426,15 +426,18 @@ class MortiseTenon(Housing):
     """A tenon on an end of one part, in a mortise in a side of the other.
 
     The reference faces of both parts are flush (see `across` to change
-    that). The tenon has a `shoulder` on both edges and is centered across
-    the thickness unless `tenon_offset` (from the reference face) is given.
+    that). The tenon has a `shoulder` on both edges, or a pair of them (at
+    the front edge, at the back edge), and is centered across the
+    thickness unless `tenon_offset` (from the reference face) is given.
     The mortise is cut where the tenon goes, with some clearance at its
     bottom; a tenon as long as the mortised part is deep goes through.
 
     With `haunch`, an edge of the tenoned part (e.g. the outer edge of a
     rail), the tenon gets a haunch towards it, `haunch_length` long (by
     default as deep as a panel groove), and the mortised part a haunch
-    mortise. It fills a groove running out of the mortised part.
+    mortise. It fills a groove running out of the mortised part, or the
+    shoulder of a wide rail (e.g. a table apron) set down from the end of
+    the mortised part, so its mortise doesn't run out of it.
 
     With `mitre`, a face of the tenoned part, the end of the tenon is mitred
     at 45 degrees, shorter at the cheek towards that face: for two tenons
@@ -446,7 +449,7 @@ class MortiseTenon(Housing):
     position: Position = CENTERED
     tenon_thickness: float | None = None
     tenon_length: float | None = None
-    shoulder: float = 5.0  # on both edges of the tenoned part
+    shoulder: float | tuple[float, float] = 5.0  # on both edges of the tenoned part
     clearance: float = 2.0  # extra mortise depth
     tenon_offset: float | None = None
     haunch: SideRef | None = None
@@ -474,11 +477,14 @@ class MortiseTenon(Housing):
         return _require(self.tenon_length)
 
     def tenon_cut(self) -> Tenon:
+        shoulder = self.shoulder
+        front, back = (shoulder, shoulder) if isinstance(shoulder, int | float) else shoulder
         return Tenon(
             self.tenon,
             length=self.reach(),
             thickness=_require(self.tenon_thickness),
-            width=self.tenon.size[0] - 2 * self.shoulder,
+            width=self.tenon.size[0] - front - back,
+            width_offset=front,
             thickness_offset=self.tenon_offset,
             haunch=self.haunch,
             haunch_length=self.haunch_length,
