@@ -19,11 +19,7 @@ def interference(a: bd.Part, b: bd.Part) -> float:
 
 
 def mortise_tenon() -> tuple[ww.Assembly, ww.Board, ww.Board]:
-    # Stile standing up (length along Z), its back edge facing +X.
-    asm = ww.Assembly(
-        "mortise_tenon",
-        root_location=bd.Location(bd.Plane((0, 20, 0), x_dir=(0, 0, 1), z_dir=(0, 1, 0))),
-    )
+    asm = ww.Assembly("mortise_tenon", root_location=ww.orient(right_end=ww.UP, back_edge=ww.RIGHT))
     stile = asm.add(ww.Board("stile", OAK, length=600, width=60))
     rail = asm.add(ww.Board("rail", OAK, length=300, width=60))
     asm.join(ww.MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge))
@@ -31,7 +27,8 @@ def mortise_tenon() -> tuple[ww.Assembly, ww.Board, ww.Board]:
 
 
 def dovetail_corner() -> tuple[ww.Assembly, ww.Board, ww.Board]:
-    # Side standing up (length along Z), its reference face outside at x = 0.
+    # Side standing up (length along Z), its reference face outside at x = 0,
+    # placed by a raw build123d location of its part frame.
     asm = ww.Assembly(
         "dovetail_corner",
         root_location=bd.Location(bd.Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(-1, 0, 0))),

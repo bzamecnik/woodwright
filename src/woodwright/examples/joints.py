@@ -2,12 +2,10 @@
 
 import itertools
 
-import build123d as bd
-
 from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.cuts import Groove
-from woodwright.examples._common import OAK, STANDING, THIN_OAK
+from woodwright.examples._common import CASE_SIDE, OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
@@ -29,9 +27,6 @@ from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")
 LEG_STOCK = Stock.board(thickness=45, species="oak")
-
-# The side of a carcase stands up, its reference face outside at x = 0.
-CARCASE_SIDE = bd.Location(bd.Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(-1, 0, 0)))
 
 
 # --- Butt joints ------------------------------------------------------------
@@ -66,7 +61,7 @@ def butt_corner(
 
     The top's length is between the sides, the side's height is overall.
     """
-    asm = Assembly("butt_corner", root_location=CARCASE_SIDE)
+    asm = Assembly("butt_corner", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(Butt(side.bottom_face, top.left_end, position=flush_with(side.right_end)))
@@ -84,7 +79,7 @@ def dado_shelf(
     stock: Stock = OAK,
 ) -> Assembly:
     """A shelf housed in a dado in the side, `shelf_height` below its top end."""
-    asm = Assembly("dado_shelf", root_location=CARCASE_SIDE)
+    asm = Assembly("dado_shelf", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     shelf = asm.add(Board("shelf", stock, length=shelf_length, width=depth))
     asm.join(
@@ -102,7 +97,7 @@ def rabbet_corner(
 
     The top's length is between the sides, the side's height is overall.
     """
-    asm = Assembly("rabbet_corner", root_location=CARCASE_SIDE)
+    asm = Assembly("rabbet_corner", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(RabbetJoint(rabbet=side.bottom_face, end=top.left_end, at=side.right_end))
@@ -120,7 +115,7 @@ def sliding_dovetail_shelf(
 
     Like the dado shelf, but the shelf can't be pulled out of the side.
     """
-    asm = Assembly("sliding_dovetail_shelf", root_location=CARCASE_SIDE)
+    asm = Assembly("sliding_dovetail_shelf", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     shelf = asm.add(Board("shelf", stock, length=shelf_length, width=depth))
     asm.join(
@@ -141,7 +136,7 @@ def interlocking_rabbet_corner(
     The side's outer lip covers the top's end grain. The top's length is
     between the sides, the side's height is overall.
     """
-    asm = Assembly("interlocking_rabbet_corner", root_location=CARCASE_SIDE)
+    asm = Assembly("interlocking_rabbet_corner", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(
@@ -373,7 +368,7 @@ def dovetail_corner(
     each other, so their design lengths are shorter by the other board's
     thickness, which the joint adds back as an allowance.
     """
-    asm = Assembly("dovetail_corner", root_location=CARCASE_SIDE)
+    asm = Assembly("dovetail_corner", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height - stock.thickness, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(ThroughDovetail(tails=top.left_end, pins=side.right_end, tail_count=tail_count))
@@ -409,7 +404,7 @@ def edge_mitre_corner(
     side_height: float = 400, top_length: float = 500, depth: float = 200, stock: Stock = OAK
 ) -> Assembly:
     """A carcase corner mitred across the edges, so no end grain shows; outside lengths."""
-    asm = Assembly("edge_mitre_corner", root_location=CARCASE_SIDE)
+    asm = Assembly("edge_mitre_corner", root_location=CASE_SIDE)
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length, width=depth))
     asm.join(MitreCorner(side.right_end, top.left_end, side.bottom_face, top.bottom_face))

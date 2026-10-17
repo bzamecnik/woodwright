@@ -6,8 +6,8 @@ outside dimensions minus the other board's thickness; the joint adds that
 back as an allowance. The geometry of pins and tails is built once in the
 side's frame and split between the two boards, so they fit by construction.
 
-The side stands up in the global frame (X = width, Y = depth, Z = up):
-its length along Z, its reference face outside at x = 0. The tails flare
+The side stands up (X to the right, Y to the back, Z up), its reference
+face outside, to the left, at x = 0. The tails flare
 towards the top's end, so the top can only be lifted off upwards (+Z).
 """
 
@@ -18,8 +18,6 @@ from build123d import (
     Compound,
     ExportSVG,
     LineType,
-    Location,
-    Plane,
     Pos,
     Vector,
     export_step,
@@ -37,10 +35,7 @@ depth = 200.0  # depth of the case = width of both boards
 side_height = 400.0  # outside dimensions
 top_length = 500.0
 
-carcase = ww.Assembly(
-    "dovetail_corner",
-    root_location=Location(Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(-1, 0, 0))),
-)
+carcase = ww.Assembly("dovetail_corner", root_location=ww.orient(right_end=ww.UP, ref_face=ww.LEFT))
 side = carcase.add(ww.Board("side", pine, length=side_height - pine.thickness, width=depth))
 top = carcase.add(ww.Board("top", pine, length=top_length - pine.thickness, width=depth))
 carcase.join(ww.ThroughDovetail(tails=top.left_end, pins=side.right_end, tail_count=4))
@@ -78,7 +73,7 @@ def export_view(shape, path: Path, direction=(-1, -1.6, 0.9)):
     camera = center + Vector(direction).normalized() * 5000
     visible, hidden = shape.project_to_viewport(camera, viewport_up=(0, 0, 1))
     svg = ExportSVG(scale=1.0, margin=10)
-    svg.add_layer("hidden", line_color=(160, 160, 160), line_type=LineType.ISO_DOT)
+    svg.add_layer("hidden", line_color=(0.6, 0.6, 0.6), line_type=LineType.ISO_DOT)
     svg.add_layer("visible", line_weight=0.5)
     svg.add_shape(hidden, layer="hidden")
     svg.add_shape(visible, layer="visible")

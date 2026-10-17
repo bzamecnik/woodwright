@@ -4,8 +4,8 @@ The rail is tenoned into the back edge of the stile, centered along it, with
 their reference faces flush. The joint derives the tenon and the mortise, the
 rail's cut length and its placement; the user only gives design dimensions.
 
-The stile stands up in the global frame (X = width, Y = depth, Z = up):
-its length along Z, its back edge facing +X.
+The stile stands up (X to the right, Y to the back, Z up), its back edge
+facing right.
 """
 
 from pathlib import Path
@@ -15,8 +15,6 @@ from build123d import (
     Compound,
     ExportSVG,
     LineType,
-    Location,
-    Plane,
     Pos,
     Vector,
     export_step,
@@ -31,10 +29,7 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "output" / "mortise_tenon"
 
 oak = ww.Stock.board(thickness=20, species="oak")
 
-frame = ww.Assembly(
-    "mortise_tenon",
-    root_location=Location(Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(0, 1, 0))),
-)
+frame = ww.Assembly("mortise_tenon", root_location=ww.orient(right_end=ww.UP, back_edge=ww.RIGHT))
 stile = frame.add(ww.Board("stile", oak, length=600, width=60))
 rail = frame.add(ww.Board("rail", oak, length=300, width=60))  # shoulder to shoulder
 frame.join(
@@ -71,7 +66,7 @@ def export_view(shape, path: Path, direction=(1, -1.6, 0.9)):
     camera = center + Vector(direction).normalized() * 5000
     visible, hidden = shape.project_to_viewport(camera, viewport_up=(0, 0, 1))
     svg = ExportSVG(scale=1.0, margin=10)
-    svg.add_layer("hidden", line_color=(160, 160, 160), line_type=LineType.ISO_DOT)
+    svg.add_layer("hidden", line_color=(0.6, 0.6, 0.6), line_type=LineType.ISO_DOT)
     svg.add_layer("visible", line_weight=0.5)
     svg.add_shape(hidden, layer="hidden")
     svg.add_shape(visible, layer="visible")

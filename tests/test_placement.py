@@ -98,3 +98,36 @@ def test_mate_with_a_gap() -> None:
     assert apply(apart, (0, 30, -10)) == pytest.approx((300, 65, -10))
     overlapping = ww.mate(stile.back_edge, rail.left_end, flush=flush, gap=-60)
     assert apply(overlapping, (0, 30, -10)) == pytest.approx((300, 0, -10))
+
+
+def test_orient_by_two_sides() -> None:
+    stile, _ = stile_and_rail()
+    loc = ww.orient(right_end=ww.UP, back_edge=ww.RIGHT).location(stile)
+
+    assert direction(loc, stile.right_end.normal) == pytest.approx(ww.UP)
+    assert direction(loc, stile.back_edge.normal) == pytest.approx(ww.RIGHT)
+    assert direction(loc, stile.ref_face.normal) == pytest.approx(ww.BACK)
+    # The design box lies in the positive octant, from the origin.
+    box = loc * bd.Box(600, 60, 20, align=(bd.Align.MIN, bd.Align.MIN, bd.Align.MAX))
+    assert tuple(box.bounding_box().min) == pytest.approx((0, 0, 0))
+    assert tuple(box.bounding_box().max) == pytest.approx((60, 20, 600))
+
+
+def test_orient_at_a_point() -> None:
+    stile, _ = stile_and_rail()
+    loc = ww.orient(at=(100, 200, 300), ref_face=ww.UP, ref_edge=ww.FRONT).location(stile)
+    # Lying flat as on the bench: the part frame is only moved.
+    assert apply(loc, (0, 0, 0)) == pytest.approx((100, 200, 320))
+    assert direction(loc, stile.right_end.normal) == pytest.approx(ww.RIGHT)
+
+
+def test_orient_rejects_bad_sides() -> None:
+    stile, _ = stile_and_rail()
+    with pytest.raises(ValueError, match="exactly two"):
+        ww.orient(right_end=ww.UP)
+    with pytest.raises(ValueError, match="not adjacent"):
+        ww.orient(left_end=ww.UP, right_end=ww.DOWN).location(stile)
+    with pytest.raises(ValueError, match="perpendicular"):
+        ww.orient(right_end=ww.UP, ref_face=ww.UP).location(stile)
+    with pytest.raises(ValueError, match="name sides"):
+        ww.orient(right_end=ww.UP, length=ww.LEFT).location(stile)

@@ -8,12 +8,17 @@ import build123d as bd
 from woodwright.cuts import Cut
 from woodwright.joints import Joint
 from woodwright.part import Board, Point
+from woodwright.placement import Orientation
 
 
 class Assembly:
-    """Parts and the joints between them. The first part added is the root."""
+    """Parts and the joints between them. The first part added is the root.
 
-    def __init__(self, name: str, root_location: bd.Location | None = None) -> None:
+    The root is placed by `root_location`: an `Orientation` (see `orient`)
+    or a build123d `Location` of its part frame.
+    """
+
+    def __init__(self, name: str, root_location: Orientation | bd.Location | None = None) -> None:
         self.name = name
         self.root_location = root_location or bd.Location()
         self.parts: list[Board] = []
@@ -67,7 +72,10 @@ class Assembly:
     ) -> dict[Board, bd.Location]:
         """Walk the joint graph from the root, then check joints closing loops."""
         root = self.parts[0]
-        locations = {root: self.root_location}
+        root_location = self.root_location
+        if isinstance(root_location, Orientation):
+            root_location = root_location.location(root)
+        locations = {root: root_location}
         pending = list(range(len(joints)))
         while pending:
             for i in pending:

@@ -1,10 +1,20 @@
-"""Placing one part relative to another by mating their sides."""
+"""Placing one part relative to another by mating their sides, and orienting the root."""
 
 from dataclasses import dataclass
 
 import build123d as bd
 
-from woodwright.part import ArrisRef, SideRef
+from woodwright.part import ArrisRef, Board, Point, SideRef
+
+# Directions in the assembly, as seen by a viewer in front of it: X to the
+# right, Y away from the viewer (to the back), Z up.
+Direction = tuple[float, float, float]
+RIGHT: Direction = (1, 0, 0)
+LEFT: Direction = (-1, 0, 0)
+BACK: Direction = (0, 1, 0)
+FRONT: Direction = (0, -1, 0)
+UP: Direction = (0, 0, 1)
+DOWN: Direction = (0, 0, -1)
 
 
 @dataclass(frozen=True)
@@ -113,3 +123,55 @@ def _arris(
     if (end - start).dot(x_dir) < 0:
         start, end = end, start
     return start, end, x_dir, z_dir
+
+
+@dataclass(frozen=True)
+class Orientation:
+    """Which way two sides of a part face, and where its design box lies.
+
+    `facing` maps the names of two adjacent sides of the part (e.g.
+    `right_end`, `ref_face`) to the directions they face. The design box
+    is moved so that its lowest corner lies at `at`.
+    """
+
+    facing: dict[str, Direction]
+    at: Point = (0.0, 0.0, 0.0)
+
+    def __post_init__(self) -> None:
+        if len(self.facing) != 2:
+            raise ValueError("orient a part by the directions of exactly two of its sides")
+
+    def location(self, part: Board) -> bd.Location:
+        """Location of `part` in the assembly."""
+        (a, da), (b, db) = self.facing.items()
+        side_a, side_b = getattr(part, a), getattr(part, b)
+        if not isinstance(side_a, SideRef) or not isinstance(side_b, SideRef):
+            raise ValueError(f"{a} and {b} must name sides of {part.name}")
+        if side_a.axis == side_b.axis:
+            raise ValueError(f"{side_a} and {side_b} are not adjacent sides")
+        da, db = bd.Vector(da).normalized(), bd.Vector(db).normalized()
+        if abs(da.dot(db)) > 1e-6:
+            raise ValueError(f"{side_a} and {side_b} must face perpendicular directions")
+        na, nb = side_a.normal, side_b.normal
+        world = bd.Location(bd.Plane((0, 0, 0), x_dir=da, z_dir=da.cross(db)))
+        local = bd.Location(bd.Plane((0, 0, 0), x_dir=na, z_dir=na.cross(nb)))
+        rotation = world * local.inverse()
+        lo, hi = part.box
+        corners = [
+            (rotation * bd.Location((x, y, z))).position
+            for x in (lo[0], hi[0])
+            for y in (lo[1], hi[1])
+            for z in (lo[2], hi[2])
+        ]
+        lowest = bd.Vector(*(min(tuple(c)[axis] for c in corners) for axis in range(3)))
+        return bd.Location(tuple(bd.Vector(self.at) - lowest)) * rotation
+
+
+def orient(at: Point = (0.0, 0.0, 0.0), **facing: Direction) -> Orientation:
+    """Orient the root part of an assembly by the directions two of its sides face.
+
+    E.g. a stile standing up, its back edge to the right:
+    `orient(right_end=UP, back_edge=RIGHT)`. Its design box lies in the
+    positive octant from `at`.
+    """
+    return Orientation(facing, at)

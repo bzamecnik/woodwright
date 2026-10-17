@@ -1,12 +1,16 @@
-"""Stock and frames shared by the examples."""
+"""Stock and orientations shared by the examples."""
 
-import build123d as bd
-
+from woodwright.placement import FRONT, LEFT, RIGHT, UP, orient
 from woodwright.stock import Stock
 
 OAK = Stock.board(thickness=20, species="oak")
 THIN_OAK = Stock.board(thickness=10, species="oak")  # for panels
 
-# Boards stand up in the global frame (X = width, Y = depth, Z = up),
-# their length along Z.
-STANDING = bd.Location(bd.Plane((0, 20, 0), x_dir=(0, 0, 1), z_dir=(0, 1, 0)))
+# A board standing up, its back edge to the right and its reference face
+# away from the viewer: a stile, a leg.
+STANDING = orient(right_end=UP, back_edge=RIGHT)
+# The side of a case standing up, its reference face outside (to the left).
+CASE_SIDE = orient(right_end=UP, ref_face=LEFT)
+# A board with its length to the right, its reference face towards the
+# viewer: the front of a box or a drawer.
+BOX_FRONT = orient(right_end=RIGHT, ref_face=FRONT)

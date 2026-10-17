@@ -39,19 +39,34 @@ from woodwright.joints import (
 )
 from woodwright.part import ArrisRef, Board, Side, SideRef
 from woodwright.placement import (
+    BACK,
+    DOWN,
     FLUSH,
+    FRONT,
+    LEFT,
+    RIGHT,
+    UP,
     Centered,
+    Direction,
     Offset,
+    Orientation,
     Position,
     centered,
     flush_with,
     mate,
     offset,
+    orient,
 )
 from woodwright.stock import Stock
 
 __all__ = [
+    "BACK",
+    "DOWN",
     "FLUSH",
+    "FRONT",
+    "LEFT",
+    "RIGHT",
+    "UP",
     "Allowance",
     "ArrisRef",
     "Assembly",
@@ -65,6 +80,7 @@ __all__ = [
     "Cut",
     "Dado",
     "DadoJoint",
+    "Direction",
     "DovetailTongue",
     "EndRabbet",
     "Groove",
@@ -78,6 +94,7 @@ __all__ = [
     "Mortise",
     "MortiseTenon",
     "Offset",
+    "Orientation",
     "Pocket",
     "Position",
     "Rabbet",
@@ -99,4 +116,5 @@ __all__ = [
     "flush_with",
     "mate",
     "offset",
+    "orient",
 ]

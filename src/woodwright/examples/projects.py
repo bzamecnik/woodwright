@@ -1,10 +1,8 @@
 """Small practical projects: shop tools, boxes, a shelf, a drawer, a picture frame."""
 
-import build123d as bd
-
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.examples._common import OAK, STANDING, THIN_OAK
+from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
@@ -24,12 +22,6 @@ ASH = Stock.board(thickness=24, species="ash")
 THICK_OAK = Stock.board(thickness=30, species="oak")
 
 LEG_STOCK = Stock.board(thickness=45, species="oak")
-
-# A board standing up with its length along X and its width up (Z), its
-# reference face towards the viewer (-Y): the front of a box or a drawer.
-FRONT = bd.Location(bd.Plane((0, 0, 0), x_dir=(1, 0, 0), z_dir=(0, -1, 0)))
-# The side of a case standing up, its length up (Z), its reference face outside (-X).
-CASE_SIDE = bd.Location(bd.Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(-1, 0, 0)))
 
 
 def try_square(
@@ -117,7 +109,7 @@ def butt_box(
 ) -> Assembly:
     """An open box: four walls butt-jointed at the corners on a bottom; outside sizes."""
     t = stock.thickness
-    asm = Assembly("butt_box", root_location=FRONT)
+    asm = Assembly("butt_box", root_location=BOX_FRONT)
     wall_height = height - t
     front = asm.add(Board("front", stock, length=length, width=wall_height))
     back = asm.add(Board("back", stock, length=length, width=wall_height))
@@ -190,7 +182,7 @@ def dovetail_drawer(
     back of the front, the right side of the left one) have their ends swapped.
     """
     t = stock.thickness
-    asm = Assembly("dovetail_drawer", root_location=FRONT)
+    asm = Assembly("dovetail_drawer", root_location=BOX_FRONT)
     front = asm.add(Board("front", stock, length=width - 2 * t, width=height))
     back = asm.add(Board("back", stock, length=width - 2 * t, width=height))
     left = asm.add(Board("left", stock, length=depth - 2 * t, width=height))
@@ -223,11 +215,6 @@ def picture_frame(
     return asm
 
 
-# A table leg standing up at the origin, its back edge facing +X and its top
-# face +Y: its outside sides (bottom face, front edge) face -Y and -X.
-TABLE_LEG = bd.Location(bd.Plane((0, 45, 0), x_dir=(0, 0, 1), z_dir=(0, 1, 0)))
-
-
 def table_frame(
     width: float = 800,
     depth: float = 500,
@@ -247,7 +234,9 @@ def table_frame(
     leg_width = leg_stock.thickness
     tenon = rules.tenon_thickness(stock.thickness)
     tenon_length = leg_width - setback - (stock.thickness - tenon) / 2
-    asm = Assembly("table_frame", root_location=TABLE_LEG)
+    # The front left leg stands at the origin, its outside sides (bottom face,
+    # front edge) to the front and to the left.
+    asm = Assembly("table_frame", root_location=STANDING)
     names = ["front_left", "front_right", "back_right", "back_left"]
     legs = [
         asm.add(Board(f"leg_{name}", leg_stock, length=height, width=leg_width)) for name in names

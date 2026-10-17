@@ -397,9 +397,12 @@ Decisions taken in the spike:
 
 What felt wrong, to address before or during M1:
 
-1. Orienting the root part needs a raw build123d `Plane` with
+1. ~~Orienting the root part needs a raw build123d `Plane` with
    hand-picked axis directions. We need a readable way to say e.g. "stand
-   the stile up, back edge facing right".
+   the stile up, back edge facing right".~~ Done:
+   `orient(right_end=UP, back_edge=RIGHT)` names the directions two sides
+   face (`UP`, `DOWN`, `LEFT`, `RIGHT`, `FRONT` towards the viewer, `BACK`)
+   and puts the design box in the positive octant from `at`.
 2. Offsets along an arris run in the direction given by the right-hand
    rule, so `offset(100)` on the stile counts from its *right* end.
    Offsets should be measured from a named side ("100 mm from
@@ -477,8 +480,7 @@ Lessons from the examples:
 - A part housed with a face (the shooting board's stop) needs `flush`
   given explicitly to lie across the other part.
 
-Still open: the twelve named arrises (item 6), a readable way to orient
-the root part (item 1), y coordinates of side planes (item 3, now hidden
+Still open: the twelve named arrises (item 6), y coordinates of side planes (item 3, now hidden
 by the named cuts but still visible in `Mortise`), stopped grooves and
 dados, haunched tenons, cut list snapshots of the examples.
 
