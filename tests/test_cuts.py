@@ -258,3 +258,34 @@ def test_dovetail_tongue_not_on_a_face() -> None:
     b = board()
     with pytest.raises(ValueError, match="end or an edge"):
         ww.DovetailTongue(b.top_face, length=7, thickness=10)
+
+
+def test_haunched_tenon() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=60)
+    tenon = ww.Tenon(
+        rail.left_end, length=40, thickness=8, width=40, haunch=rail.front_edge, haunch_length=10
+    )
+    # The haunch fills the shoulder towards the front edge, 10 mm long.
+    assert tenon.haunch_box() == ((-10, 0), (0, 10), (-14, -6))
+    assert tenon.describe() == "haunched tenon 40 x 8 mm, 40 long, haunch 10 long, on rail.left_end"
+    volume = 300 * 60 * 20 + 40 * 40 * 8 + 10 * 10 * 8
+    assert cut_part(rail, tenon).volume == pytest.approx(volume)
+
+
+def test_haunched_tenon_errors() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=60)
+    with pytest.raises(ValueError, match="needs a width"):
+        ww.Tenon(rail.left_end, length=40, thickness=8, haunch=rail.front_edge, haunch_length=10)
+    with pytest.raises(ValueError, match=r"not to rail\.top_face"):
+        ww.Tenon(
+            rail.left_end, length=40, thickness=8, width=40, haunch=rail.top_face, haunch_length=10
+        )
+    with pytest.raises(ValueError, match="longer than the tenon"):
+        ww.Tenon(
+            rail.left_end,
+            length=40,
+            thickness=8,
+            width=40,
+            haunch=rail.front_edge,
+            haunch_length=50,
+        )

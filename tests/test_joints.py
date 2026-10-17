@@ -299,3 +299,28 @@ def test_drawer_with_pins_and_tails_on_both_ends() -> None:
     ]:
         part = next(p for p in model.parts if p.part.name == name)
         assert [cut.describe().startswith(kind) for cut in part.cuts] == [True, True]
+
+
+def test_haunched_mortise_and_tenon() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=300, width=60))
+    rail = asm.add(ww.Board("rail", OAK, length=200, width=60))
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=ww.flush_with(stile.right_end),
+            shoulder=10,
+            haunch=rail.front_edge,
+        )
+    )
+    model = asm.resolve()
+    assert model.joints[0].haunch_length == 10  # as deep as a panel groove
+    assert cuts(model, stile) == [
+        "mortise 40 x 8 mm, 42 deep, in stile.back_edge",
+        "haunch mortise 10 x 8 mm, 10 deep, in stile.back_edge at stile.right_end",
+    ]
+    assert cuts(model, rail) == [
+        "haunched tenon 40 x 8 mm, 40 long, haunch 10 long, on rail.left_end"
+    ]
+    assert interference(model) == pytest.approx(0, abs=1e-6)

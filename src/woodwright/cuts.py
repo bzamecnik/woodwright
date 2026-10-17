@@ -73,9 +73,13 @@ class Pocket(BoxCut):
 
     side: SideRef
     box: tuple[Range, Range, Range]
+    kind: str | None = None  # the name in the cut list, instead of one from its shape
 
     def ranges(self) -> tuple[Range, Range, Range]:
         return self.box
+
+    def describe(self) -> str:
+        return _describe_box(self.side, self.box, self.kind)
 
 
 @dataclass
@@ -219,6 +223,10 @@ class Tenon(Cut):
     for an end, along the length for an edge) `width_offset` from the front
     edge or the left end. Either is centered when None. Without `width` the
     tenon spans the whole side, with cheeks but no shoulders.
+
+    With `haunch`, an edge (or an end) next to the side, the tenon has a
+    haunch: a stub `haunch_length` long and as thick as the tenon, filling
+    the shoulder towards that side, e.g. to fill a groove in the mortised part.
     """
 
     side: SideRef
@@ -227,10 +235,20 @@ class Tenon(Cut):
     width: float | None = None
     width_offset: float | None = None
     thickness_offset: float | None = None
+    haunch: SideRef | None = None
+    haunch_length: float | None = None
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+        if self.haunch is not None:
+            _check_adjacent(self.side, self.haunch)
+            if self.haunch.axis == 2:
+                raise ValueError(f"a haunch reaches to an edge or an end, not to {self.haunch}")
+            if self.width is None or self.haunch_length is None:
+                raise ValueError("a haunched tenon needs a width and a haunch length")
+            if not 0 < self.haunch_length <= self.length:
+                raise ValueError("a haunch must not be longer than the tenon")
 
     def tenon_box(self) -> tuple[Range, Range, Range]:
         """Ranges of the tenon itself in the part frame."""
@@ -249,18 +267,48 @@ class Tenon(Cut):
             boxes[width_axis] = (start, start + self.width)
         return boxes[0], boxes[1], boxes[2]
 
+    def haunch_box(self) -> tuple[Range, Range, Range] | None:
+        """Ranges of the haunch in the part frame, from the tenon to the `haunch` side."""
+        if self.haunch is None or self.haunch_length is None:
+            return None
+        box = list(self.tenon_box())
+        axis = self.haunch.axis
+        a, b = box[axis]
+        box[axis] = (
+            (b, self.haunch.coordinate)
+            if self.haunch.side.sign > 0
+            else (
+                self.haunch.coordinate,
+                a,
+            )
+        )
+        box[self.side.axis] = _beyond(self.side, self.haunch_length)
+        return box[0], box[1], box[2]
+
+    def boxes(self) -> list[tuple[Range, Range, Range]]:
+        """The tenon and its haunch, if any."""
+        haunch = self.haunch_box()
+        return [self.tenon_box()] if haunch is None else [self.tenon_box(), haunch]
+
     def tenon(self) -> bd.Part:
-        """The tenon itself, in the part frame."""
-        return _box(self.part, self.tenon_box())
+        """The tenon itself (with its haunch), in the part frame."""
+        solid = _box(self.part, self.tenon_box())
+        haunch = self.haunch_box()
+        return solid if haunch is None else solid + _box(self.part, haunch)
 
     def removal(self) -> bd.Part:
         beyond = _ranges(_into(self.side, 0))
+        removal = _box(self.part, beyond)
         # Open the tenon where it reaches the sides of the design box and the
-        # end of the blank, so that no slivers are left between the two boxes.
+        # end of the blank, so that no slivers are left between the boxes.
         tenon = list(_open(self.part, self.tenon_box(), skip=self.side.axis))
         a, b = tenon[self.side.axis]
         tenon[self.side.axis] = (a, INF) if self.side.side.sign > 0 else (-INF, b)
-        return _box(self.part, beyond) - _box(self.part, (tenon[0], tenon[1], tenon[2]))
+        removal -= _box(self.part, (tenon[0], tenon[1], tenon[2]))
+        haunch = self.haunch_box()
+        if haunch is not None:
+            removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
+        return removal
 
     def allowances(self) -> list[Allowance]:
         return [Allowance(self.side, self.length)]
@@ -289,9 +337,10 @@ class Tenon(Cut):
         kind = self.kind()
         if self.width is None:
             return f"{kind} {self.thickness:g} mm thick, {self.length:g} long, on {self.side}"
-        return (
-            f"{kind} {self.width:g} x {self.thickness:g} mm, {self.length:g} long, on {self.side}"
-        )
+        size = f"{self.width:g} x {self.thickness:g} mm, {self.length:g} long"
+        if self.haunch is not None:
+            return f"haunched {kind} {size}, haunch {self.haunch_length:g} long, on {self.side}"
+        return f"{kind} {size}, on {self.side}"
 
 
 @dataclass
@@ -609,7 +658,9 @@ def _prism(part: Board, i: int, j: int, points: list[tuple[float, float]]) -> bd
     return bd.extrude(face, amount=(hi[t] - lo[t]) / 2 + _margin(part), both=True)
 
 
-def _describe_box(side: SideRef, ranges: tuple[Range, Range, Range]) -> str:
+def _describe_box(
+    side: SideRef, ranges: tuple[Range, Range, Range], kind: str | None = None
+) -> str:
     """Name a box cut by its shape, with its sizes, e.g. 'groove 10 mm, 5 deep, in b.top_face'."""
     part = side.part
     lo, hi = part.box
@@ -658,6 +709,8 @@ def _describe_box(side: SideRef, ranges: tuple[Range, Range, Range]) -> str:
         name = "mortise"
     else:
         name = "notch"
+
+    name = kind or name
 
     def extent(axis: int) -> float:
         a, b = ranges[axis]

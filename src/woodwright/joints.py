@@ -168,20 +168,28 @@ class Housing(Joint):
             box = [(lo[axis], hi[axis]) for axis in range(3)]
             c, d = insert.coordinate, self.reach()
             box[insert.axis] = (c, c + d) if insert.side.sign > 0 else (c - d, c)
-            inserted = (box[0], box[1], box[2])
+            pockets = [Pocket(socket, self.socket_box(placement, (box[0], box[1], box[2])))]
         else:
-            inserted = tenon.tenon_box()
-        pocket = Pocket(socket, self.socket_box(placement, inserted))
+            pockets = [Pocket(socket, self.socket_box(placement, tenon.tenon_box()))]
+            haunch = tenon.haunch_box()
+            if haunch is not None:
+                # Without clearance: as deep as the groove the haunch fills.
+                haunch_socket = self.socket_box(placement, haunch, clearance=0.0)
+                pockets.append(Pocket(socket, haunch_socket, kind="haunch mortise"))
         if tenon is None or not tenon.removes_material:
-            return [pocket]
-        return [pocket, tenon]
+            return pockets
+        return [*pockets, tenon]
 
     def socket_box(
-        self, placement: bd.Location, inserted: tuple[Range, Range, Range]
+        self,
+        placement: bd.Location,
+        inserted: tuple[Range, Range, Range],
+        clearance: float | None = None,
     ) -> tuple[Range, Range, Range]:
         """Ranges of the socket in part a, for a box of part b given in its frame."""
         socket = self.sides()[0]
-        box = list(_socket(socket, placement, inserted, self.clearance))
+        clearance = self.clearance if clearance is None else clearance
+        box = list(_socket(socket, placement, inserted, clearance))
         if self.through:
             along = 3 - socket.axis - (self.flush or self.default_flush())[0].axis
             box[along] = (-INF, INF)
@@ -412,6 +420,11 @@ class MortiseTenon(Housing):
     the thickness unless `tenon_offset` (from the reference face) is given.
     The mortise is cut where the tenon goes, with some clearance at its
     bottom; a tenon as long as the mortised part is deep goes through.
+
+    With `haunch`, an edge of the tenoned part (e.g. the outer edge of a
+    rail), the tenon gets a haunch towards it, `haunch_length` long (by
+    default as deep as a panel groove), and the mortised part a haunch
+    mortise. It fills a groove running out of the mortised part.
     """
 
     tenon: SideRef
@@ -422,6 +435,8 @@ class MortiseTenon(Housing):
     shoulder: float = 5.0  # on both edges of the tenoned part
     clearance: float = 2.0  # extra mortise depth
     tenon_offset: float | None = None
+    haunch: SideRef | None = None
+    haunch_length: float | None = None
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -429,11 +444,15 @@ class MortiseTenon(Housing):
         return self.mortise, self.tenon
 
     def with_defaults(self) -> Self:
+        haunch_length = self.haunch_length
+        if self.haunch is not None and haunch_length is None:
+            haunch_length = rules.groove_depth(self.mortise.part.thickness)
         return replace(
             self,
             tenon_thickness=self.tenon_thickness
             or rules.tenon_thickness(self.tenon.part.thickness),
             tenon_length=self.tenon_length or rules.tenon_length(self.mortise.depth),
+            haunch_length=haunch_length,
         )
 
     def reach(self) -> float:
@@ -446,6 +465,8 @@ class MortiseTenon(Housing):
             thickness=_require(self.tenon_thickness),
             width=self.tenon.size[0] - 2 * self.shoulder,
             thickness_offset=self.tenon_offset,
+            haunch=self.haunch,
+            haunch_length=self.haunch_length,
         )
 
 
