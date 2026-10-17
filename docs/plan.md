@@ -456,6 +456,27 @@ drilling).
   in `woodwright.examples`, whose examples are all checked for
   interference in the tests.
 
+- Later additions: `Taper` (wedges, tapered legs; two mitres cannot make a
+  wedge, as each keeps its long point at the design length), `MitreCorner`
+  (picture frame, carcase), `MitreSplice`, `CrossLap`, and a `gap` in
+  `mate` for overlapping parts. Practical examples in
+  `woodwright.examples.projects`: try square, mallet, shooting board, butt
+  box, bookshelf, dovetailed drawer, picture frame.
+
+Lessons from the examples:
+
+- Mirrored pairs (the left and right side of a case, the front and back of
+  a box) with reference faces outside and reference edges at the front have
+  their ends swapped: the right side's *left* end is at the top. Correct,
+  but easy to get wrong; loop closure catches it. Consider naming ends
+  relative to the reference arris, or a `mirror` flag on a part.
+- `ThroughDovetail` (pins on a right end, tails on a left end) is enough
+  for a drawer if every board has tails at one end and pins at the other.
+  A usual drawer (tails on both ends of the sides) needs the generalization
+  in item 4.
+- A part housed with a face (the shooting board's stop) needs `flush`
+  given explicitly to lie across the other part.
+
 Still open: the twelve named arrises (item 6), a readable way to orient
 the root part (item 1), y coordinates of side planes (item 3, now hidden
 by the named cuts but still visible in `Mortise`), stopped grooves and
