@@ -5,6 +5,7 @@ import build123d as bd
 from woodwright.stock import Stock
 
 OAK = Stock.board(thickness=20, species="oak")
+THIN_OAK = Stock.board(thickness=10, species="oak")  # for panels
 
 # Boards stand up in the global frame (X = width, Y = depth, Z = up),
 # their length along Z.

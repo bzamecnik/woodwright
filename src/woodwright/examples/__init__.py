@@ -6,20 +6,64 @@ on. In a notebook:
 
     from woodwright.examples import frames
     frames.mortise_tenon_frame(rail_length=400).resolve().compound()
+
+From the command line (see `python -m woodwright.examples --help`):
+
+    uv run python -m woodwright.examples list
+    uv run python -m woodwright.examples export frames.mortise_tenon_frame
+    uv run python -m woodwright.examples export --all
 """
 
+from collections.abc import Callable
+
+from woodwright.assembly import Assembly
 from woodwright.examples import cuts, frames, joints
 
-ALL = [
+Example = Callable[[], Assembly]
+
+ALL: list[Example] = [
     cuts.dado,
     cuts.groove,
     cuts.rabbet,
     cuts.end_rabbet,
-    joints.mortise_tenon,
-    joints.bridle_corner,
+    cuts.slot_mortise,
+    cuts.mortise,
+    cuts.tenon,
+    cuts.tongue,
+    cuts.chamfer,
+    cuts.mitre,
+    cuts.edge_mitre,
+    joints.butt_panel,
+    joints.laminated_leg,
+    joints.butt_corner,
+    joints.dado_shelf,
+    joints.rabbet_corner,
+    joints.panel_in_groove,
     joints.tongue_and_groove_panel,
+    joints.half_lap_corner,
+    joints.half_lap_t,
+    joints.bridle_corner,
+    joints.mortise_tenon,
+    joints.through_mortise_tenon,
+    joints.mortise_tenon_thin_rail,
     joints.dovetail_corner,
     frames.mortise_tenon_frame,
+    frames.bridle_frame,
+    frames.half_lap_frame,
+    frames.frame_and_panel,
 ]
 
-__all__ = ["ALL", "cuts", "frames", "joints"]
+
+def name(example: Example) -> str:
+    """Name of an example as `module.function`, e.g. `frames.mortise_tenon_frame`."""
+    return f"{example.__module__.rsplit('.', 1)[-1]}.{example.__name__}"
+
+
+def get(example_name: str) -> Example:
+    for example in ALL:
+        if name(example) == example_name:
+            return example
+    raise KeyError(f"no example named {example_name}")
+
+
+__all__ = ["ALL", "cuts", "frames", "get", "joints", "name"]
