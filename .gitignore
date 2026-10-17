@@ -71,3 +71,5 @@ htmlcov/
 
 # pyenv
 # .python-version
+
+output/
