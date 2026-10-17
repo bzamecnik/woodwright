@@ -17,7 +17,7 @@ From the command line (see `python -m woodwright.examples --help`):
 from collections.abc import Callable
 
 from woodwright.assembly import Assembly
-from woodwright.examples import cuts, frames, joints
+from woodwright.examples import cuts, frames, joints, projects
 
 Example = Callable[[], Assembly]
 
@@ -33,6 +33,9 @@ ALL: list[Example] = [
     cuts.chamfer,
     cuts.mitre,
     cuts.edge_mitre,
+    cuts.rabbeted_panel,
+    cuts.wedge,
+    cuts.tapered_leg,
     joints.butt_panel,
     joints.laminated_leg,
     joints.butt_corner,
@@ -47,10 +50,22 @@ ALL: list[Example] = [
     joints.through_mortise_tenon,
     joints.mortise_tenon_thin_rail,
     joints.dovetail_corner,
+    joints.butt_frame_corner,
+    joints.mitre_corner,
+    joints.edge_mitre_corner,
+    joints.mitre_splice,
+    joints.cross_lap,
     frames.mortise_tenon_frame,
     frames.bridle_frame,
     frames.half_lap_frame,
     frames.frame_and_panel,
+    projects.try_square,
+    projects.mallet,
+    projects.shooting_board,
+    projects.butt_box,
+    projects.bookshelf,
+    projects.dovetail_drawer,
+    projects.picture_frame,
 ]
 
 
@@ -66,4 +81,4 @@ def get(example_name: str) -> Example:
     raise KeyError(f"no example named {example_name}")
 
 
-__all__ = ["ALL", "cuts", "frames", "get", "joints", "name"]
+__all__ = ["ALL", "cuts", "frames", "get", "joints", "name", "projects"]

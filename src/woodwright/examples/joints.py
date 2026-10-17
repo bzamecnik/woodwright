@@ -9,9 +9,12 @@ from woodwright.examples._common import OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
+    CrossLap,
     DadoJoint,
     GrooveJoint,
     HalfLap,
+    MitreCorner,
+    MitreSplice,
     MortiseTenon,
     RabbetJoint,
     ThroughDovetail,
@@ -241,4 +244,62 @@ def dovetail_corner(
     side = asm.add(Board("side", stock, length=side_height - stock.thickness, width=depth))
     top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
     asm.join(ThroughDovetail(tails=top.left_end, pins=side.right_end, tail_count=tail_count))
+    return asm
+
+
+# --- More corners -------------------------------------------------------------
+
+
+def butt_frame_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """An L-shaped corner of a frame: the end of the rail glued to the edge of the stile."""
+    asm = Assembly("butt_frame_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(Butt(stile.back_edge, rail.left_end, position=flush_with(stile.right_end)))
+    return asm
+
+
+def mitre_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """A picture frame corner: both ends mitred across the face, lengths to the outside."""
+    asm = Assembly("mitre_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(MitreCorner(stile.right_end, rail.left_end, stile.back_edge, rail.back_edge))
+    return asm
+
+
+def edge_mitre_corner(
+    side_height: float = 400, top_length: float = 500, depth: float = 200, stock: Stock = OAK
+) -> Assembly:
+    """A carcase corner mitred across the edges, so no end grain shows; outside lengths."""
+    asm = Assembly("edge_mitre_corner", root_location=CARCASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height, width=depth))
+    top = asm.add(Board("top", stock, length=top_length, width=depth))
+    asm.join(MitreCorner(side.right_end, top.left_end, side.bottom_face, top.bottom_face))
+    return asm
+
+
+def mitre_splice(
+    length: float = 300, width: float = 40, angle: float = 45, stock: Stock = OAK
+) -> Assembly:
+    """Two stiles end to end, lengthened by a mitre across the face."""
+    asm = Assembly("mitre_splice", root_location=STANDING)
+    a = asm.add(Board("a", stock, length=length, width=width))
+    b = asm.add(Board("b", stock, length=length, width=width))
+    asm.join(MitreSplice(a.right_end, b.left_end, short=a.back_edge, angle=angle))
+    return asm
+
+
+def cross_lap(
+    length_a: float = 300, length_b: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """Two boards crossing in their middles, each with a dado half its thickness deep."""
+    asm = Assembly("cross_lap")
+    a = asm.add(Board("a", stock, length=length_a, width=width))
+    b = asm.add(Board("b", stock, length=length_b, width=width))
+    asm.join(CrossLap(a.back_edge, b.left_end))
     return asm

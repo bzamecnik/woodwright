@@ -10,9 +10,11 @@ from woodwright.cuts import (
     Mortise,
     Rabbet,
     SlotMortise,
+    Taper,
     Tenon,
     Tongue,
 )
+from woodwright.examples._common import THIN_OAK
 from woodwright.part import Board
 from woodwright.stock import Stock
 
@@ -110,4 +112,34 @@ def edge_mitre(angle: float = 45, stock: Stock = THICK_OAK) -> Assembly:
     """An end mitred across the edge, as for a carcase corner; bottom face inside."""
     asm, board = _board("edge_mitre", stock)
     board.cut(Mitre(board.right_end, inside=board.bottom_face, angle=angle))
+    return asm
+
+
+def rabbeted_panel(
+    length: float = 400, width: float = 250, rabbet: float = 15, depth: float = 5
+) -> Assembly:
+    """A thin panel rabbeted on all four sides, to fit a groove in a frame or a drawer."""
+    asm, board = _board("rabbeted_panel", THIN_OAK, length=length, width=width)
+    for at in (board.front_edge, board.back_edge, board.left_end, board.right_end):
+        board.cut(Rabbet(board.top_face, at=at, width=rabbet, depth=depth))
+    return asm
+
+
+def wedge(
+    length: float = 100, width: float = 20, tip: float = 2, stock: Stock = THIN_OAK
+) -> Assembly:
+    """A wedge, e.g. for a wedged tenon: both edges tapered towards the right end."""
+    asm, board = _board("wedge", stock, length=length, width=width)
+    for edge in (board.front_edge, board.back_edge):
+        board.cut(Taper(edge, end=board.right_end, amount=(width - tip) / 2))
+    return asm
+
+
+def tapered_leg(
+    length: float = 450, width: float = 40, taper: float = 15, taper_length: float = 300
+) -> Assembly:
+    """A leg tapered on its two inside sides over the lower part of its length."""
+    asm, board = _board("tapered_leg", Stock.board(thickness=40, species="oak"), length, width)
+    for side in (board.back_edge, board.bottom_face):
+        board.cut(Taper(side, end=board.left_end, amount=taper, length=taper_length))
     return asm
