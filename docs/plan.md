@@ -358,7 +358,7 @@ src/woodwright/
   checks.py
   output/          # cut list, export, drawings
 tests/             # mostly kernel-free; geometry tests use small parts
-examples/          # one per validation step, writing to output/
+examples/          # scripts; the example library is in woodwright.examples
 ```
 
 ## 6. Roadmap
@@ -430,6 +430,36 @@ What felt wrong, to address before or during M1:
 
 Covers the "single piece" and "cuts" sections of validation.md (without
 drilling).
+
+**Outcome (in progress, pulling in parts of M2 and M3).**
+
+- Cuts: `Groove`, `Dado`, `Rabbet`, `EndRabbet`, `SlotMortise`, `Mortise`
+  are box cuts (`BoxCut`), given in woodworking terms: a width, a depth and
+  a distance from a named adjacent side. The cut list names any box cut by
+  its shape (a groove at the edge is listed as a rabbet). `Tenon` has
+  cheeks and shoulders measured from the reference face and edge, and
+  without a width spans the whole side (bridle tenon, lap); `Tongue` is a
+  tenon along an edge. Tenons ask for their allowance themselves, so they
+  work on a single board too. `Chamfer` (on an arris) and `Mitre` (across
+  the face or the edge, the design length being the long point).
+  Crosscut and rip are left out: a board is already cut to size.
+- Placement: `flush_with(side)` and `offset(d, ref=side)` measure along
+  the mating arris from a named side (addresses item 2 above); `across`
+  centers parts of different thicknesses or sets one back.
+- Joints (from M2/M3): `Butt`, and housings where part b (or a tenon on
+  it) goes into a socket derived from where it lands: `DadoJoint`,
+  `RabbetJoint`, `GrooveJoint`, `TongueAndGroove`, `MortiseTenon` (now with
+  through tenons and offset cheeks), `Bridle`, `HalfLap` (corner and T).
+- Outputs: `woodwright.export` (STEP, STL, hidden-line SVG views incl. an
+  exploded one, cut list; item 7 above fixed), and
+  `python -m woodwright.examples {list,export}` over the example library
+  in `woodwright.examples`, whose examples are all checked for
+  interference in the tests.
+
+Still open: the twelve named arrises (item 6), a readable way to orient
+the root part (item 1), y coordinates of side planes (item 3, now hidden
+by the named cuts but still visible in `Mortise`), stopped grooves and
+dados, haunched tenons, cut list snapshots of the examples.
 
 ### M2: Placement and one-sided joints
 
