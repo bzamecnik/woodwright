@@ -4,6 +4,7 @@ import itertools
 
 import build123d as bd
 
+from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.cuts import Groove
 from woodwright.examples._common import OAK, STANDING, THIN_OAK
@@ -27,6 +28,7 @@ from woodwright.placement import CENTERED, flush_with, offset
 from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")
+LEG_STOCK = Stock.board(thickness=45, species="oak")
 
 # The side of a carcase stands up, its reference face outside at x = 0.
 CARCASE_SIDE = bd.Location(bd.Plane((0, 0, 0), x_dir=(0, 0, 1), z_dir=(-1, 0, 0)))
@@ -273,6 +275,57 @@ def haunched_mortise_tenon_corner(
         )
     )
     return asm
+
+
+def _leg_and_aprons(
+    name: str, tenon_length: float | None, mitred: bool, setback: float
+) -> Assembly:
+    """A table leg with two aprons tenoned into its two inner sides, tops flush."""
+    asm = Assembly(name, root_location=STANDING)
+    leg = asm.add(Board("leg", LEG_STOCK, length=700, width=LEG_STOCK.thickness))
+    front = asm.add(Board("front_apron", OAK, length=400, width=100))
+    side = asm.add(Board("side_apron", OAK, length=300, width=100))
+    # The leg's outside sides are its bottom face and front edge; each apron's
+    # reference face is outside, `setback` behind the leg's.
+    for apron, mortise, outside in [
+        (front, leg.back_edge, leg.bottom_face),
+        (side, leg.top_face, leg.front_edge),
+    ]:
+        asm.join(
+            MortiseTenon(
+                tenon=apron.left_end,
+                mortise=mortise,
+                position=flush_with(leg.right_end),
+                flush=(outside, apron.ref_face),
+                across=offset(setback),
+                tenon_length=tenon_length,
+                shoulder=10,
+                mitre=apron.bottom_face if mitred else None,
+            )
+        )
+    return asm
+
+
+def leg_and_aprons(tenon_length: float = 25, setback: float = 3) -> Assembly:
+    """A table leg with two aprons, their short tenons not meeting inside the leg.
+
+    The tenons must stay short: with the default length (two thirds of the
+    leg) they would clash.
+    """
+    return _leg_and_aprons("leg_and_aprons", tenon_length, mitred=False, setback=setback)
+
+
+def leg_and_aprons_mitred(setback: float = 3) -> Assembly:
+    """A table leg with two aprons, their long tenons mitred to meet inside the leg.
+
+    The tenons are as long as they can be: their long points (on the outer
+    cheeks) lie on the diagonal of the leg.
+    """
+    tenon = rules.tenon_thickness(OAK.thickness)
+    outer_cheek = setback + (OAK.thickness - tenon) / 2  # from the outside of the leg
+    return _leg_and_aprons(
+        "leg_and_aprons_mitred", LEG_STOCK.thickness - outer_cheek, mitred=True, setback=setback
+    )
 
 
 def through_mortise_tenon(

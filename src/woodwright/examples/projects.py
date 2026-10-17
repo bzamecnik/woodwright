@@ -2,6 +2,7 @@
 
 import build123d as bd
 
+from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.examples._common import OAK, STANDING, THIN_OAK
 from woodwright.joints import (
@@ -21,6 +22,8 @@ SQUARE_STOCK = Stock.board(thickness=24, species="oak")
 BEECH = Stock.board(thickness=60, species="beech")
 ASH = Stock.board(thickness=24, species="ash")
 THICK_OAK = Stock.board(thickness=30, species="oak")
+
+LEG_STOCK = Stock.board(thickness=45, species="oak")
 
 # A board standing up with its length along X and its width up (Z), its
 # reference face towards the viewer (-Y): the front of a box or a drawer.
@@ -217,4 +220,59 @@ def picture_frame(
     members = [left, top, right, bottom]
     for a, b in zip(members, members[1:] + members[:1], strict=True):
         asm.join(MitreCorner(a.right_end, b.left_end, a.back_edge, b.back_edge))
+    return asm
+
+
+# A table leg standing up at the origin, its back edge facing +X and its top
+# face +Y: its outside sides (bottom face, front edge) face -Y and -X.
+TABLE_LEG = bd.Location(bd.Plane((0, 45, 0), x_dir=(0, 0, 1), z_dir=(0, 1, 0)))
+
+
+def table_frame(
+    width: float = 800,
+    depth: float = 500,
+    height: float = 700,
+    apron_width: float = 100,
+    setback: float = 3,
+    leg_stock: Stock = LEG_STOCK,
+    stock: Stock = OAK,
+) -> Assembly:
+    """Four legs and four aprons tenoned into them, without a top; outside sizes.
+
+    At each leg two tenons meet from adjacent sides, so they are mitred and
+    meet on the leg's diagonal. Each apron goes from the back edge of one
+    leg to the top face of the next one, so the legs are all the same,
+    turned by 90 degrees around the table.
+    """
+    leg_width = leg_stock.thickness
+    tenon = rules.tenon_thickness(stock.thickness)
+    tenon_length = leg_width - setback - (stock.thickness - tenon) / 2
+    asm = Assembly("table_frame", root_location=TABLE_LEG)
+    names = ["front_left", "front_right", "back_right", "back_left"]
+    legs = [
+        asm.add(Board(f"leg_{name}", leg_stock, length=height, width=leg_width)) for name in names
+    ]
+    aprons = [
+        asm.add(Board(f"apron_{name}", stock, length=length - 2 * leg_width, width=apron_width))
+        for name, length in [("front", width), ("right", depth), ("back", width), ("left", depth)]
+    ]
+    for i, apron in enumerate(aprons):
+        this_leg, next_leg = legs[i], legs[(i + 1) % 4]
+        for end, leg, mortise, outside in [
+            (apron.left_end, this_leg, this_leg.back_edge, this_leg.bottom_face),
+            (apron.right_end, next_leg, next_leg.top_face, next_leg.front_edge),
+        ]:
+            asm.join(
+                MortiseTenon(
+                    tenon=end,
+                    mortise=mortise,
+                    position=flush_with(leg.right_end),
+                    flush=(outside, apron.ref_face),
+                    across=offset(setback),
+                    tenon_thickness=tenon,
+                    tenon_length=tenon_length,
+                    shoulder=10,
+                    mitre=apron.bottom_face,
+                )
+            )
     return asm

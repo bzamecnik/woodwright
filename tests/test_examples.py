@@ -14,7 +14,7 @@ def test_example_resolves_without_interference(example) -> None:
     for i, a in enumerate(shapes):
         for b in shapes[i + 1 :]:
             overlap = a.intersect(b)
-            assert overlap is None or overlap.volume < 1e-6, f"{a.label} and {b.label} interfere"
+            assert _volume(overlap) < 1e-6, f"{a.label} and {b.label} interfere"
 
 
 def test_cli_lists_and_exports(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -59,3 +59,10 @@ def test_frame_and_panel_fills_the_grooves() -> None:
     )
     # The haunches, the tenons and the panel fill the groove running through the stile.
     assert filled == pytest.approx(region.volume)
+
+
+def _volume(shape) -> float:
+    """Volume of an intersection: nothing, one shape or a list of them."""
+    if shape is None:
+        return 0.0
+    return sum(s.volume for s in shape) if isinstance(shape, list) else shape.volume

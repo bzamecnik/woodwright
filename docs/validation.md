@@ -82,7 +82,8 @@ Done items name their example in `woodwright.examples`
     - [x] blind mortice – `joints.mortise_tenon`, `frames.mortise_tenon_frame`
     - [ ] tenon extending out of the through mortice
     - [ ] multiple tenon
-    - [ ] table leg accepting two perpendicular tenons with mitred ends
+    - [x] table leg accepting two perpendicular tenons with mitred ends –
+      `joints.leg_and_aprons_mitred` (short tenons without mitres: `joints.leg_and_aprons`)
   - [ ] box joint - both boards have a set of shallow regular slot motrices of equal widths
   - [x] sliding dovetail - one board with dovetail groove, another with dovetail tongue –
     `joints.sliding_dovetail_shelf`
@@ -133,6 +134,7 @@ Done items name their example in `woodwright.examples`
     - [ ] 3-way mitre joint
 - furniture (besides example above)
   - [ ] table with four legs, wide aprons with stub tenon joint, panel desk
+    (so far `projects.table_frame`: legs and aprons with mitred tenons, without a top)
   - [ ] side table with aprons and stretchers, desk made as mitre frame with panel inside
   - [ ] step stool with sliding dovetail cross pieces and angled legs with wedged round tenons
   - [ ] workbench
