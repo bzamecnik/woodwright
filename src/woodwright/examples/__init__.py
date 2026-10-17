@@ -74,6 +74,7 @@ ALL: list[Example] = [
     projects.drawer,
     projects.picture_frame,
     projects.table_frame,
+    projects.table,
 ]
 
 

@@ -79,3 +79,25 @@ def test_drawer_sizes_and_bottom() -> None:
     assert sizes["bottom"] == (386, 435, 10)  # in the grooves, under the back
     box = model.compound().bounding_box()
     assert tuple(box.size) == pytest.approx((400, 450, 150))
+
+
+def test_table_top_and_buttons() -> None:
+    import build123d as bd
+
+    from woodwright.examples import projects
+
+    model = projects.table().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.min) == pytest.approx((-40, -40, 0))  # the top overhangs the legs
+    assert tuple(box.size) == pytest.approx((1280, 830, 750))
+    parts = {part.part.name: part for part in model.parts}
+    # Each button's tongue is in the groove of its apron, short of its bottom.
+    for button, apron in [("button_front_2", "apron_front"), ("button_left_1", "apron_left")]:
+        groove = next(c for c in parts[apron].cuts if c.describe().startswith("groove"))
+        board = parts[apron].part
+        design_box = bd.Pos(0, 0, -board.thickness) * bd.Box(
+            board.length, board.width, board.thickness, align=(bd.Align.MIN,) * 3
+        )
+        groove_region = parts[apron].location * (groove.removal() & design_box)
+        tongue = parts[button].placed_shape & groove_region
+        assert tongue.volume == pytest.approx(4 * 6 * 40)

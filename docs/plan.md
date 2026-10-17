@@ -483,6 +483,16 @@ Lessons from the examples:
 - A part housed with a face (the shooting board's stop) needs `flush`
   given explicitly to lie across the other part.
 
+- Half-blind dovetails (`HalfBlindDovetail`) are through dovetails whose
+  tails stop short of the pin board's outside face; the pin board may be
+  narrower than the tail board (a drawer back on its bottom). A rabbeted
+  drawer bottom is a one-sided `Tongue` in a groove, listed as the rabbet
+  that leaves it.
+- A table top is held by buttons: small parts screwed (for now: `Butt`)
+  to the top, with a tongue in a plain `Groove` along each apron. The
+  groove is cut explicitly rather than derived from the buttons, as one
+  groove serves several of them.
+
 Still open: the twelve named arrises (item 6), y coordinates of side planes (item 3, now hidden
 by the named cuts but still visible in `Mortise`), stopped grooves and
 dados, haunched tenons, cut list snapshots of the examples.
