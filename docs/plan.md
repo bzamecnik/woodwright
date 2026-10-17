@@ -223,15 +223,17 @@ an unexpected side.
 
 ### Two ways a joint produces geometry
 
-Our two plain-build123d examples show the two patterns, and joints may use
-either:
+Our first two examples, written in plain build123d before the library
+existed (now `joints.mortise_tenon` and `joints.dovetail_corner` in
+[woodwright.examples](../src/woodwright/examples/joints.py)), show the two
+patterns, and joints may use either:
 
-1. **Per-part cuts** ([mortise_tenon.py](../examples/mortise_tenon.py)):
+1. **Per-part cuts** (mortise and tenon):
    the joint emits standard cuts on each part, each in its own part frame:
    a `Mortise` on the stile's edge and `TenonShoulders` on the rail's end.
    Most joints work this way: butt, dado, rabbet, groove, M&T, half-lap,
    bridle.
-2. **Shared region** ([dovetail_corner.py](../examples/dovetail_corner.py)):
+2. **Shared region** (dovetail corner):
    the joint builds the geometry once in a **joint frame** (here: the
    corner block where both boards overlap), splits it, and gives each part
    the piece it loses: the side loses `block − pins` (the tail sockets), the
@@ -358,7 +360,6 @@ src/woodwright/
   checks.py
   output/          # cut list, export, drawings
 tests/             # mostly kernel-free; geometry tests use small parts
-examples/          # scripts; the example library is in woodwright.examples
 ```
 
 ## 6. Roadmap

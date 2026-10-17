@@ -27,8 +27,9 @@ that anyone can extend, and so that people can share parts and whole pieces.
 We don't write a geometry kernel. [build123d](https://build123d.readthedocs.io)
 (Python, on OpenCascade) is the **shape layer**: boxes, sketches, extrusions,
 booleans, locations, export. The first experiments
-([mortise_tenon.py](../examples/mortise_tenon.py),
-[dovetail_corner.py](../examples/dovetail_corner.py)) show it can model
+(a mortise and tenon and a dovetail corner in plain build123d, since
+rewritten as `joints.mortise_tenon` and `joints.dovetail_corner` in
+[woodwright.examples](../src/woodwright/examples/joints.py)) show it can model
 furniture well. They also show its cost: every coordinate is computed by
 hand, the same intent (a tenon) is spelled out as boxes in global space, and
 nothing knows that the result is a rail with a tenon.
