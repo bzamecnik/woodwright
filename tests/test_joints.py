@@ -257,3 +257,45 @@ def test_interlocking_rabbets() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
     total = model[side].shape.volume + model[top].shape.volume
     assert total == pytest.approx((300 + 200) * 40 * 20)
+
+
+@pytest.mark.parametrize("pins_end", ["left_end", "right_end"])
+@pytest.mark.parametrize("tails_end", ["left_end", "right_end"])
+def test_through_dovetail_on_any_ends(pins_end: str, tails_end: str) -> None:
+    asm = ww.Assembly("test")
+    pins = asm.add(ww.Board("pins", OAK, length=300, width=100))
+    tails = asm.add(ww.Board("tails", OAK, length=200, width=100))
+    asm.join(
+        ww.ThroughDovetail(
+            tails=getattr(tails, tails_end), pins=getattr(pins, pins_end), tail_count=2
+        )
+    )
+    model = asm.resolve()
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # Pins and tails fill the corner block: no gaps.
+    total = model[pins].shape.volume + model[tails].shape.volume
+    assert total == pytest.approx((320 + 220 - 20) * 100 * 20)
+    # The tail board stands beyond the pin board's end, against its inside face.
+    x0 = -20 if pins_end == "left_end" else 300
+    assert bbox(model[tails].placed_shape) == (x0, 0, -220, x0 + 20, 100, 0)
+
+
+def test_through_dovetail_only_on_ends() -> None:
+    _, stile, rail = stile_and_rail()
+    with pytest.raises(ValueError, match="on the ends"):
+        ww.ThroughDovetail(tails=rail.left_end, pins=stile.back_edge)
+
+
+def test_drawer_with_pins_and_tails_on_both_ends() -> None:
+    from woodwright.examples import projects
+
+    model = projects.dovetail_drawer().resolve()
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    for name, kind in [
+        ("front", "sockets"),
+        ("back", "sockets"),
+        ("left", "3 dovetails"),
+        ("right", "3 dovetails"),
+    ]:
+        part = next(p for p in model.parts if p.part.name == name)
+        assert [cut.describe().startswith(kind) for cut in part.cuts] == [True, True]

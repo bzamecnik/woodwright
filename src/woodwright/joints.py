@@ -525,10 +525,12 @@ class HalfLap(Housing):
 class ThroughDovetail(Joint):
     """Through dovetails at a corner of two boards of equal width.
 
-    The tails are cut on the end of one board, the pins on the end of the
-    other. Both boards reach through each other, so each gets an allowance of
-    the other's thickness. Reference faces are outside, reference edges flush.
-    The geometry is built once in the frame of the pin board and split.
+    The tails are cut on an end of one board, the pins on an end of the
+    other (any ends, so a board may have pins or tails at both ends). Both
+    boards reach through each other, so each gets an allowance of the
+    other's thickness. The pin board's reference face is outside; `flush`
+    are the sides kept flush along the corner (by default the reference
+    edges). The geometry is built once in the frame of the pin board and split.
     """
 
     tails: SideRef
@@ -537,14 +539,14 @@ class ThroughDovetail(Joint):
     slope: float = 7.0  # 1:slope, between 1:6 (softwood) and 1:8 (hardwood)
     pin_width: float = 8.0  # narrowest, on the outside of the pin board
     half_pin_width: float = 10.0
+    flush: tuple[SideRef, SideRef] | None = None
 
     def parts(self) -> tuple[Board, Board]:
         return self.pins.part, self.tails.part
 
     def __post_init__(self) -> None:
-        # TODO: other combinations of ends, once mating can express them simply.
-        if self.pins.side is not Side.RIGHT_END or self.tails.side is not Side.LEFT_END:
-            raise NotImplementedError("only pins on a right end and tails on a left end")
+        if self.pins.axis != 0 or self.tails.axis != 0:
+            raise ValueError("dovetails are cut on the ends of boards")
         if self.pins.part.width != self.tails.part.width:
             raise ValueError("dovetailed boards must have the same width")
 
@@ -557,24 +559,27 @@ class ThroughDovetail(Joint):
 
     def placement(self) -> bd.Location:
         # The tail board's end lies against the inside face of the pin board,
-        # its bottom face level with the end of the pin board's design box.
+        # its outside face level with the end of the pin board's blank.
         pins, tails = self.parts()
         return mate(
             pins.bottom_face,
             self.tails,
-            flush=(pins.ref_edge, tails.ref_edge),
-            position=offset(pins.length),
+            flush=self.flush or (pins.ref_edge, tails.ref_edge),
+            position=offset(-tails.thickness, ref=self.pins),
         )
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         pins, tails = self.parts()
-        # Corner block where the boards overlap, in the pin board's frame.
-        block = bd.Pos(pins.length, 0, -pins.thickness) * bd.Box(
+        # Corner block where the boards overlap, beyond the pin board's end,
+        # in its frame.
+        c = self.pins.coordinate
+        x0 = c if self.pins.side.sign > 0 else c - tails.thickness
+        block = bd.Pos(x0, 0, -pins.thickness) * bd.Box(
             tails.thickness, pins.width, pins.thickness, align=(bd.Align.MIN,) * 3
         )
         # Pin profiles are drawn across the width (x) and the thickness (y) of
         # the pin board and extruded along its length, through the tail board.
-        profile_plane = bd.Plane((pins.length, 0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0))
+        profile_plane = bd.Plane((x0, 0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0))
         pin_solids = [
             bd.extrude(profile_plane * bd.Polygon(*points), amount=tails.thickness)
             for points in self._pin_profiles()
