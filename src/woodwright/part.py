@@ -60,18 +60,19 @@ class Board:
     @property
     def box(self) -> tuple[Point, Point]:
         """Min and max corners of the design box in the part frame."""
-        raise NotImplementedError
+        return (0.0, 0.0, -self.thickness), (self.length, self.width, 0.0)
 
     def side(self, side: Side) -> SideRef:
         return SideRef(self, side)
 
     def arris(self, a: SideRef, b: SideRef) -> ArrisRef:
         """The arris where two adjacent sides of this board meet."""
-        raise NotImplementedError
+        return ArrisRef(a, b)
 
     def cut(self, cut: Cut) -> Cut:
         """Add an explicit cut to this board."""
-        raise NotImplementedError
+        self.cuts.append(cut)
+        return cut
 
     @property
     def top_face(self) -> SideRef:
@@ -124,7 +125,7 @@ class SideRef:
     @property
     def normal(self) -> bd.Vector:
         """Outward unit normal in the part frame."""
-        raise NotImplementedError
+        return _unit(self.axis, self.side.sign)
 
     @property
     def plane(self) -> bd.Plane:
@@ -135,17 +136,40 @@ class SideRef:
         origin is the corner of the side such that the side covers
         [0, size[0]] x [0, size[1]] in plane coordinates.
         """
-        raise NotImplementedError
+        lo, hi = self.part.box
+        x_axis, y_axis = self._plane_axes
+        x_dir = _unit(x_axis)
+        y_dir = self.normal.cross(x_dir)
+        origin = [0.0, 0.0, 0.0]
+        origin[self.axis] = self.coordinate
+        origin[x_axis] = lo[x_axis]
+        origin[y_axis] = lo[y_axis] if tuple(y_dir)[y_axis] > 0 else hi[y_axis]
+        return bd.Plane(origin=tuple(origin), x_dir=x_dir, z_dir=self.normal)
 
     @property
     def size(self) -> tuple[float, float]:
         """Extent of the side along the plane's x and y."""
-        raise NotImplementedError
+        lo, hi = self.part.box
+        x_axis, y_axis = self._plane_axes
+        return hi[x_axis] - lo[x_axis], hi[y_axis] - lo[y_axis]
 
     @property
     def depth(self) -> float:
         """Depth of material behind the side (the part's extent along the normal)."""
-        raise NotImplementedError
+        lo, hi = self.part.box
+        return hi[self.axis] - lo[self.axis]
+
+    @property
+    def coordinate(self) -> float:
+        """Coordinate of the side along its axis in the part frame."""
+        lo, hi = self.part.box
+        return (hi if self.side.sign > 0 else lo)[self.axis]
+
+    @property
+    def _plane_axes(self) -> tuple[int, int]:
+        # x along the length for faces and edges, along the width for ends
+        x_axis = 1 if self.axis == 0 else 0
+        return x_axis, 3 - self.axis - x_axis
 
     def __str__(self) -> str:
         return f"{self.part.name}.{self.side.name.lower()}"
@@ -158,10 +182,27 @@ class ArrisRef:
     a: SideRef
     b: SideRef
 
+    def __post_init__(self) -> None:
+        if self.a.part is not self.b.part or self.a.axis == self.b.axis:
+            raise ValueError(f"{self.a} and {self.b} are not adjacent sides")
+
     @property
     def endpoints(self) -> tuple[bd.Vector, bd.Vector]:
         """The two ends of the arris in the part frame, in increasing coordinate."""
-        raise NotImplementedError
+        lo, hi = self.a.part.box
+        along = 3 - self.a.axis - self.b.axis
+        start = [0.0, 0.0, 0.0]
+        start[self.a.axis] = self.a.coordinate
+        start[self.b.axis] = self.b.coordinate
+        end = list(start)
+        start[along], end[along] = lo[along], hi[along]
+        return bd.Vector(*start), bd.Vector(*end)
 
     def __str__(self) -> str:
         return f"{self.a.part.name}.{self.a.side.name.lower()}_{self.b.side.name.lower()}_arris"
+
+
+def _unit(axis: int, sign: int = 1) -> bd.Vector:
+    coords = [0.0, 0.0, 0.0]
+    coords[axis] = float(sign)
+    return bd.Vector(*coords)
