@@ -343,24 +343,27 @@ passing a value. **[OPEN]** how to version rules (vision §15).
 - Later: cross-grain gluing (grain directions of glued sides), assembly
   feasibility (can a part be slid in along some direction).
 
-## 5. Package layout (proposed)
+## 5. Package layout
+
+As of 0.1.0:
 
 ```
 src/woodwright/
   __init__.py      # public API re-exports
   stock.py         # Stock, species
-  part.py          # Part, Board (Rod later), SideRef, ArrisRef, part frames
-  cuts/            # Cut base class + library: planar, rabbet, dado, groove, mortise, tenon, ...
-  joints/          # Joint base class + library: butt, dado, rabbet, mt, lap, bridle, dovetail, ...
+  part.py          # Board, Side, SideRef, ArrisRef, part frames, mirrored boards
+  placement.py     # mate, positions (flush_with, offset, centered), orient
+  cuts.py          # Cut base class + library: box cuts, tenons, tongues, chamfer, mitre, taper
+  joints.py        # Joint base class + library: butt, housings, laps, dovetails, mitres, button
   rules.py         # rules of thumb
-  workshop.py      # Workshop profile
-  assembly.py      # Assembly, Alignment
-  resolve.py       # pipeline steps 1–4, ResolvedModel
-  realize.py       # step 5: build123d geometry
-  checks.py
-  output/          # cut list, export, drawings
-tests/             # mostly kernel-free; geometry tests use small parts
+  assembly.py      # Assembly, resolution, ResolvedModel, cut list
+  export.py        # STEP, STL, SVG views, exploded view
+  examples/        # the example library, `python -m woodwright.examples`
+tests/             # unit, geometry and example tests
 ```
+
+Planned as they grow: `cuts/` and `joints/` packages, `workshop.py`
+(Workshop profile), `checks.py`, `output/` (drawings, cut list formats).
 
 ## 6. Roadmap
 
@@ -404,25 +407,27 @@ What felt wrong, to address before or during M1:
    `orient(right_end=UP, back_edge=RIGHT)` names the directions two sides
    face (`UP`, `DOWN`, `LEFT`, `RIGHT`, `FRONT` towards the viewer, `BACK`)
    and puts the design box in the positive octant from `at`.
-2. Offsets along an arris run in the direction given by the right-hand
+2. ~~Offsets along an arris run in the direction given by the right-hand
    rule, so `offset(100)` on the stile counts from its *right* end.
    Offsets should be measured from a named side ("100 mm from
-   `stile.left_end`").
+   `stile.left_end`").~~ Done: `offset(100, ref=stile.left_end)`,
+   `flush_with(side)`.
 3. The y coordinate of some side planes (`front_edge`, `right_end`, ...)
    starts at the bottom face rather than at a reference side. Predictable,
-   but not what a woodworker expects.
+   but not what a woodworker expects. Mostly hidden by the named cuts;
+   still visible in `Mortise` (backlog A6).
 4. ~~`ThroughDovetail` supports only pins on a right end and tails on a left
    end. Generalizing it needs a better way to describe corners where both
    boards reach through each other.~~ Done: any ends.
 5. Outside dimensions are awkward: the dovetail example computes
    `side_height - thickness` for the design length (see the open question
-   in §2 about an "overall cut length" switch).
+   in §2 about an "overall cut length" switch). Still open (backlog A4).
 6. The twelve named arris properties (`top_right_arris`, ...) are not
-   implemented yet, only `arris(a, b)` and `ref_arris`.
-7. The examples' SVG export triggers a build123d deprecation warning
-   (0–255 RGB colours).
+   implemented yet, only `arris(a, b)` and `ref_arris` (backlog A5).
+7. ~~The examples' SVG export triggers a build123d deprecation warning
+   (0–255 RGB colours).~~ Fixed.
 
-### M1: A single board and its cuts
+### M1: A single board and its cuts ✅ done
 
 - `Stock.board`, `Board`, part frame, the six named sides and the arrises,
   with planes.
@@ -435,7 +440,8 @@ What felt wrong, to address before or during M1:
 Covers the "single piece" and "cuts" sections of validation.md (without
 drilling).
 
-**Outcome (in progress, pulling in parts of M2 and M3).**
+**Outcome.** Done, pulling in most of M2–M5 and parts of M6 and M7 along
+the way; drilling is left for later (rods).
 
 - Cuts: `Groove`, `Dado`, `Rabbet`, `EndRabbet`, `SlotMortise`, `Mortise`
   are box cuts (`BoxCut`), given in woodworking terms: a width, a depth and
@@ -498,11 +504,12 @@ Lessons from the examples:
   show on the side. A check that a feature runs out only where hidden
   would catch such things.
 
-Still open: the twelve named arrises (item 6), y coordinates of side planes (item 3, now hidden
-by the named cuts but still visible in `Mortise`), stopped grooves and
-dados, haunched tenons, cut list snapshots of the examples.
+Also done since: `orient` for the root part (item 1), haunched tenons and
+asymmetric shoulders, mitred tenons, a classic drawer and a dining table;
+released as 0.1.0 on PyPI. What is still open is collected in the backlog
+below.
 
-### M2: Placement and one-sided joints
+### M2: Placement and one-sided joints ✅ mostly done
 
 - `Assembly`, `Joint` base class, mating frames, alignments, the spanning
   tree resolver, errors for open degrees of freedom.
@@ -510,19 +517,38 @@ dados, haunched tenons, cut list snapshots of the examples.
   dado T-joint, rabbet corner, shelf with dados.
 - Interference check.
 
-### M3: Joints on both parts, allowances, defaults
+**Status.** Done: assembly, joints, `mate` with positions and `across`,
+the spanning-tree resolver with an error for unconnected parts, all butt
+joints but face on face (bench hook), dado and rabbet joints, the
+bookshelf. Open: errors for open degrees of freedom (joints place parts
+fully, so there are none yet); the interference check exists only in the
+tests, not as a library check (backlog D1).
+
+### M3: Joints on both parts, allowances, defaults ✅ mostly done
 
 - Allowances and design vs cut dimensions; rules + Workshop; overrides.
 - Mortise and tenon (blind, through, extending, haunched/stub later),
   half-lap (corner, T), bridle (L, T), tongue and groove, panel in a grooved
   frame.
 
-### M4: Shared-region joints
+**Status.** Done: allowances, design vs cut dimensions, rules of thumb
+with `None` defaults and explicit overrides; mortise and tenon (blind,
+through, haunched, mitred, offset, asymmetric shoulders), half laps,
+bridle L, tongue and groove, frame and panel. Open: the Workshop profile
+(rules take e.g. chisel widths as an argument), extending and stub tenons,
+bridle T (backlog B1–B3, A1).
+
+### M4: Shared-region joints ✅ mostly done
 
 - Joint frame, mapping removals into part frames, fit check.
 - Box joint, through dovetail, sliding dovetail, mitre corner, splice.
 
-### M5: Loops and components
+**Status.** Done: geometry built once in one part's frame and mapped into
+the other (`ThroughDovetail`, `HalfBlindDovetail`, `SlidingDovetail`),
+mitre corners and splices, cross laps. Open: the box joint (B4) and a
+fit check as a library check (D2; the tests check volumes instead).
+
+### M5: Loops and components 🟡 in part
 
 - Loop closure check and error messages.
 - Box (four corners + bottom in a groove), picture frame (mitres or
@@ -530,17 +556,122 @@ dados, haunched tenons, cut list snapshots of the examples.
 - Components: functions returning assemblies with exposed sides; nested
   assemblies.
 
-### M6: Outputs for the shop
+**Status.** Done: loop closure with an error giving the misfit, the butt
+box, picture frames, frames with mortises, bridles and half laps, the
+dovetailed drawer boxes. Examples are functions returning assemblies,
+which is a first form of components. Open: nested assemblies and
+components exposing sides to join against (A2), a box with a bottom in a
+groove (C2), grouping identical parts (A3).
+
+### M6: Outputs for the shop 🟡 in part
 
 - Part drawings with dimensioned features, exploded views, cut list in
   CSV/Markdown, a resolved-model dump (JSON/YAML).
 - First "build a real piece" attempt (e.g. a small box or a shop square)
   using only the generated outputs.
 
-### M7: Furniture
+**Status.** Done: STEP and STL, hidden-line SVG views of the assembly, its
+exploded view and each part, a text cut list naming every cut, the export
+command line. Open: everything else above (backlog E).
+
+### M7: Furniture 🟡 started
 
 - Stool, side table with aprons and stretchers. Pressure-tests components,
   defaults and drawings.
+
+**Status.** Done: a dining table (wide aprons on haunched, mitred tenons,
+a glued-up top held by buttons) and a classic drawer. Open: stool, side
+table, workbench (backlog C).
+
+### Next steps: backlog (to be prioritized)
+
+IDs are for reference when prioritizing. Joints and examples come from
+[validation.md](validation.md), where they are also listed.
+
+**A. Library and API**
+
+- A1. Workshop profile: available tools (chisels, router bits, saw kerf)
+  that the rules snap to, passed to `resolve()`.
+- A2. Components: nested assemblies, and functions returning assemblies
+  that expose sides to join against (a drawer joined into a carcase).
+- A3. Identical parts: group them in the cut list ("4 x leg"), name them
+  in components (four legs, ten buttons).
+- A4. Outside dimensions: a helper or a switch for parts given by their
+  overall length (dovetailed boards, drawers).
+- A5. The twelve named arrises (`top_right_arris`, ...).
+- A6. Side-plane coordinates measured from reference sides (M0 item 3).
+- A7. Stopped grooves and dados (e.g. a groove not showing at the end).
+- A8. Screws and other fasteners as parts or annotations (buttons, the
+  drawer bottom's slot screw).
+
+**B. Joints on the existing machinery**
+
+- B1. Stub tenon: short, in a mortise set in from the end of the
+  mortised part, three shoulders; haunched stub tenon.
+- B2. Tenon extending out of a through mortise.
+- B3. Bridle T-joint (slot mortise on one part, two dados on the other).
+- B4. Box joint (finger joint).
+- B5. Multiple tenons (twin tenons on a wide rail).
+- B6. Loose tenon (two mortises, the tenon a separate part).
+- B7. Two-groove tongue and groove with an inserted (loose) tongue.
+- B8. Half-lap mitre, half-lap dovetail.
+- B9. Shouldered tenons (L and T), mitred face tenon.
+- B10. Dovetail with a mitred corner; blind mitred dovetail.
+- B11. Wedged through tenon (half-dovetail mortise flared outwards, slots
+  and wedges as parts).
+- B12. Tusk tenon (a tenon extending out, a wedge through it).
+- B13. Overlapping-rabbet (shiplap) panel.
+- B14. Tapered (hand-planed) panel edge as an alternative to a rabbet, e.g.
+  for drawer bottoms.
+
+**C. Examples and projects**
+
+- C1. Bench hook (face-on-face butt), shelf with only butt joints.
+- C2. Box with rabbeted corners and a rabbeted bottom in a groove.
+- C3. Frame and panel with a butt-jointed frame and a tongued panel.
+- C4. Bow saw frame (two tenons), shoji frame.
+- C5. Shelf with dovetailed corners.
+- C6. Hollow leg of four edge-mitred boards.
+- C7. Table top variant: a mitred frame with an inset panel of glued-up
+  boards in a groove.
+- C8. Side table with aprons and stretchers, top as a mitre frame with a
+  panel.
+- C9. Workbench: leg assemblies, glued-up beams, half laps, tusk-tenoned
+  stretchers, a top of laminated beams, a drawer.
+- C10. Step stool: sliding dovetail cross pieces, splayed legs, wedged
+  round tenons (needs F1–F2).
+
+**D. Checks**
+
+- D1. Interference as a library check (`model.check()`), not only in tests.
+- D2. Joint fit: what one part loses in a joint region equals what the
+  other keeps there.
+- D3. Features running out of a part where they show (the drawer groove
+  through a half pin).
+- D4. Kernel-free checks: cuts deeper than the part, parts longer than the
+  stock, cross-grain gluing.
+
+**E. Outputs**
+
+- E1. Part drawings with dimensioned features.
+- E2. Cut list as CSV and Markdown; a resolved-model dump (JSON/YAML).
+- E3. Cut list snapshots of the examples in the tests.
+- E4. Documentation: a user guide, rendered examples (e.g. on GitHub
+  Pages).
+- E5. First "build a real piece" attempt from the generated outputs only.
+
+**F. New kinds of geometry** (see Later)
+
+- F1. Rods and drilling: dowels, holes (through, blind, countersunk),
+  round tenons, drawbores.
+- F2. Angled parts and joints: splayed legs, angled half laps.
+- F3. Joints of more than two parts: kumiko, three-way mitres.
+
+**G. Project infrastructure**
+
+- G1. CI on GitHub Actions: tests and lint on every push.
+- G2. Releases to PyPI from a tag with trusted publishing.
+- G3. A changelog.
 
 ### Later
 
@@ -558,8 +689,9 @@ dados, haunched tenons, cut list snapshots of the examples.
   placements (compare `Location`s), loop closure, error messages.
 - **Geometry tests** on small parts: volume of a part = blank − expected
   removed volume; zero interference in assembled joints; joint fit.
-- **Example tests**: every example in `examples/` runs (smoke test), and
-  its cut list matches a stored snapshot.
+- **Example tests**: every example in `woodwright.examples` resolves
+  without interference between its parts; later, its cut list matches a
+  stored snapshot (backlog E3).
 - Visual outputs (SVG) are checked by eye at first. Snapshot tests for them
   only if they turn out stable.
 
