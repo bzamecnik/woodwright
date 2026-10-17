@@ -227,6 +227,11 @@ class Tenon(Cut):
     With `haunch`, an edge (or an end) next to the side, the tenon has a
     haunch: a stub `haunch_length` long and as thick as the tenon, filling
     the shoulder towards that side, e.g. to fill a groove in the mortised part.
+
+    With `mitre`, a face of the part, the end of the tenon is mitred at
+    `mitre_angle` across its thickness: the cheek towards that face is
+    shorter, the other one keeps the full length. Two tenons meeting inside
+    a leg from adjacent sides are mitred like this so they don't clash.
     """
 
     side: SideRef
@@ -237,10 +242,17 @@ class Tenon(Cut):
     thickness_offset: float | None = None
     haunch: SideRef | None = None
     haunch_length: float | None = None
+    mitre: SideRef | None = None
+    mitre_angle: float = 45.0
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+        if self.mitre is not None:
+            if self.mitre.part is not self.side.part or self.mitre.axis != 2:
+                raise ValueError(f"a tenon is mitred towards a face, not towards {self.mitre}")
+            if not 0 < self.mitre_angle < 90:
+                raise ValueError("mitre angle must be between 0 and 90 degrees")
         if self.haunch is not None:
             _check_adjacent(self.side, self.haunch)
             if self.haunch.axis == 2:
@@ -308,7 +320,25 @@ class Tenon(Cut):
         haunch = self.haunch_box()
         if haunch is not None:
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
+        if self.mitre is not None:
+            removal += self._mitre_removal() & _box(self.part, beyond)
         return removal
+
+    def _mitre_removal(self) -> bd.Part:
+        """The part of the tenon's end beyond the mitre, through the whole width."""
+        assert self.mitre is not None
+        (_, _), (_, _), (z0, z1) = self.tenon_box()
+        inner, outer = (z1, z0) if self.mitre.side.sign > 0 else (z0, z1)
+        c, s = self.side.coordinate, self.side.side.sign
+        shortening = self.thickness * math.tan(math.radians(self.mitre_angle))
+        long_point = (c + s * self.length, outer)
+        short_point = (c + s * (self.length - shortening), inner)
+        v = (short_point[0] - long_point[0], short_point[1] - long_point[1])
+        p1 = (long_point[0] - v[0], long_point[1] - v[1])
+        p2 = (short_point[0] + v[0], short_point[1] + v[1])
+        out = s * (2 * shortening + _margin(self.part))
+        points = [p1, p2, (p2[0] + out, p2[1]), (p1[0] + out, p1[1])]
+        return _prism(self.part, self.side.axis, 2, points)
 
     def allowances(self) -> list[Allowance]:
         return [Allowance(self.side, self.length)]
@@ -339,7 +369,10 @@ class Tenon(Cut):
             return f"{kind} {self.thickness:g} mm thick, {self.length:g} long, on {self.side}"
         size = f"{self.width:g} x {self.thickness:g} mm, {self.length:g} long"
         if self.haunch is not None:
-            return f"haunched {kind} {size}, haunch {self.haunch_length:g} long, on {self.side}"
+            kind = f"haunched {kind}"
+            size += f", haunch {self.haunch_length:g} long"
+        if self.mitre is not None:
+            size += f", end mitred {self.mitre_angle:g} deg towards {self.mitre}"
         return f"{kind} {size}, on {self.side}"
 
 

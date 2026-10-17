@@ -289,3 +289,28 @@ def test_haunched_tenon_errors() -> None:
             haunch=rail.front_edge,
             haunch_length=50,
         )
+
+
+def test_tenon_with_a_mitred_end() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=100)
+    tenon = ww.Tenon(rail.left_end, length=36, thickness=8, width=80, mitre=rail.bottom_face)
+    assert tenon.describe() == (
+        "tenon 80 x 8 mm, 36 long, end mitred 45 deg towards rail.bottom_face, on rail.left_end"
+    )
+    shape = cut_part(rail, tenon)
+    # The mitre takes a triangle of 8 x 8 mm off the end of the tenon.
+    assert shape.volume == pytest.approx(300 * 100 * 20 + 36 * 80 * 8 - 8 * 8 / 2 * 80)
+    # The cheek towards the top face keeps the full length.
+    assert pytest.approx(-36) == shape.bounding_box().min.X
+    tip = [v for v in shape.vertices() if pytest.approx(-36) == v.X]
+    assert {round(v.Z, 6) for v in tip} == {-6}  # the long point is an edge on the top cheek
+
+
+def test_tenon_mitre_errors() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=100)
+    with pytest.raises(ValueError, match="towards a face"):
+        ww.Tenon(rail.left_end, length=36, thickness=8, width=80, mitre=rail.back_edge)
+    with pytest.raises(ValueError, match="between 0 and 90"):
+        ww.Tenon(
+            rail.left_end, length=36, thickness=8, width=80, mitre=rail.top_face, mitre_angle=0
+        )

@@ -425,6 +425,10 @@ class MortiseTenon(Housing):
     rail), the tenon gets a haunch towards it, `haunch_length` long (by
     default as deep as a panel groove), and the mortised part a haunch
     mortise. It fills a groove running out of the mortised part.
+
+    With `mitre`, a face of the tenoned part, the end of the tenon is mitred
+    at 45 degrees, shorter at the cheek towards that face: for two tenons
+    meeting inside a leg. The mortise stays rectangular.
     """
 
     tenon: SideRef
@@ -437,6 +441,7 @@ class MortiseTenon(Housing):
     tenon_offset: float | None = None
     haunch: SideRef | None = None
     haunch_length: float | None = None
+    mitre: SideRef | None = None
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -467,6 +472,7 @@ class MortiseTenon(Housing):
             thickness_offset=self.tenon_offset,
             haunch=self.haunch,
             haunch_length=self.haunch_length,
+            mitre=self.mitre,
         )
 
 

@@ -15,7 +15,7 @@ def bbox(shape: bd.Shape) -> tuple:
 
 def interference(a: bd.Part, b: bd.Part) -> float:
     overlap = a.intersect(b)
-    return overlap.volume if overlap is not None else 0.0
+    return _volume(overlap)
 
 
 def mortise_tenon() -> tuple[ww.Assembly, ww.Board, ww.Board]:
@@ -127,3 +127,10 @@ def test_loop_that_does_not_close() -> None:
     asm.join(ww.MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge, position=ww.offset(100)))
     with pytest.raises(ValueError, match="doesn't close the loop"):
         asm.resolve()
+
+
+def _volume(shape) -> float:
+    """Volume of an intersection: nothing, one shape or a list of them."""
+    if shape is None:
+        return 0.0
+    return sum(s.volume for s in shape) if isinstance(shape, list) else shape.volume

@@ -14,7 +14,7 @@ def interference(model: ww.ResolvedModel) -> float:
     for i, a in enumerate(shapes):
         for b in shapes[i + 1 :]:
             overlap = a.intersect(b)
-            total += overlap.volume if overlap is not None else 0.0
+            total += _volume(overlap)
     return total
 
 
@@ -324,3 +324,46 @@ def test_haunched_mortise_and_tenon() -> None:
         "haunched tenon 40 x 8 mm, 40 long, haunch 10 long, on rail.left_end"
     ]
     assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def _volume(shape) -> float:
+    """Volume of an intersection: nothing, one shape or a list of them."""
+    if shape is None:
+        return 0.0
+    return sum(s.volume for s in shape) if isinstance(shape, list) else shape.volume
+
+
+def leg_with_two_aprons(tenon_length: float, mitred: bool) -> ww.Assembly:
+    asm = ww.Assembly("test")
+    leg = asm.add(ww.Board("leg", ww.Stock.board(45), length=700, width=45))
+    for name, mortise, outside in [
+        ("a", leg.back_edge, leg.bottom_face),
+        ("b", leg.top_face, leg.front_edge),
+    ]:
+        apron = asm.add(ww.Board(name, OAK, length=300, width=100))
+        asm.join(
+            ww.MortiseTenon(
+                tenon=apron.left_end,
+                mortise=mortise,
+                position=ww.flush_with(leg.right_end),
+                flush=(outside, apron.ref_face),
+                tenon_length=tenon_length,
+                shoulder=10,
+                mitre=apron.bottom_face if mitred else None,
+            )
+        )
+    return asm
+
+
+@pytest.mark.parametrize(
+    ("tenon_length", "mitred", "clash"),
+    [
+        (31, False, False),  # short tenons pass each other
+        (39, False, True),
+        (39, True, False),  # mitred, their long points on the diagonal of the leg
+        (40, True, True),
+    ],
+)
+def test_two_tenons_meeting_in_a_leg(tenon_length: float, mitred: bool, clash: bool) -> None:
+    model = leg_with_two_aprons(tenon_length, mitred).resolve()
+    assert (interference(model) > 1e-6) == clash
