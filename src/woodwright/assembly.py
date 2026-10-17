@@ -163,7 +163,8 @@ class ResolvedModel:
         for resolved in self.parts:
             part = resolved.part
             size = " x ".join(f"{x:g}" for x in resolved.size)
-            lines.append(f"{part.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip())
+            line = f"{part.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip()
+            lines.append(line + ", mirror image" if part.mirror else line)
             lines.extend(f"{'':<{name_width}}  - {cut.describe()}" for cut in resolved.cuts)
         return "\n".join(lines)
 

@@ -8,6 +8,12 @@ Part frame (mm): the origin lies on the reference arris at the left end,
 x runs along the length (grain), y across the width towards the back edge,
 z up along the normal of the reference face. The design box of a board is
 therefore [0, length] x [0, width] x [-thickness, 0].
+
+A mirrored board is the mirror image of an unmirrored one with the same
+features, e.g. the right side of a case against the left one, both with
+their reference faces outside and reference edges at the front. Its part
+frame is the same, but its ends swap names: its left end lies at x =
+length. Joints and cuts on its named sides are then mirrored too.
 """
 
 from dataclasses import dataclass, field
@@ -45,6 +51,7 @@ class Board:
 
     The design box is the part as the user sees it between its joints, e.g. a
     rail from shoulder to shoulder. Joints may extend the blank beyond it.
+    With `mirror`, its ends swap names (see the module docs).
     """
 
     name: str
@@ -52,6 +59,7 @@ class Board:
     length: float
     width: float
     cuts: list[Cut] = field(default_factory=list)
+    mirror: bool = False
 
     @property
     def thickness(self) -> float:
@@ -63,7 +71,8 @@ class Board:
         return (0.0, 0.0, -self.thickness), (self.length, self.width, 0.0)
 
     def side(self, side: Side) -> SideRef:
-        return SideRef(self, side)
+        """The side named `side`; on a mirrored board the ends are swapped."""
+        return SideRef(self, _named(side, self.mirror))
 
     def arris(self, a: SideRef, b: SideRef) -> ArrisRef:
         """The arris where two adjacent sides of this board meet."""
@@ -134,7 +143,8 @@ class SideRef:
         z is the outward normal. x runs along the length for faces and edges,
         along the width for ends. y follows from the right-hand rule. The
         origin is the corner of the side such that the side covers
-        [0, size[0]] x [0, size[1]] in plane coordinates.
+        [0, size[0]] x [0, size[1]] in plane coordinates. The plane is the
+        same on a mirrored board: x runs from its right end.
         """
         lo, hi = self.part.box
         x_axis, y_axis = self._plane_axes
@@ -171,8 +181,13 @@ class SideRef:
         x_axis = 1 if self.axis == 0 else 0
         return x_axis, 3 - self.axis - x_axis
 
+    @property
+    def name(self) -> str:
+        """The name of the side, e.g. `left_end` (swapped on a mirrored board)."""
+        return _named(self.side, self.part.mirror).name.lower()
+
     def __str__(self) -> str:
-        return f"{self.part.name}.{self.side.name.lower()}"
+        return f"{self.part.name}.{self.name}"
 
 
 @dataclass(frozen=True)
@@ -199,7 +214,14 @@ class ArrisRef:
         return bd.Vector(*start), bd.Vector(*end)
 
     def __str__(self) -> str:
-        return f"{self.a.part.name}.{self.a.side.name.lower()}_{self.b.side.name.lower()}_arris"
+        return f"{self.a.part.name}.{self.a.name}_{self.b.name}_arris"
+
+
+def _named(side: Side, mirror: bool) -> Side:
+    """The side named `side` on a board, or the other way round (it's symmetric)."""
+    if not mirror or side.axis != 0:
+        return side
+    return Side.RIGHT_END if side is Side.LEFT_END else Side.LEFT_END
 
 
 def _unit(axis: int, sign: int = 1) -> bd.Vector:

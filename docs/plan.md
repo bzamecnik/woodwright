@@ -471,8 +471,11 @@ Lessons from the examples:
 - Mirrored pairs (the left and right side of a case, the front and back of
   a box) with reference faces outside and reference edges at the front have
   their ends swapped: the right side's *left* end is at the top. Correct,
-  but easy to get wrong; loop closure catches it. Consider naming ends
-  relative to the reference arris, or a `mirror` flag on a part.
+  but easy to get wrong; loop closure catches it. Done: `Board(...,
+  mirror=True)` swaps the names of the ends (the frame stays right-handed),
+  so a mirrored pair is described with the same names, and cuts given in
+  raw coordinates (`Mortise`, `Tenon.width_offset` along an edge) are
+  mirrored too. The cut list marks the part as a mirror image.
 - `ThroughDovetail` now takes pins and tails on any ends (item 4): the
   tail board is placed from the named pin end, and the geometry is built
   beyond it. A classic drawer has pins at both ends of the front and back

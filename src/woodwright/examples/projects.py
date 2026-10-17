@@ -112,24 +112,28 @@ def butt_box(
     asm = Assembly("butt_box", root_location=BOX_FRONT)
     wall_height = height - t
     front = asm.add(Board("front", stock, length=length, width=wall_height))
-    back = asm.add(Board("back", stock, length=length, width=wall_height))
+    # The back and the right side are mirror images of the front and the
+    # left side, all with their reference faces outside.
+    back = asm.add(Board("back", stock, length=length, width=wall_height, mirror=True))
     left = asm.add(Board("left", stock, length=depth - 2 * t, width=wall_height))
-    right = asm.add(Board("right", stock, length=depth - 2 * t, width=wall_height))
+    right = asm.add(Board("right", stock, length=depth - 2 * t, width=wall_height, mirror=True))
     bottom = asm.add(Board("bottom", stock, length=length, width=depth))
     # The sides between the front and the back, their bottom (front) edges level.
-    asm.join(Butt(front.bottom_face, left.left_end, position=flush_with(front.left_end)))
-    asm.join(Butt(front.bottom_face, right.right_end, position=flush_with(front.right_end)))
-    asm.join(Butt(back.bottom_face, left.right_end, position=flush_with(back.right_end)))
-    asm.join(Butt(back.bottom_face, right.left_end, position=flush_with(back.left_end)))
-    # The walls stand on the bottom, flush with its sides.
+    for side, front_end, back_end in [
+        (left, front.left_end, back.left_end),
+        (right, front.right_end, back.right_end),
+    ]:
+        asm.join(Butt(front.bottom_face, side.left_end, position=flush_with(front_end)))
+        asm.join(Butt(back.bottom_face, side.right_end, position=flush_with(back_end)))
+    # The walls stand on the bottom, flush with its sides. The back faces
+    # the other way than the front, so its reference face (outside) is flush
+    # with the bottom's back edge.
     asm.join(Butt(front.front_edge, bottom.top_face, position=flush_with(front.left_end)))
-    # The back is a mirror image of the front (reference face outside), so
-    # the bottom's back edge faces the same way as the back's reference face.
     asm.join(
         Butt(
             back.front_edge,
             bottom.top_face,
-            position=flush_with(back.right_end),
+            position=flush_with(back.left_end),
             flush=(back.ref_face, bottom.back_edge),
         )
     )
@@ -148,23 +152,24 @@ def bookshelf(
     """
     t = stock.thickness
     asm = Assembly("bookshelf", root_location=CASE_SIDE)
+    # Both sides have their reference faces outside and reference edges at
+    # the front, so they are mirror images; both have their right end up.
     left = asm.add(Board("left", stock, length=height, width=depth))
-    right = asm.add(Board("right", stock, length=height, width=depth))
+    right = asm.add(Board("right", stock, length=height, width=depth, mirror=True))
     top = asm.add(Board("top", stock, length=width - 2 * t, width=depth))
     bottom = asm.add(Board("bottom", stock, length=width - 2 * t, width=depth))
     shelf = asm.add(Board("shelf", stock, length=width - 2 * t, width=depth))
-    # Both sides have their reference faces outside and reference edges at
-    # the front, so they are mirror images: the left one has its right end
-    # up, the right one its left end.
-    asm.join(RabbetJoint(rabbet=left.bottom_face, end=top.left_end, at=left.right_end))
-    asm.join(RabbetJoint(rabbet=right.bottom_face, end=top.right_end, at=right.left_end))
-    asm.join(RabbetJoint(rabbet=left.bottom_face, end=bottom.left_end, at=left.left_end))
-    asm.join(RabbetJoint(rabbet=right.bottom_face, end=bottom.right_end, at=right.right_end))
-    for side, end, side_top in [
-        (left, shelf.left_end, left.right_end),
-        (right, shelf.right_end, right.left_end),
+    for side, top_end, bottom_end, shelf_end in [
+        (left, top.left_end, bottom.left_end, shelf.left_end),
+        (right, top.right_end, bottom.right_end, shelf.right_end),
     ]:
-        asm.join(DadoJoint(dado=side.bottom_face, end=end, position=offset(height / 2, side_top)))
+        asm.join(RabbetJoint(rabbet=side.bottom_face, end=top_end, at=side.right_end))
+        asm.join(RabbetJoint(rabbet=side.bottom_face, end=bottom_end, at=side.left_end))
+        asm.join(
+            DadoJoint(
+                dado=side.bottom_face, end=shelf_end, position=offset(height / 2, side.right_end)
+            )
+        )
     return asm
 
 
@@ -178,22 +183,22 @@ def dovetail_drawer(
 
     The front and the back have pins at both ends, the sides tails at both
     ends, so the front can't be pulled off. All boards have their reference
-    faces outside and reference edges at the bottom; the mirror images (the
-    back of the front, the right side of the left one) have their ends swapped.
+    faces outside and reference edges at the bottom; the back and the right
+    side are mirror images of the front and the left side.
     """
     t = stock.thickness
     asm = Assembly("dovetail_drawer", root_location=BOX_FRONT)
     front = asm.add(Board("front", stock, length=width - 2 * t, width=height))
-    back = asm.add(Board("back", stock, length=width - 2 * t, width=height))
+    back = asm.add(Board("back", stock, length=width - 2 * t, width=height, mirror=True))
     left = asm.add(Board("left", stock, length=depth - 2 * t, width=height))
-    right = asm.add(Board("right", stock, length=depth - 2 * t, width=height))
-    for tails, pins in [
-        (left.right_end, front.left_end),
-        (right.left_end, front.right_end),
-        (left.left_end, back.right_end),
-        (right.right_end, back.left_end),
+    right = asm.add(Board("right", stock, length=depth - 2 * t, width=height, mirror=True))
+    # The sides' right ends are at the front.
+    for side, front_end, back_end in [
+        (left, front.left_end, back.left_end),
+        (right, front.right_end, back.right_end),
     ]:
-        asm.join(ThroughDovetail(tails=tails, pins=pins, tail_count=3))
+        asm.join(ThroughDovetail(tails=side.right_end, pins=front_end, tail_count=3))
+        asm.join(ThroughDovetail(tails=side.left_end, pins=back_end, tail_count=3))
     return asm
 
 

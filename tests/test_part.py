@@ -102,3 +102,37 @@ def test_explicit_cut() -> None:
     cut = ww.ShapeCut(board, bd.Box(1, 1, 1))
     assert board.cut(cut) is cut
     assert board.cuts == [cut]
+
+
+def test_mirrored_board_swaps_the_names_of_its_ends() -> None:
+    board = ww.Board("b", OAK, length=300, width=60, mirror=True)
+    assert board.left_end.side is Side.RIGHT_END
+    assert board.side(Side.LEFT_END) == board.left_end
+    assert board.left_end.coordinate == 300
+    assert str(board.left_end) == "b.left_end"
+    assert str(board.arris(board.top_face, board.right_end)) == "b.top_face_right_end_arris"
+    # Faces and edges are not affected.
+    assert board.ref_edge.side is Side.FRONT_EDGE
+
+
+@pytest.mark.parametrize(
+    "cut",
+    [
+        lambda b: ww.Dado(b.top_face, width=20, depth=5, distance=40),
+        lambda b: ww.EndRabbet(b.top_face, at=b.left_end, width=20, depth=5),
+        lambda b: ww.Mortise(b.back_edge, start=50, length=40, offset=6, width=8, depth=20),
+        lambda b: ww.Tenon(b.front_edge, length=10, thickness=8, width=50, width_offset=30),
+        lambda b: ww.Taper(b.top_face, end=b.left_end, amount=5, length=100),
+    ],
+)
+def test_cuts_on_a_mirrored_board_are_mirrored(cut) -> None:
+    def shape(mirror: bool) -> bd.Part:
+        asm = ww.Assembly("a")
+        board = asm.add(ww.Board("b", OAK, length=300, width=60, mirror=mirror))
+        board.cut(cut(board))
+        return asm.resolve()[board].shape
+
+    plain, mirrored = shape(False), shape(True)
+    reflected = bd.mirror(plain, bd.Plane.YZ.offset(150))
+    assert mirrored.volume == pytest.approx(plain.volume)
+    assert (mirrored - reflected).volume == pytest.approx(0, abs=1e-6)

@@ -194,7 +194,10 @@ class SlotMortise(BoxCut):
 
 @dataclass
 class Mortise(BoxCut):
-    """A rectangular pocket into a side, in the side's plane coordinates."""
+    """A rectangular pocket into a side, in the side's plane coordinates.
+
+    On a mirrored board it is mirrored: `start` is from its (named) left end.
+    """
 
     side: SideRef
     start: float  # along the side's x
@@ -207,7 +210,11 @@ class Mortise(BoxCut):
         box = side_box(
             self.side, self.start, self.offset, -self.depth, self.length, self.width, self.depth
         ).bounding_box()
-        return tuple(zip(box.min, box.max, strict=True))  # type: ignore[return-value]
+        ranges = list(zip(box.min, box.max, strict=True))
+        if self.part.mirror:
+            a, b = ranges[0]
+            ranges[0] = (self.part.length - b, self.part.length - a)
+        return ranges[0], ranges[1], ranges[2]
 
 
 # --- Tenons -----------------------------------------------------------------
@@ -275,6 +282,8 @@ class Tenon(Cut):
         else:
             extent = hi[width_axis] - lo[width_axis]
             w_offset = (extent - self.width) / 2 if self.width_offset is None else self.width_offset
+            if width_axis == 0 and self.part.mirror:  # from the left end, at x = length
+                w_offset = extent - w_offset - self.width
             start = lo[width_axis] + w_offset
             boxes[width_axis] = (start, start + self.width)
         return boxes[0], boxes[1], boxes[2]
