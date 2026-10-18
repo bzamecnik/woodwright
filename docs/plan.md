@@ -314,7 +314,8 @@ We need the same algebra applied differently:
   Defaults should make this rare.
 - First version: rotations are multiples of 90°, which covers orthogonal
   furniture and makes placement exact. Mitres don't need more; splayed legs
-  do (later).
+  do (later). Since then: `mate(angle=...)` / `Butt(angle=...)` turn a part
+  in the plane of the side it lies on (the brace of a ledged door).
 
 On export, the library attaches real build123d `RigidJoint`s (labelled with
 the joint names) to the realized parts. Someone continuing in plain
@@ -353,8 +354,11 @@ src/woodwright/
   stock.py         # Stock, species
   part.py          # Board, Side, SideRef, ArrisRef, part frames, mirrored boards
   placement.py     # mate, positions (flush_with, offset, centered), orient
-  cuts.py          # Cut base class + library: box cuts, tenons, tongues, chamfer, mitre, taper
-  joints.py        # Joint base class + library: butt, housings, laps, dovetails, mitres, button
+  cuts.py          # Cut base class + library: box cuts (stoppable), tenons (multiple,
+                   # wedged), tongues, dovetail tongues and laps, chamfer, mitre, taper
+  joints.py        # Joint base class + library: butt, housings, mortise and tenon
+                   # variants, loose tenons and tongues, laps, bridles, box joint,
+                   # dovetails, mitres, button
   rules.py         # rules of thumb
   assembly.py      # Assembly, resolution, ResolvedModel, cut list
   export.py        # STEP, STL, SVG views, exploded view
@@ -538,6 +542,31 @@ bridle L, tongue and groove, frame and panel. Open: the Workshop profile
 (rules take e.g. chisel widths as an argument), extending and stub tenons,
 bridle T (backlog B1–B3, A1).
 
+Done on 2026-10-18 (all of backlog B):
+
+- Mortise and tenon variants: stub, haunched and haunched stub tenons
+  (`stub_tenon_corner`, `haunched_*_corner`, no grooves needed: the haunch
+  mortise is a slot out of the stile's end); a through tenon standing proud
+  with a chamfered end (`tenon_chamfer`); multiple tenons side by side, across
+  the thickness or in a grid (`tenons`, `thickness_tenons`); mitred shoulders
+  (`MitredShoulderTenon`); `WedgedMortiseTenon` (kerfs, wedges as parts, the
+  mortise flared outside; modelled assembled); `TuskTenon` (a wedge through
+  the protruding tenon, parallel or perpendicular to the stile).
+- Separate pieces placed by a joint (`Joint.pieces`): `LooseTenon`,
+  `LooseTongue`, wedges.
+- `TeeBridle`, `RabbetJoint.through`, `DovetailHalfLap`, `MitredHalfLap`,
+  `MitredFaceTenon`, `BoxJoint`, `MitredCornerDovetail`,
+  `BlindMitredDovetail` (corner joints share a `_CornerJoint` base),
+  `SlidingDovetail` across a face (battens lying flat) and with
+  `cut_tongue=False` (one tongue housed in two boards).
+- Stopped cuts (backlog A7): `Groove`, `Dado`, `Rabbet`, `Pocket` and the
+  housing joints take `stopped={side: distance}`; the inserted part is
+  notched to the stop. Not yet for sliding dovetails and mortises.
+- Edge (along the grain) mitres in `Mitre` / `MitreCorner`; `Mitre` limited
+  to a layer (`face`, `depth`); `Chamfer(run_out=True)` and
+  `TongueAndGroove(cut_tongue=False)` for panels bevelled out to their
+  edges.
+
 ### M4: Shared-region joints ✅ mostly done
 
 - Joint frame, mapping removals into part frames, fit check.
@@ -545,8 +574,9 @@ bridle T (backlog B1–B3, A1).
 
 **Status.** Done: geometry built once in one part's frame and mapped into
 the other (`ThroughDovetail`, `HalfBlindDovetail`, `SlidingDovetail`),
-mitre corners and splices, cross laps. Open: the box joint (B4) and a
-fit check as a library check (D2; the tests check volumes instead).
+mitre corners and splices, cross laps, and since 2026-10-18 the box joint
+and the mitred dovetails. Open: a fit check as a library check (D2; the
+tests check volumes instead).
 
 ### M5: Loops and components 🟡 in part
 
@@ -583,6 +613,156 @@ command line. Open: everything else above (backlog E).
 a glued-up top held by buttons) and a classic drawer. Open: stool, side
 table, workbench (backlog C).
 
+Done on 2026-10-18: a chair (back legs running up into the back, seat rails
+as in a table, staggered stretchers and back rails on chamfered through
+tenons, splats, a glued-up seat notched around the back legs, inner leg
+tapers), a side table (mitred apron and stretcher tenons at one level, a
+buttoned top; table, chair and side table share helpers for tops, buttons
+and rails), the seat of a step stool (two boards, battens lying flat in
+wide, shallow sliding dovetails), a ledged door, a ledged and braced door,
+a frame-and-panel door (2x2 bevelled panels), a mitred frame with a
+glued-up panel, a hollow leg, and smaller pieces (bench hook, bow saw
+frame, butt and dovetail shelves, rabbeted box, shoji frame, shiplap and
+loose-tongue panels, a stopped dado shelf). Open: the step stool's legs
+(round, splayed: M8 and F2), the workbench.
+
+### M8: Round stock, holes and round tenons (proposal)
+
+Everything so far assumes a rectangular blank: `Board` has a box, six
+planar sides, twelve arrises, and `ResolvedPart.shape` starts from a
+`Box`. Round work adds three things: round parts, round cuts (holes) and
+round tenons, which bring their own joints (dowels, pegs, wedged round
+tenons).
+
+#### Round stock
+
+- **Names.** One stock kind, `Stock.rod(diameter, species)`, covers them
+  all; the role names the part. A *dowel* is small (6–12 mm), glued into
+  two holes, often fluted. A *peg* or *pin* (drawbore, pinned tenon,
+  coat-rack peg) is driven into a hole, often riven and shaved, modelled
+  round. A *rod*, *rung* or *pole* is larger (20–40 mm): ladder rungs, chair
+  stretchers, a hanging rail. Turned legs come later as profiled rods.
+- **Part.** A `Rod(name, stock, length)` next to `Board`, both subclasses of
+  a common `Part` (name, stock, length, cuts, design box, sides, `blank()`).
+  The rod's frame stays box-aligned, so `mate`, positions and allowances
+  work unchanged: the design box is [0, L] × [0, D] × [−D, 0] with the axis
+  at y = D/2, z = −D/2, and the blank is a cylinder along x. Allowances
+  only go on the ends.
+- **Sides.** The ends are real planar sides. The four long "sides" are
+  virtual: the tangent planes of the bounding box. They are useful for
+  placing a rod (flush with the top of a rail, lying on a face) and give a
+  direction for cross holes. They also fix the rod's *angular reference*,
+  which matters wherever a feature isn't rotationally symmetric: the kerf
+  of a wedged tenon (across the grain of the mortised part), a flat, a
+  cross hole. Cuts that need a planar side (groove, rabbet, dado...) refuse
+  virtual sides.
+- **Cut list.** "rung ø25 x 380 mm oak" instead of L x W x T; holes and
+  tenons listed as usual.
+- **Later.** Profiled (turned) rods as a revolved outline along the
+  length: tapers, beads, shoulders. Square stock turned round in part
+  (a leg square at the aprons, round below) is a board with a revolved cut.
+
+#### Round cuts (holes)
+
+- `Hole(side, diameter, depth=None, at=...)`: a cylinder into a side along
+  its normal; `depth=None` goes through. Positioned on the side by two
+  distances from named sides (a new `at(...)`-style position with two
+  offsets, or centered). Flat bottom by default (Forstner, auger with the
+  spur ignored); a conical drill point is a cosmetic option.
+- `Counterbore` (a wider, shallow cylinder over a hole, for a screw head or
+  a plug) and `Countersink` (a cone, 82°/90°), as options of `Hole` or as
+  their own cuts. Pocket holes later (angled).
+- `TaperedHole(diameter, angle or diameter at the bottom)`: reamed holes for
+  tapered round tenons (Windsor chairs), and the flared end of a hole for a
+  wedged round tenon.
+- Holes into a rod: from a virtual side (a cross hole, e.g. a drawbore peg
+  through a round tenon) or into an end (a dowel into a rod's end).
+- Related round features on boards, not holes but needing round geometry:
+  round-ended mortises (router, loose tenon / Domino style), rounded ends of
+  stopped grooves, roundovers on arrises.
+- Geometry with build123d `Cylinder`/`Cone` placed on the side's plane;
+  the cut list names them ("hole ø8, 30 deep, in leg.top_face, 20 from
+  leg.left_end, centered"). A Workshop profile (A1) snaps diameters to the
+  drill bits at hand.
+
+#### Round tenons
+
+- `RoundTenon(side, diameter, length, shoulder...)` on an end: on a rod (a
+  turned or tenon-cutter shoulder) or on square stock (a square leg with a
+  round tenon). Options: tapered (Windsor), a kerf for a wedge, a chamfered
+  end. As with `Tenon`, it asks for its allowance itself.
+- `RoundMortiseTenon(tenon, mortise=side)`: like `MortiseTenon`, the hole
+  is derived from where the tenon lands, so they fit by construction;
+  blind or through. `WedgedRoundTenon`: a through tenon with a kerf
+  oriented across the grain of the mortised part (so the wedge doesn't split
+  it) and a wedge as a separate piece, the hole optionally flared.
+- A whole rod in a hole (rungs into stiles, a rail into posts) is the same
+  joint with the rod's whole cross-section going in.
+
+#### New joints on top of these
+
+- `Dowels(a, b, count, diameter, length)`: holes in both parts and dowels as
+  pieces (`Joint.pieces`, like `LooseTenon`), for edge joints, carcase
+  corners and frame corners (a dowelled butt joint).
+- `Peg` / pinned and drawbored mortise and tenon: a hole through the
+  mortise's cheeks and the tenon, a peg as a piece. The drawbore offset (the
+  hole in the tenon 1–2 mm towards the shoulder) is recorded for the cut
+  list, while the geometry shows the assembled state with straight holes, as
+  for the wedged tenons.
+- Screws as annotated holes (A8): a pilot hole, a clearance hole and a
+  countersink or counterbore (buttons, battens, ledged doors). The screw
+  itself as hardware later.
+
+#### Which existing joints work with round stock
+
+| | Rod as the inserted part (its end) | Rod as the receiving part |
+|---|---|---|
+| Hole, round tenon, dowel, peg, wedged round tenon | ✅ the natural joints | ✅ (cross holes; the rod must be thick enough) |
+| `Butt` | ✅ end on a face (glued only for show; usually with a dowel or screw) | ⚠️ line contact only; refuse or require a flat |
+| `MortiseTenon` with a rectangular tenon | ⚠️ possible (a rod end cut square), rare; refuse at first | ⚠️ a mortise into a rod (Windsor, ladders with square rungs), later |
+| Housings (dado, groove, rabbet), laps, bridles, dovetails, box joint, mitres, tongues | ❌ need planar sides | ❌ |
+| `Mitre`, `Taper`, `Chamfer` as cuts on a rod | end mitre ✅ (with the angular reference); taper → conical; end chamfer → cone | — |
+
+Joints check the kind of the parts they join and fail early with a clear
+message ("a dado needs a board, rung is a rod"), rather than producing odd
+geometry. Box cuts still work geometrically on a rod (a flat, a notch, a
+half lap on a pole), so they can stay allowed where it makes sense, named
+as flats or notches in the cut list.
+
+#### Steps
+
+1. `Part` base class with `Board` and `Rod`; `blank()` per kind (box or
+   cylinder); `Stock.rod`; the cut list per kind. All existing joints and
+   cuts type-checked to boards. No geometry change for boards (the examples'
+   outputs stay byte-identical).
+2. `Hole` (through, blind), counterbore, countersink, tapered hole, the
+   two-offset position on a side. Tests: volumes (πr²h within the
+   tessellation tolerance), positions, holes in rods.
+3. `RoundTenon` and `RoundMortiseTenon` (rod and square stock), whole rods
+   in holes, then the wedged round tenon.
+4. `Dowels`, pegs and drawbores, screw holes.
+5. Examples: a dowelled edge joint and frame corner, a pinned and a
+   drawbored mortise and tenon, a ladder or towel rail (rungs in holes in
+   square stiles), a coat rack with pegs, a stool with round legs wedged
+   through the seat (straight first; splayed with F2), the step stool's legs
+   through the seat and the battens, shelf-pin holes, the buttons' screw
+   holes.
+6. Later: turned (profiled) rods, tapered tenons and reamed holes for
+   Windsor work, angled holes (F2), round-ended mortises, roundovers.
+
+**[OPEN]**
+
+- Rod frame: box-aligned (proposed, everything else keeps working) or the
+  axis on x at the origin (cleaner for revolved profiles).
+- Whether virtual sides are `SideRef`s with a flag, or a separate type that
+  only placement and holes accept.
+- Fits: holes as large as the dowel (touching, as now for all joints) and
+  clearance or interference (pegs, drawbores) as a parameter that only
+  changes the cut list, or real clearance in the geometry. The interference
+  check needs a tolerance either way, since cylinders are tessellated for
+  STL and SVG and volumes are approximate.
+- Hidden-line SVG views of cylinders (silhouette edges) need a check.
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
@@ -600,46 +780,45 @@ IDs are for reference when prioritizing. Joints and examples come from
   overall length (dovetailed boards, drawers).
 - A5. The twelve named arrises (`top_right_arris`, ...).
 - A6. Side-plane coordinates measured from reference sides (M0 item 3).
-- A7. Stopped grooves and dados (e.g. a groove not showing at the end).
+- A7. ✅ Stopped grooves, dados and rabbets. Open: stopped sliding
+  dovetails and mortises.
 - A8. Screws and other fasteners as parts or annotations (buttons, the
   drawer bottom's slot screw).
 
-**B. Joints on the existing machinery**
+**B. Joints on the existing machinery** ✅ all done on 2026-10-18 (see M3)
 
-- B1. Stub tenon: short, in a mortise set in from the end of the
-  mortised part, three shoulders; haunched stub tenon.
-- B2. Tenon extending out of a through mortise.
-- B3. Bridle T-joint (slot mortise on one part, two dados on the other).
-- B4. Box joint (finger joint).
-- B5. Multiple tenons (twin tenons on a wide rail).
-- B6. Loose tenon (two mortises, the tenon a separate part).
-- B7. Two-groove tongue and groove with an inserted (loose) tongue.
-- B8. Half-lap mitre, half-lap dovetail.
-- B9. Shouldered tenons (L and T), mitred face tenon.
-- B10. Dovetail with a mitred corner; blind mitred dovetail.
-- B11. Wedged through tenon (half-dovetail mortise flared outwards, slots
-  and wedges as parts).
-- B12. Tusk tenon (a tenon extending out, a wedge through it).
-- B13. Overlapping-rabbet (shiplap) panel.
-- B14. Tapered (hand-planed) panel edge as an alternative to a rabbet, e.g.
-  for drawer bottoms.
+- B1. ✅ Stub tenon, haunched stub tenon.
+- B2. ✅ Tenon extending out of a through mortise (chamfered end).
+- B3. ✅ Bridle T-joint.
+- B4. ✅ Box joint.
+- B5. ✅ Multiple tenons (side by side, across the thickness, grids).
+- B6. ✅ Loose tenon.
+- B7. ✅ Loose tongue (grain along the joint only).
+- B8. ✅ Mitred and dovetailed half laps.
+- B9. ✅ Mitred-shoulder tenons (L and T), mitred face tenon. The
+  bridle-like Japanese sword-hilt forms are still open.
+- B10. ✅ Dovetail with mitred corners; blind mitred dovetail.
+- B11. ✅ Wedged through tenon.
+- B12. ✅ Tusk tenon, both wedge orientations.
+- B13. ✅ Shiplap panel.
+- B14. ✅ Tapered panel edges (drawer bottom, door panels).
 
 **C. Examples and projects**
 
-- C1. Bench hook (face-on-face butt), shelf with only butt joints.
-- C2. Box with rabbeted corners and a rabbeted bottom in a groove.
-- C3. Frame and panel with a butt-jointed frame and a tongued panel.
-- C4. Bow saw frame (two tenons), shoji frame.
-- C5. Shelf with dovetailed corners.
-- C6. Hollow leg of four edge-mitred boards.
-- C7. Table top variant: a mitred frame with an inset panel of glued-up
-  boards in a groove.
-- C8. Side table with aprons and stretchers, top as a mitre frame with a
-  panel.
+- C1. ✅ Bench hook, shelf with only butt joints.
+- C2. ✅ Box with rabbeted corners and a rabbeted bottom.
+- C3. ✅ Frame and panel with a butt-jointed frame and a tongued panel.
+- C4. ✅ Bow saw frame, shoji frame.
+- C5. ✅ Shelf with dovetailed corners.
+- C6. ✅ Hollow leg of four edge-mitred boards.
+- C7. ✅ Mitred frame with an inset panel of glued-up boards.
+- C8. ✅ Side table with aprons and stretchers (with a glued-up top; the
+  mitre-frame top was dropped).
 - C9. Workbench: leg assemblies, glued-up beams, half laps, tusk-tenoned
   stretchers, a top of laminated beams, a drawer.
-- C10. Step stool: sliding dovetail cross pieces, splayed legs, wedged
-  round tenons (needs F1–F2).
+- C10. Step stool: ✅ the seat with sliding dovetail battens; open: splayed
+  legs with wedged round tenons (needs M8 and F2).
+- C11. ✅ Chair, doors (ledged, ledged and braced, frame and panel).
 
 **D. Checks**
 
@@ -663,7 +842,7 @@ IDs are for reference when prioritizing. Joints and examples come from
 **F. New kinds of geometry** (see Later)
 
 - F1. Rods and drilling: dowels, holes (through, blind, countersunk),
-  round tenons, drawbores.
+  round tenons, drawbores. Planned as M8 below.
 - F2. Angled parts and joints: splayed legs, angled half laps.
 - F3. Joints of more than two parts: kumiko, three-way mitres.
 
@@ -675,8 +854,7 @@ IDs are for reference when prioritizing. Joints and examples come from
 
 ### Later
 
-- Rods and drilling: dowel joints, round tenons, drawbores, wedged and tusk
-  tenons.
+- Rods and drilling: see M8.
 - Angled parts and joints: splayed legs, angled half-laps, compound angles.
 - Joints of more than two parts (kumiko, three-way mitres).
 - Process plan: operations per part, order, glue-up sequence, instructions.
