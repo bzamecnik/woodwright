@@ -14,6 +14,7 @@ from woodwright.joints import (
     GrooveJoint,
     HalfBlindDovetail,
     HalfLap,
+    LooseTenon,
     MitreCorner,
     MitredShoulderTenon,
     MitreSplice,
@@ -371,6 +372,29 @@ def leg_and_aprons_mitred(setback: float = 3) -> Assembly:
     return _leg_and_aprons(
         "leg_and_aprons_mitred", LEG_STOCK.thickness - outer_cheek, mitred=True, setback=setback
     )
+
+
+def loose_tenon(
+    stile_length: float = 600,
+    rail_length: float = 300,
+    width: float = 60,
+    tenon_length: float = 50,
+    tenon_width: float = 40,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A rail joined to the back edge of a stile by a loose tenon.
+
+    The loose tenon is a strip of 8 mm oak glued into a mortise in the
+    stile's edge and one in the rail's end, half its length in each, as cut
+    with a router or a domino jointer (the mortises here square-ended).
+    """
+    asm = Assembly("loose_tenon", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    tenon_stock = Stock.board(thickness=rules.tenon_thickness(stock.thickness), species="oak")
+    tenon = asm.add(Board("loose_tenon", tenon_stock, length=tenon_length, width=tenon_width))
+    asm.join(LooseTenon(stile.back_edge, rail.left_end, tenon))
+    return asm
 
 
 def through_mortise_tenon(

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from functools import cached_property
+from typing import NamedTuple
 
 import build123d as bd
 
@@ -54,7 +55,16 @@ class Assembly:
                 lo[axis] -= allowance.amount
 
         placements = [joint.placement() for joint in joints]
-        locations = self._place(joints, placements)
+        # Each joint places part b relative to part a, and any separate pieces.
+        links = []
+        for joint, placement in zip(joints, placements, strict=True):
+            a, b = joint.parts()
+            links.append(_Link(joint, a, b, placement))
+            for piece, location in joint.pieces(placement):
+                if piece not in self.parts:
+                    raise ValueError(f"{piece.name} is joined but not added to {self.name}")
+                links.append(_Link(joint, a, piece, location))
+        locations = self._place(links)
 
         cuts = {part: list(part.cuts) for part in self.parts}
         for joint, placement in zip(joints, placements, strict=True):
@@ -67,25 +77,23 @@ class Assembly:
         ]
         return ResolvedModel(self.name, parts, joints)
 
-    def _place(
-        self, joints: list[Joint], placements: list[bd.Location]
-    ) -> dict[Board, bd.Location]:
+    def _place(self, links: list[_Link]) -> dict[Board, bd.Location]:
         """Walk the joint graph from the root, then check joints closing loops."""
         root = self.parts[0]
         root_location = self.root_location
         if isinstance(root_location, Orientation):
             root_location = root_location.location(root)
         locations = {root: root_location}
-        pending = list(range(len(joints)))
+        pending = list(range(len(links)))
         while pending:
             for i in pending:
-                a, b = joints[i].parts()
+                joint, a, b, placement = links[i]
                 if a in locations and b in locations:
-                    _check_loop(joints[i], locations[a] * placements[i], locations[b])
+                    _check_loop(joint, a, b, locations[a] * placement, locations[b])
                 elif a in locations:
-                    locations[b] = locations[a] * placements[i]
+                    locations[b] = locations[a] * placement
                 elif b in locations:
-                    locations[a] = locations[b] * placements[i].inverse()
+                    locations[a] = locations[b] * placement.inverse()
                 else:
                     continue
                 pending.remove(i)
@@ -98,14 +106,24 @@ class Assembly:
         return locations
 
 
-def _check_loop(joint: Joint, expected: bd.Location, actual: bd.Location) -> None:
+class _Link(NamedTuple):
+    """Part b placed by a joint in the frame of part a."""
+
+    joint: Joint
+    a: Board
+    b: Board
+    placement: bd.Location
+
+
+def _check_loop(
+    joint: Joint, a: Board, b: Board, expected: bd.Location, actual: bd.Location
+) -> None:
     points = [(0, 0, 0), (1000, 0, 0), (0, 1000, 0)]
     error = max(
         ((expected * bd.Location(p)).position - (actual * bd.Location(p)).position).length
         for p in points
     )
     if error > 1e-6:
-        a, b = joint.parts()
         raise ValueError(
             f"{type(joint).__name__} between {a.name} and {b.name} doesn't close "
             f"the loop: off by up to {error:.3g} mm"

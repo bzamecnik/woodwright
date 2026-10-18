@@ -124,7 +124,8 @@ Done items name their example in `woodwright.examples`
   - [x] haunched tenon - a stub filling a groove that runs out of the mortised part –
     `joints.haunched_mortise_tenon_corner`, `frames.frame_and_panel`
   - [ ] haunched stub tenon - combination of stub tenon and haunched tenon
-  - [ ] loose tenon - two blind mortises, tenon is a separate piece
+  - [x] loose tenon - two blind mortises, tenon is a separate piece – `LooseTenon`,
+    `joints.loose_tenon`
   - mitred shoulder tenon - the tenoned board reaches into a notch in the mortised one, mitred
     at 45° part way (e.g. a third) into it; for square-ish stock
     - [x] T-joint, mitred at both edges, stub tenon – `joints.mitred_shoulder_tenon`

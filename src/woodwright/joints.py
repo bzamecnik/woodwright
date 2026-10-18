@@ -43,6 +43,7 @@ __all__ = [
     "HalfLap",
     "Housing",
     "Joint",
+    "LooseTenon",
     "MitreCorner",
     "MitreSplice",
     "MitredShoulderTenon",
@@ -79,6 +80,12 @@ class Joint:
         raise NotImplementedError
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
+        return []
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+        """Separate pieces the joint places, e.g. a loose tenon or wedges, with
+        their locations in the frame of `parts()[0]`. They must be added to the
+        assembly like any other part."""
         return []
 
 
@@ -587,6 +594,75 @@ class MitredShoulderTenon(MortiseTenon):
         description = f"notch {width:g} long, {tenon.mitre_depth:g} deep{ends}, in {self.mortise}"
         notch = placement * tenon.reach_solid()
         return [*cuts, ShapeCut(self.mortise.part, notch, description)]
+
+
+@dataclass
+class LooseTenon(Joint):
+    """Two parts joined by a loose (floating) tenon glued into a mortise in each.
+
+    Side `b` of part b (an end, or an edge) butts against side `a` of part a,
+    placed as by `Butt`. The loose tenon `tenon` is a separate part, e.g. a
+    strip planed as thick as the mortises are wide: it crosses the joint
+    line along its length (and grain), reaching `depth` into part a (by
+    default half its length) and the rest into part b. Its reference face
+    faces the same way as b's; on side `b` it is centered, or placed by
+    `tenon_position` (along the arris with b's reference face) and
+    `tenon_offset` (below b's reference face). Each mortise is `clearance`
+    deeper than the tenon reaches, unless it goes through.
+    """
+
+    a: SideRef
+    b: SideRef
+    tenon: Board
+    depth: float | None = None
+    tenon_position: Position = CENTERED
+    tenon_offset: float | None = None
+    position: Position = CENTERED
+    across: Position = FLUSH
+    flush: tuple[SideRef, SideRef] | None = None
+    clearance: float = 2.0
+
+    def __post_init__(self) -> None:
+        if self.b.axis == 2:
+            raise ValueError(f"a loose tenon goes into an end or an edge, not into {self.b}")
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.a.part, self.b.part
+
+    def with_defaults(self) -> Self:
+        depth = self.tenon.length / 2 if self.depth is None else self.depth
+        if not 0 < depth < self.tenon.length:
+            raise ValueError("a loose tenon must reach into both parts")
+        return replace(self, depth=depth)
+
+    def placement(self) -> bd.Location:
+        flush = self.flush or default_flush(self.a, self.b)
+        return mate(self.a, self.b, flush=flush, position=self.position, across=self.across)
+
+    def tenon_location(self) -> bd.Location:
+        """Of the loose tenon in the frame of part b, its left end inside b."""
+        b = self.b.part
+        across = CENTERED if self.tenon_offset is None else offset(self.tenon_offset)
+        return mate(
+            self.b,
+            self.tenon.left_end,
+            flush=(b.ref_face, self.tenon.ref_face),
+            position=self.tenon_position,
+            across=across,
+            gap=-(self.tenon.length - _require(self.depth)),
+        )
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+        return [(self.tenon, placement * self.tenon_location())]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        lo, hi = self.tenon.box
+        box = (lo[0], hi[0]), (lo[1], hi[1]), (lo[2], hi[2])
+        in_b = self.tenon_location()
+        return [
+            Pocket(side, _socket(side, loc, box, self.clearance))
+            for side, loc in [(self.a, placement * in_b), (self.b, in_b)]
+        ]
 
 
 @dataclass

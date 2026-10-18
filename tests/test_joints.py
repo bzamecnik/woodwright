@@ -608,3 +608,37 @@ def test_button(play: float) -> None:
     assert pytest.approx(120) == box.max.Y
     assert pytest.approx((100, 140)) == (box.min.X, box.max.X)
     assert pytest.approx(-20 + 4) == box.max.Z  # the tongue reaches 4 mm into the apron
+
+
+def test_loose_tenon() -> None:
+    asm, stile, rail = stile_and_rail(rail_width=60)
+    tenon = asm.add(ww.Board("tenon", ww.Stock.board(6, "oak"), length=50, width=30))
+    asm.join(
+        ww.LooseTenon(
+            stile.back_edge,
+            rail.left_end,
+            tenon,
+            depth=30,
+            tenon_position=ww.offset(10, rail.front_edge),
+            tenon_offset=4,
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, stile) == ["mortise 30 x 6 mm, 32 deep, in stile.back_edge"]
+    assert cuts(model, rail) == ["mortise 30 x 6 mm, 22 deep, in rail.left_end"]
+    assert model[tenon].size == (50, 30, 6)
+    # The rail stands on the back edge of the stile, centered along it, its
+    # front edge towards the stile's right end.
+    assert bbox(model[rail].placed_shape) == (120, 40, -20, 180, 240, 0)
+    # 30 mm into the stile, 10 mm from the rail's front edge, 4 mm below the faces.
+    assert bbox(model[tenon].placed_shape) == (140, 10, -10, 170, 60, -4)
+    assert model[stile].shape.volume == pytest.approx(300 * 40 * 20 - 30 * 6 * 32)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_loose_tenon_must_be_added() -> None:
+    asm, stile, rail = stile_and_rail()
+    tenon = ww.Board("tenon", ww.Stock.board(6, "oak"), length=50, width=30)
+    asm.join(ww.LooseTenon(stile.back_edge, rail.left_end, tenon))
+    with pytest.raises(ValueError, match="tenon is joined but not added"):
+        asm.resolve()
