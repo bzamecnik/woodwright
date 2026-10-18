@@ -49,6 +49,7 @@ ALL: list[Example] = [
     joints.interlocking_rabbet_corner,
     joints.panel_in_groove,
     joints.tongue_and_groove_panel,
+    joints.loose_tongue_panel,
     joints.shiplap_panel,
     joints.half_lap_corner,
     joints.half_lap_t,

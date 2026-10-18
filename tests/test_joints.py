@@ -889,6 +889,58 @@ def test_loose_tenon() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+@pytest.mark.parametrize("through", [True, False])
+def test_loose_tongue(through: bool) -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=100))
+    b = asm.add(ww.Board("b", OAK, length=300, width=100))
+    tongue = asm.add(ww.Board("tongue", ww.Stock.board(6, "oak"), length=260, width=24))
+    asm.join(ww.LooseTongue(a.back_edge, b.front_edge, tongue, depth=10, through=through))
+    model = asm.resolve()
+    if through:
+        assert cuts(model, a) == ["groove 6 mm, 11 deep, in a.back_edge"]
+        assert cuts(model, b) == ["groove 6 mm, 15 deep, in b.front_edge"]
+    else:
+        stops = "20 mm short of {0}.left_end and 20 mm short of {0}.right_end"
+        assert cuts(model, a) == [
+            "stopped groove 6 mm, 11 deep, in a.back_edge, " + stops.format("a")
+        ]
+        assert cuts(model, b) == [
+            "stopped groove 6 mm, 15 deep, in b.front_edge, " + stops.format("b")
+        ]
+    assert cuts(model, tongue) == []
+    # Centered along the joint and across the thickness, 10 mm into part a.
+    assert bbox(model[tongue].placed_shape) == (20, 90, -13, 280, 114, -7)
+    length = 300 if through else 260
+    assert model[a].shape.volume == pytest.approx(300 * 100 * 20 - length * 6 * 11)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_loose_tongue_placed_along_and_across() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=100))
+    b = asm.add(ww.Board("b", OAK, length=300, width=100))
+    tongue = asm.add(ww.Board("tongue", ww.Stock.board(6, "oak"), length=200, width=20))
+    asm.join(
+        ww.LooseTongue(
+            a.back_edge,
+            b.front_edge,
+            tongue,
+            through=False,
+            tongue_position=ww.offset(30),
+            tongue_offset=4,
+        )
+    )
+    model = asm.resolve()
+    assert bbox(model[tongue].placed_shape) == (30, 90, -10, 230, 110, -4)
+    assert cuts(model, a) == [
+        "stopped groove 6 mm, 11 deep, in a.back_edge, "
+        "30 mm short of a.left_end and 70 mm short of a.right_end"
+    ]
+    with pytest.raises(ValueError, match="into both parts"):
+        ww.LooseTongue(a.back_edge, b.front_edge, tongue, depth=20).with_defaults()
+
+
 def test_loose_tenon_must_be_added() -> None:
     asm, stile, rail = stile_and_rail()
     tenon = ww.Board("tenon", ww.Stock.board(6, "oak"), length=50, width=30)

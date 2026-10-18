@@ -436,3 +436,20 @@ def test_stopped_dado_shelf_is_notched_to_the_stop() -> None:
     assert total == pytest.approx((400 + 300) * 200 * 20)
     box = model.compound().bounding_box()
     assert tuple(box.size) == pytest.approx((320, 200, 400))
+
+
+def test_loose_tongue_panel_tongues_fill_the_grooves() -> None:
+    from woodwright.examples import joints
+
+    model = joints.loose_tongue_panel().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((500, 450, 20))  # the tongues inside
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["tongue_1"].size == (460, 20, 6)
+    assert parts["tongue_1"].cuts == []
+    # Each groove is the tongue's half and 1 mm more, the tongue's length long.
+    assert len(parts["board_2"].cuts) == 2
+    grooves = 4 * 460 * 6 * 11
+    tongues = 2 * 460 * 20 * 6
+    total = sum(part.shape.volume for part in model.parts)
+    assert total == pytest.approx(3 * 500 * 150 * 20 - grooves + tongues)

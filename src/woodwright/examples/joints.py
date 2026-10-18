@@ -18,6 +18,7 @@ from woodwright.joints import (
     HalfBlindDovetail,
     HalfLap,
     LooseTenon,
+    LooseTongue,
     MitreCorner,
     MitredCornerDovetail,
     MitredHalfLap,
@@ -39,6 +40,7 @@ THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) fr
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 POST_STOCK = Stock.board(thickness=70, species="oak")
 HOLLOW_LEG_OAK = Stock.board(thickness=15, species="oak")
+SPLINE_OAK = Stock.board(thickness=6, species="oak")  # for loose tongues
 
 
 # --- Butt joints ------------------------------------------------------------
@@ -215,6 +217,35 @@ def tongue_and_groove_panel(
     ]
     for a, b in itertools.pairwise(boards):
         asm.join(TongueAndGroove(tongue=b.front_edge, groove=a.back_edge))
+    return asm
+
+
+def loose_tongue_panel(
+    length: float = 500,
+    width: float = 150,
+    count: int = 3,
+    tongue_width: float = 20,
+    stop: float = 20,
+    stock: Stock = OAK,
+) -> Assembly:
+    """Boards glued edge to edge, a loose tongue in a groove along each of
+    the two edges at every joint.
+
+    The tongues are strips of 6 mm oak, their grain along the joint,
+    `tongue_width` wide, half of it in each board. They stop `stop` short
+    of the ends of the boards, in stopped grooves (cut with a router, here
+    square-ended) 1 mm deeper than the tongues reach, so the ends of the
+    panel show no grooves.
+    """
+    asm = Assembly("loose_tongue_panel")
+    boards = [
+        asm.add(Board(f"board_{i + 1}", stock, length=length, width=width)) for i in range(count)
+    ]
+    for i, (a, b) in enumerate(itertools.pairwise(boards)):
+        tongue = asm.add(
+            Board(f"tongue_{i + 1}", SPLINE_OAK, length=length - 2 * stop, width=tongue_width)
+        )
+        asm.join(LooseTongue(a.back_edge, b.front_edge, tongue, through=False))
     return asm
 
 

@@ -51,6 +51,7 @@ __all__ = [
     "Housing",
     "Joint",
     "LooseTenon",
+    "LooseTongue",
     "MitreCorner",
     "MitreSplice",
     "MitredCornerDovetail",
@@ -907,6 +908,98 @@ class LooseTenon(Joint):
             Pocket(side, _socket(side, loc, box, self.clearance))
             for side, loc in [(self.a, placement * in_b), (self.b, in_b)]
         ]
+
+
+@dataclass
+class LooseTongue(Joint):
+    """Two parts edge to edge, joined by a loose tongue (a spline) glued into a
+    groove in each.
+
+    Side `b` of part b (an edge, or an end) butts against side `a` of part
+    a, placed as by `Butt`. The loose tongue `tongue` is a separate part, a
+    strip planed as thick as the grooves are wide, its length along the
+    joint and so its grain too: simple to make, if weaker across the joint
+    than a strip of plywood or of short grain. Its width crosses the joint
+    line, reaching `depth` into part a (by default half its width) and the
+    rest into part b. Its reference face faces the same way as b's; along
+    side `b` it is centered, or placed by `tongue_position` (along the
+    arris with b's reference face), across it by `tongue_offset` (below b's
+    reference face). Each groove is `clearance` deeper than the tongue
+    reaches, for the glue.
+
+    With `through` (the default), the grooves run the whole length of the
+    parts along the joint, as cut on a table saw, showing at their ends.
+    Without, they are stopped grooves as long as the tongue, as cut with a
+    router, e.g. hidden by a tongue shorter than the boards.
+    """
+
+    a: SideRef
+    b: SideRef
+    tongue: Board
+    depth: float | None = None
+    through: bool = True
+    tongue_position: Position = CENTERED
+    tongue_offset: float | None = None
+    position: Position = CENTERED
+    across: Position = FLUSH
+    flush: tuple[SideRef, SideRef] | None = None
+    clearance: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.b.axis == 2:
+            raise ValueError(f"a loose tongue goes into an edge or an end, not into {self.b}")
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.a.part, self.b.part
+
+    def with_defaults(self) -> Self:
+        depth = self.tongue.width / 2 if self.depth is None else self.depth
+        if not 0 < depth < self.tongue.width:
+            raise ValueError("a loose tongue must reach into both parts")
+        return replace(self, depth=depth)
+
+    def placement(self) -> bd.Location:
+        flush = self.flush or default_flush(self.a, self.b)
+        return mate(self.a, self.b, flush=flush, position=self.position, across=self.across)
+
+    def tongue_location(self) -> bd.Location:
+        """Of the loose tongue in the frame of part b, its front edge inside b."""
+        b = self.b.part
+        across = CENTERED if self.tongue_offset is None else offset(self.tongue_offset)
+        return mate(
+            self.b,
+            self.tongue.front_edge,
+            flush=(b.ref_face, self.tongue.ref_face),
+            position=self.tongue_position,
+            across=across,
+            gap=-(self.tongue.width - _require(self.depth)),
+        )
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+        return [(self.tongue, placement * self.tongue_location())]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        lo, hi = self.tongue.box
+        box = (lo[0], hi[0]), (lo[1], hi[1]), (lo[2], hi[2])
+        in_b = self.tongue_location()
+        grooves: list[Cut] = []
+        for side, loc in [(self.a, placement * in_b), (self.b, in_b)]:
+            ranges = list(_socket(side, loc, box, self.clearance))
+            along = _axis(_direction(loc, bd.Vector(1, 0, 0)))  # the tongue's length
+            # Stopped where the tongue ends (unless it runs out of the part).
+            start, end = ranges[along]
+            stopped = {}
+            if not self.through:
+                part = side.part
+                for stop in map(part.side, Side):
+                    if stop.axis == along:
+                        bound = end if stop.side.sign > 0 else start
+                        if abs(bound) != INF:
+                            stopped[stop] = abs(stop.coordinate - bound)
+            ranges[along] = (-INF, INF)
+            box_ranges = (ranges[0], ranges[1], ranges[2])
+            grooves.append(Pocket(side, box_ranges, stopped=stopped or None))
+        return grooves
 
 
 @dataclass
@@ -1778,6 +1871,11 @@ def _flush_side(part: Board, side: SideRef, placement: bd.Location) -> SideRef:
         for s in map(part.side, Side)
         if (_direction(placement, s.normal) - side.normal).length < _EPS
     )
+
+
+def _axis(vector: bd.Vector) -> int:
+    """The axis of the part frame a direction lies along."""
+    return max(range(3), key=lambda axis: abs(tuple(vector)[axis]))
 
 
 def _direction(loc: bd.Location, vector: bd.Vector) -> bd.Vector:
