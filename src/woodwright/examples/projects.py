@@ -728,6 +728,7 @@ def _leg_rails(
     depth: float,
     spans: list[Span],
     stock: Stock,
+    mitred: bool = False,
     **tenon: float,
 ) -> dict[str, Board]:
     """Rails (e.g. stretchers) between adjacent legs of a frame from `_table_frame`.
@@ -735,8 +736,12 @@ def _leg_rails(
     Like the aprons, each goes from the back edge of one leg (`legs[i]`) to
     the top face of the next one, but centered on them, its top edge at its
     level above the floor; `tenon` are options of its tenons (`MortiseTenon`).
+    With `mitred`, rails at the same level have mitred tenons meeting on the
+    leg's diagonal, like the aprons, each reaching to the far cheek of the other.
     """
     leg_width = legs[0].width
+    if mitred:
+        tenon.setdefault("tenon_length", (leg_width + rules.tenon_thickness(stock.thickness)) / 2)
     rails = {}
     for name, i, level, rail_width in spans:
         length = width if i % 2 == 0 else depth
@@ -755,6 +760,7 @@ def _leg_rails(
                     position=offset(leg.length - level, ref=leg.right_end),
                     flush=(outside, rail.ref_face),
                     across=CENTERED,
+                    mitre=rail.bottom_face if mitred else None,
                     **tenon,
                 )
             )
@@ -845,8 +851,7 @@ def side_table(
     overhang: float = 25,
     apron_width: float = 80,
     stretcher_width: float = 30,
-    stretcher_heights: tuple[float, float] = (150, 110),
-    stretcher_tenon_length: float = 25,
+    stretcher_height: float = 150,
     setback: float = 3,
     top_boards: int = 3,
     buttons: tuple[int, int] = (2, 2),
@@ -859,10 +864,10 @@ def side_table(
     As in the table, the aprons' mitred tenons are set down from the tops
     of the legs, with haunches; the top, glued up from `top_boards` boards,
     overhangs the frame by `overhang` and is held by buttons in short
-    mortises in the aprons, so it can move. Stretchers near the floor
-    (their top edges at `stretcher_heights`, for the front and back and for
-    the sides) are centered on the legs, with blind tenons; the side ones
-    are lower, so that the tenons don't meet inside the legs.
+    mortises in the aprons, so it can move. Stretchers near the floor, all
+    at the same level (their top edges at `stretcher_height`), are centered
+    on the legs, with blind tenons mitred at their ends like the aprons',
+    meeting inside the legs.
     """
     asm = Assembly("side_table", root_location=STANDING)
     legs, aprons = _table_frame(
@@ -877,8 +882,8 @@ def side_table(
         shoulder=(10, 20),
         haunch_length=10,
     )
-    stretchers = _stretchers(stretcher_heights, stretcher_width)
-    _leg_rails(asm, legs, width, depth, stretchers, stock, tenon_length=stretcher_tenon_length)
+    stretchers = _stretchers((stretcher_height, stretcher_height), stretcher_width)
+    _leg_rails(asm, legs, width, depth, stretchers, stock, mitred=True)
     _glued_top(
         asm,
         aprons[0],

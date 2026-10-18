@@ -248,6 +248,8 @@ def test_haunched_stub_tenon_fills_the_groove_at_the_end() -> None:
 
 
 def test_side_table_sizes_and_stretchers() -> None:
+    import build123d as bd
+
     from woodwright.examples import projects
 
     model = projects.side_table().resolve()
@@ -256,11 +258,16 @@ def test_side_table_sizes_and_stretchers() -> None:
     assert tuple(box.size) == pytest.approx((450, 450, 550))
     parts = {part.part.name: part for part in model.parts}
     assert parts["leg_front_left"].size == (530, 40, 40)
-    # Blind tenons 25 mm into the legs, not through them.
-    assert parts["stretcher_front"].size == (370, 30, 20)
-    for side, top in [("front", 150), ("right", 110), ("back", 150), ("left", 110)]:
+    # All at the same level, their blind tenons mitred, meeting on the legs' diagonals.
+    assert parts["stretcher_front"].size == (368, 30, 20)
+    for side in ("front", "right", "back", "left"):
         stretcher_box = parts[f"stretcher_{side}"].placed_shape.bounding_box()
-        assert pytest.approx((top - 30, top)) == (stretcher_box.min.Z, stretcher_box.max.Z)
+        assert pytest.approx((120, 150)) == (stretcher_box.min.Z, stretcher_box.max.Z)
+    leg = bd.Box(40, 40, 550, align=(bd.Align.MIN,) * 3)
+    front = parts["stretcher_front"].placed_shape & leg
+    left = parts["stretcher_left"].placed_shape & leg
+    assert front.volume == pytest.approx(20 * 8 * (24 + 16) / 2)
+    assert front.distance_to(left) == pytest.approx(0)
     for board in ("top_1", "top_2", "top_3"):
         top_box = parts[board].placed_shape.bounding_box()
         assert pytest.approx((530, 550)) == (top_box.min.Z, top_box.max.Z)
