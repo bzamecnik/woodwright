@@ -314,98 +314,95 @@ def mortise_tenon(
     return asm
 
 
-def stub_tenon_corner(
-    stile_length: float = 300,
-    rail_length: float = 200,
-    width: float = 60,
-    tenon_length: float | None = None,
-    outer_shoulder: float = 15,
-    stock: Stock = OAK,
-) -> Assembly:
-    """A frame corner with a stub tenon and three shoulders.
-
-    The tenon has shoulders on both faces and on the outer edge, so the
-    mortise is set back from the end of the stile; on the inner edge it is
-    flush with the rail. It is blind, by default two thirds of the stile wide.
-    """
-    asm = Assembly("stub_tenon_corner", root_location=STANDING)
-    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
-    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
-    asm.join(
-        MortiseTenon(
-            tenon=rail.left_end,
-            mortise=stile.back_edge,
-            position=flush_with(stile.right_end),
-            tenon_length=tenon_length,
-            shoulder=(outer_shoulder, 0),  # the front edge is outer, at the end of the stile
-        )
-    )
-    return asm
-
-
-def _grooved_corner(
+def _corner_tenon(
     name: str,
     stile_length: float,
     rail_length: float,
     width: float,
-    groove_width: float,
-    groove_depth: float,
-    stock: Stock,
-    outer_shoulder: float,
     tenon_length: float,
+    outer_shoulder: float,
+    inner_shoulder: float,
+    haunch_length: float | None,
+    stock: Stock,
 ) -> Assembly:
-    """A frame corner with grooves along the inside edges and a haunched tenon,
-    as thick as the groove is wide, its inner shoulder as wide as the groove is
-    deep; the haunch fills the outer shoulder as far as the groove is deep."""
+    """An L-shaped frame corner: the rail tenoned into the back edge of the
+    stile, its front (outer) edge flush with the stile's right end, the tenon
+    blind, optionally haunched towards the outer edge."""
     asm = Assembly(name, root_location=STANDING)
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
-    for edge in (stile.back_edge, rail.back_edge):
-        edge.part.cut(Groove(edge, width=groove_width, depth=groove_depth))
     asm.join(
         MortiseTenon(
             tenon=rail.left_end,
             mortise=stile.back_edge,
             position=flush_with(stile.right_end),
             tenon_length=tenon_length,
-            shoulder=(outer_shoulder, groove_depth),  # the front edge is outer
-            tenon_thickness=groove_width,
-            haunch=rail.front_edge,
-            haunch_length=groove_depth,
+            shoulder=(outer_shoulder, inner_shoulder),  # the front edge is outer
+            haunch=rail.front_edge if haunch_length else None,
+            haunch_length=haunch_length,
         )
     )
     return asm
+
+
+def stub_tenon_corner(
+    stile_length: float = 300,
+    rail_length: float = 200,
+    width: float = 60,
+    tenon_length: float = 40,
+    outer_shoulder: float = 15,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A frame corner with a stub tenon: shoulders on the faces and the outer edge only.
+
+    On the inner edge the tenon is flush with the rail, with no shoulder;
+    on the outer edge a plain shoulder sets the mortise back from the end
+    of the stile, so it stays closed there. No haunch. Blind, two thirds of
+    the stile wide. Compare `haunched_stub_tenon_corner` and
+    `haunched_mortise_tenon_corner`, same stock and tenon length.
+    """
+    return _corner_tenon(
+        "stub_tenon_corner",
+        stile_length,
+        rail_length,
+        width,
+        tenon_length,
+        outer_shoulder=outer_shoulder,
+        inner_shoulder=0,
+        haunch_length=None,
+        stock=stock,
+    )
 
 
 def haunched_mortise_tenon_corner(
     stile_length: float = 300,
     rail_length: float = 200,
     width: float = 60,
-    groove_width: float = 8,
-    groove_depth: float = 10,
-    tenon_length: float = 25,
+    tenon_length: float = 40,
+    outer_shoulder: float = 15,
+    inner_shoulder: float = 10,
+    haunch_length: float = 10,
     stock: Stock = OAK,
 ) -> Assembly:
-    """A frame corner with grooves along the inside edges and a haunched tenon.
+    """A frame corner with a haunched tenon: shoulders on both edges, a haunch on the outer one.
 
-    The tenon, as thick as the groove is wide, is nearly as wide as the
-    rail: on the inner edge it has only a small shoulder, as wide as the
-    groove is deep, so the groove along the rail doesn't cut into it; on
-    the outer edge it is cut down to a haunch, which fills the groove
-    running out of the end of the stile. The mortise is set back from the
-    end of the stile only by the haunch. Compare
-    `haunched_stub_tenon_corner`, with a wide outer shoulder.
+    On the inner edge the tenon has a small shoulder, which hides the
+    mortise; on the outer edge the shoulder sets the mortise back from the
+    end of the stile, and a haunch, a short, shallow continuation of the
+    tenon, fills it in a haunch mortise running out of the stile's end, so
+    the rail can't twist. Unlike `haunched_stub_tenon_corner` (no inner
+    shoulder) and `stub_tenon_corner` (no haunch either).
     """
-    return _grooved_corner(
+    return _corner_tenon(
         "haunched_mortise_tenon_corner",
         stile_length,
         rail_length,
         width,
-        groove_width,
-        groove_depth,
-        stock,
-        outer_shoulder=groove_depth,
-        tenon_length=tenon_length,
+        tenon_length,
+        outer_shoulder=outer_shoulder,
+        inner_shoulder=inner_shoulder,
+        haunch_length=haunch_length,
+        stock=stock,
     )
 
 
@@ -413,33 +410,27 @@ def haunched_stub_tenon_corner(
     stile_length: float = 300,
     rail_length: float = 200,
     width: float = 60,
-    groove_width: float = 8,
-    groove_depth: float = 10,
-    outer_shoulder: float = 20,
-    tenon_length: float = 25,
+    tenon_length: float = 40,
+    outer_shoulder: float = 15,
+    haunch_length: float = 10,
     stock: Stock = OAK,
 ) -> Assembly:
-    """A frame corner with grooves along the inside edges and a haunched stub tenon.
+    """A frame corner with a haunched stub tenon: a haunch on the outer edge, no inner shoulder.
 
-    The tenon is short, blind well short of the stile's outer edge, and has
-    shoulders all round: on the faces, on the inner edge as wide as the
-    groove is deep, and, unlike in `haunched_mortise_tenon_corner`, a wide
-    one on the outer edge, so the mortise is set well back from the end of
-    the stile and the short grain beyond it doesn't split out; the tenon is
-    narrower. The haunch fills that shoulder as far as the groove is deep,
-    so the groove running out of the end of the stile doesn't show there,
-    and keeps the rail from twisting.
+    As `stub_tenon_corner`, the tenon is flush with the rail's inner edge;
+    as `haunched_mortise_tenon_corner`, the outer shoulder is filled by a
+    haunch in a haunch mortise running out of the end of the stile.
     """
-    return _grooved_corner(
+    return _corner_tenon(
         "haunched_stub_tenon_corner",
         stile_length,
         rail_length,
         width,
-        groove_width,
-        groove_depth,
-        stock,
+        tenon_length,
         outer_shoulder=outer_shoulder,
-        tenon_length=tenon_length,
+        inner_shoulder=0,
+        haunch_length=haunch_length,
+        stock=stock,
     )
 
 

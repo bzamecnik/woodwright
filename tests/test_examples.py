@@ -230,37 +230,34 @@ def test_shiplap_panel_laps_fill_the_rabbets() -> None:
     assert total == pytest.approx(3 * 500 * 150 * 20)
 
 
-def test_haunched_tenon_has_a_small_inner_shoulder() -> None:
+@pytest.mark.parametrize(
+    ("example", "tenon", "haunched"),
+    [
+        ("stub_tenon_corner", 45, False),  # 15 mm outer shoulder, none inner
+        ("haunched_stub_tenon_corner", 45, True),  # 15 mm outer, filled by the haunch
+        ("haunched_mortise_tenon_corner", 35, True),  # and a 10 mm inner shoulder
+    ],
+)
+def test_corner_tenons_shoulders_and_haunches(example: str, tenon: int, haunched: bool) -> None:
     from woodwright.examples import joints
 
-    model = joints.haunched_mortise_tenon_corner().resolve()
+    model = getattr(joints, example)().resolve()
     parts = {part.part.name: part for part in model.parts}
-    assert parts["rail"].size == (225, 60, 20)  # as long as the stub tenon
-    # 10 mm shoulders on both edges, the outer one filled by the haunch.
-    cuts = [cut.describe() for cut in parts["rail"].cuts]
-    assert cuts[-1] == "haunched tenon 40 x 8 mm, 25 long, haunch 10 long, on rail.left_end"
+    assert parts["rail"].size == (240, 60, 20)  # all with a 40 mm blind tenon
+    kind = "haunched tenon" if haunched else "tenon"
+    haunch = ", haunch 10 long" if haunched else ""
+    rail_cuts = [cut.describe() for cut in parts["rail"].cuts]
+    assert rail_cuts == [f"{kind} {tenon} x 8 mm, 40 long{haunch}, on rail.left_end"]
+    # No grooves; the haunch mortise runs out of the end of the stile.
     stile_cuts = [cut.describe() for cut in parts["stile"].cuts]
-    assert stile_cuts[1:] == [
-        "mortise 40 x 8 mm, 27 deep, in stile.back_edge",
-        "haunch mortise 10 x 8 mm, 10 deep, in stile.back_edge at stile.right_end",
-    ]
-
-
-def test_haunched_stub_tenon_fills_the_groove_at_the_end() -> None:
-    import build123d as bd
-
-    from woodwright.examples import joints
-
-    model = joints.haunched_stub_tenon_corner().resolve()
-    parts = {part.part.name: part for part in model.parts}
-    assert parts["rail"].size == (225, 60, 20)  # the stub tenon is 25 long
-    cuts = [cut.describe() for cut in parts["rail"].cuts]
-    assert cuts[-1] == "haunched tenon 30 x 8 mm, 25 long, haunch 10 long, on rail.left_end"
-    # Between the end of the stile and the tenon the haunch fills the groove.
-    stile = parts["stile"]
-    groove_end = bd.Pos(280, 50, -14) * bd.Box(20, 10, 8, align=(bd.Align.MIN,) * 3)
-    haunch = parts["rail"].placed_shape & (stile.location * groove_end)
-    assert haunch.volume == pytest.approx(20 * 10 * 8)
+    assert stile_cuts == [f"mortise {tenon} x 8 mm, 42 deep, in stile.back_edge"] + (
+        ["haunch mortise 15 x 8 mm, 10 deep, in stile.back_edge at stile.right_end"]
+        if haunched
+        else []
+    )
+    # The haunch fills its haunch mortise; only the mortise's bottom clearance is left.
+    total = sum(part.shape.volume for part in model.parts)
+    assert total == pytest.approx(300 * 60 * 20 + 200 * 60 * 20 - tenon * 8 * 2)
 
 
 def test_side_table_sizes_and_stretchers() -> None:

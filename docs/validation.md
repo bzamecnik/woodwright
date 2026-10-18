@@ -136,12 +136,12 @@ Done items name their example in `woodwright.examples`
     - a wedge goes through the second mortise
     - the second mortise can go through the face or through the edge
   - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
-    `joints.stub_tenon_corner`
-  - [x] haunched tenon - a stub filling a groove that runs out of the mortised part –
-    `joints.haunched_mortise_tenon_corner` (a small inner shoulder, the haunch on the outer edge),
-    `frames.frame_and_panel`
+    `joints.stub_tenon_corner` (no inner shoulder, a plain outer one, no haunch)
+  - [x] haunched tenon - a short, shallow continuation of the tenon in a haunch mortise running
+    out of the end of the mortised part – `joints.haunched_mortise_tenon_corner` (a small inner
+    shoulder, the haunch on the outer edge), `frames.frame_and_panel` (filling the groove)
   - [x] haunched stub tenon - combination of stub tenon and haunched tenon –
-    `joints.haunched_stub_tenon_corner` (a short tenon, a wide haunched outer shoulder)
+    `joints.haunched_stub_tenon_corner` (no inner shoulder, the haunch on the outer edge)
   - [x] loose tenon - two blind mortises, tenon is a separate piece – `LooseTenon`,
     `joints.loose_tenon`
   - mitred shoulder tenon - the tenoned board reaches into a notch in the mortised one, mitred
