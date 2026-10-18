@@ -253,6 +253,11 @@ class Tenon(Cut):
     With `chamfer`, the four arrises around the end of the tenon are
     chamfered at 45 degrees that wide, e.g. on a through tenon standing
     proud of the mortised part.
+
+    With `count`, the tenon is split into that many tenons side by side
+    along the side, `gap` apart, e.g. twin tenons on a wide rail; `width`
+    and `width_offset` are then of all of them together. Between them the
+    part is cut back to the shoulder.
     """
 
     side: SideRef
@@ -268,16 +273,25 @@ class Tenon(Cut):
     mitre_depth: float = 0.0
     mitred: tuple[SideRef, ...] = ()
     chamfer: float = 0.0
+    count: int = 1
+    gap: float = 0.0
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+        if self.count < 1:
+            raise ValueError("a tenon is cut at least once")
+        if self.count > 1:
+            if self.width is None or self.gap <= 0:
+                raise ValueError("multiple tenons need a width and a gap between them")
+            if self.single_width <= 0:
+                raise ValueError("the gaps between the tenons are wider than the tenons")
         if self.chamfer:
             if self.mitre is not None:
                 raise ValueError("a tenon is either mitred or chamfered at its end")
             if not 0 < self.chamfer < min(self.length, self.thickness / 2):
                 raise ValueError("a tenon's chamfer must be thinner than half the tenon")
-            if self.width is not None and self.chamfer >= self.width / 2:
+            if self.width is not None and self.chamfer >= self.single_width / 2:
                 raise ValueError("a tenon's chamfer must be narrower than half the tenon")
         if self.mitre_depth < 0:
             raise ValueError("the mitred shoulders' depth must not be negative")
@@ -325,6 +339,28 @@ class Tenon(Cut):
             boxes[width_axis] = (start, start + self.width)
         return boxes[0], boxes[1], boxes[2]
 
+    @property
+    def single_width(self) -> float:
+        """The width of each of multiple tenons (of the tenon, if there's one)."""
+        if self.width is None:
+            return self.side.size[0]
+        return (self.width - (self.count - 1) * self.gap) / self.count
+
+    def tenon_boxes(self) -> list[tuple[Range, Range, Range]]:
+        """Ranges of each of the tenons, side by side, in the part frame."""
+        box = self.tenon_box()
+        if self.count == 1:
+            return [box]
+        axis = 1 - self.side.axis
+        start, w = box[axis][0], self.single_width
+        boxes = []
+        for i in range(self.count):
+            ranges = list(box)
+            a = start + i * (w + self.gap)
+            ranges[axis] = (a, a + w)
+            boxes.append((ranges[0], ranges[1], ranges[2]))
+        return boxes
+
     def haunch_box(self) -> tuple[Range, Range, Range] | None:
         """Ranges of the haunch in the part frame, from the tenon to the `haunch` side."""
         if self.haunch is None or self.haunch_length is None:
@@ -344,15 +380,13 @@ class Tenon(Cut):
         return box[0], box[1], box[2]
 
     def boxes(self) -> list[tuple[Range, Range, Range]]:
-        """The tenon and its haunch, if any."""
+        """The tenons and the haunch, if any."""
         haunch = self.haunch_box()
-        return [self.tenon_box()] if haunch is None else [self.tenon_box(), haunch]
+        return self.tenon_boxes() + ([] if haunch is None else [haunch])
 
     def tenon(self) -> bd.Part:
-        """The tenon itself (with its haunch), in the part frame."""
-        solid = _box(self.part, self.tenon_box())
-        haunch = self.haunch_box()
-        return solid if haunch is None else solid + _box(self.part, haunch)
+        """The tenons themselves (with the haunch), in the part frame."""
+        return functools.reduce(operator.add, [_box(self.part, box) for box in self.boxes()])
 
     def removal(self) -> bd.Part:
         beyond = _ranges(_into(self.side, 0))
@@ -361,10 +395,11 @@ class Tenon(Cut):
         # end of the blank, so that no slivers are left between the boxes.
         # It starts at the side even with mitred shoulders, so where it
         # reaches under a mitre it isn't cut off by it.
-        tenon = list(_open(self.part, self.tenon_box(), skip=self.side.axis))
         c = self.side.coordinate
-        tenon[self.side.axis] = (c, INF) if self.side.side.sign > 0 else (-INF, c)
-        removal -= _box(self.part, (tenon[0], tenon[1], tenon[2]))
+        for box in self.tenon_boxes():
+            tenon = list(_open(self.part, box, skip=self.side.axis))
+            tenon[self.side.axis] = (c, INF) if self.side.side.sign > 0 else (-INF, c)
+            removal -= _box(self.part, (tenon[0], tenon[1], tenon[2]))
         haunch = self.haunch_box()
         if haunch is not None:
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
@@ -377,23 +412,28 @@ class Tenon(Cut):
         return removal
 
     def _chamfer_removal(self) -> bd.Part:
-        """The four arrises around the end of the tenon, beyond the chamfers."""
-        box = self.tenon_box()
+        """The four arrises around the end of each tenon, beyond the chamfers."""
         u, s, k = self.side.axis, self.side.side.sign, self.chamfer
-        end = box[u][1] if s > 0 else box[u][0]
         m = _margin(self.part)
         corners = []
-        for axis in (1 - u, 2):  # across the width, across the thickness
-            for sign, c in zip((-1, 1), box[axis], strict=True):
-                # As a `Chamfer` of the arris between the end and this side.
-                points = [
-                    (end, c - sign * k),
-                    (end + s * m, c - sign * k),
-                    (end + s * m, c + sign * m),
-                    (end - s * k, c + sign * m),
-                    (end - s * k, c),
-                ]
-                corners.append(_prism(self.part, u, axis, points))
+        for box in self.tenon_boxes():
+            end = box[u][1] if s > 0 else box[u][0]
+            for axis in (1 - u, 2):  # across the width, across the thickness
+                for sign, c in zip((-1, 1), box[axis], strict=True):
+                    # As a `Chamfer` of the arris between the end and this side.
+                    points = [
+                        (end, c - sign * k),
+                        (end + s * m, c - sign * k),
+                        (end + s * m, c + sign * m),
+                        (end - s * k, c + sign * m),
+                        (end - s * k, c),
+                    ]
+                    corner = _prism(self.part, u, axis, points)
+                    if self.count > 1:  # not into the tenons beside it
+                        across = list(_ranges())
+                        across[1 - u] = box[1 - u]
+                        corner &= _box(self.part, (across[0], across[1], across[2]))
+                    corners.append(corner)
         return functools.reduce(operator.add, corners)
 
     def reach_solid(self) -> bd.Part:
@@ -458,9 +498,13 @@ class Tenon(Cut):
         kind = self.kind()
         if self.width is None:
             return f"{kind} {self.thickness:g} mm thick, {self.length:g} long, on {self.side}"
-        size = f"{self.width:g} x {self.thickness:g} mm, {self.length:g} long"
+        size = f"{self.single_width:g} x {self.thickness:g} mm, {self.length:g} long"
         if self.haunch is not None:
             kind = f"haunched {kind}"
+        if self.count > 1:
+            kind = f"{self.count} {kind}s"
+            size += f", {self.gap:g} apart"
+        if self.haunch is not None:
             size += f", haunch {self.haunch_length:g} long"
         if self.mitre is not None:
             size += f", end mitred {self.mitre_angle:g} deg towards {self.mitre}"

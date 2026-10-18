@@ -182,7 +182,9 @@ class Housing(Joint):
             box[insert.axis] = (c, c + d) if insert.side.sign > 0 else (c - d, c)
             pockets = [Pocket(socket, self.socket_box(placement, (box[0], box[1], box[2])))]
         else:
-            pockets = [Pocket(socket, self.socket_box(placement, tenon.tenon_box()))]
+            pockets = [
+                Pocket(socket, self.socket_box(placement, box)) for box in tenon.tenon_boxes()
+            ]
             haunch = tenon.haunch_box()
             if haunch is not None:
                 # Without clearance: as deep as the groove the haunch fills.
@@ -459,6 +461,11 @@ class MortiseTenon(Housing):
     With `tenon_chamfer`, the arrises around the end of the tenon are
     chamfered, e.g. on a through tenon a bit longer than the mortised part
     is deep, so that it stands proud of it.
+
+    With `tenons`, there are that many tenons side by side between the
+    shoulders, e.g. twin tenons on a wide rail, `tenon_gap` apart (by
+    default as wide as the tenons), each in its own mortise. The other
+    options apply to each of them (the haunch to the outer one).
     """
 
     tenon: SideRef
@@ -473,6 +480,8 @@ class MortiseTenon(Housing):
     haunch_length: float | None = None
     mitre: SideRef | None = None
     tenon_chamfer: float = 0.0
+    tenons: int = 1
+    tenon_gap: float | None = None
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -483,31 +492,45 @@ class MortiseTenon(Housing):
         haunch_length = self.haunch_length
         if self.haunch is not None and haunch_length is None:
             haunch_length = rules.groove_depth(self.mortise.part.thickness)
+        gap = self.tenon_gap
+        if self.tenons > 1 and gap is None:
+            gap = self._shoulders_apart() / (2 * self.tenons - 1)
         return replace(
             self,
             tenon_thickness=self.tenon_thickness
             or rules.tenon_thickness(self.tenon.part.thickness),
             tenon_length=self.tenon_length or rules.tenon_length(self.mortise.depth),
             haunch_length=haunch_length,
+            tenon_gap=gap,
         )
 
     def reach(self) -> float:
         return _require(self.tenon_length)
 
+    def _shoulders(self) -> tuple[float, float]:
+        """At the front edge and at the back edge (along the side)."""
+        shoulder = _require(self.shoulder)
+        return (shoulder, shoulder) if isinstance(shoulder, int | float) else shoulder
+
+    def _shoulders_apart(self) -> float:
+        """The width of the tenon, or of all the tenons together."""
+        front, back = self._shoulders()
+        return self.tenon.size[0] - front - back
+
     def tenon_cut(self) -> Tenon:
-        shoulder = self.shoulder
-        front, back = (shoulder, shoulder) if isinstance(shoulder, int | float) else shoulder
         return Tenon(
             self.tenon,
             length=self.reach(),
             thickness=_require(self.tenon_thickness),
-            width=self.tenon.size[0] - front - back,
-            width_offset=front,
+            width=self._shoulders_apart(),
+            width_offset=self._shoulders()[0],
             thickness_offset=self.tenon_offset,
             haunch=self.haunch,
             haunch_length=self.haunch_length,
             mitre=self.mitre,
             chamfer=self.tenon_chamfer,
+            count=self.tenons,
+            gap=self.tenon_gap or 0.0,
         )
 
 
@@ -580,14 +603,15 @@ class MitredShoulderTenon(MortiseTenon):
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         cuts = super().cuts(placement)
-        mortise = cuts[0]
-        assert isinstance(mortise, Pocket)
-        # The mortise is open to the notch, so cut it from the side.
-        box = list(mortise.box)
-        axis, (a, b) = self.mortise.axis, box[self.mortise.axis]
-        box[axis] = (a, INF) if self.mortise.side.sign > 0 else (-INF, b)
-        cuts[0] = replace(mortise, box=(box[0], box[1], box[2]))
         tenon = self.tenon_cut()
+        # The mortises are open to the notch, so cut them from the side.
+        for i in range(tenon.count):
+            mortise = cuts[i]
+            assert isinstance(mortise, Pocket)
+            box = list(mortise.box)
+            axis, (a, b) = self.mortise.axis, box[self.mortise.axis]
+            box[axis] = (a, INF) if self.mortise.side.sign > 0 else (-INF, b)
+            cuts[i] = replace(mortise, box=(box[0], box[1], box[2]))
         mitred = _require(self.mitred)
         ends = {0: "", 1: ", mitred at one end", 2: ", mitred at both ends"}[len(mitred)]
         width = self.tenon.size[0]

@@ -642,3 +642,67 @@ def test_loose_tenon_must_be_added() -> None:
     asm.join(ww.LooseTenon(stile.back_edge, rail.left_end, tenon))
     with pytest.raises(ValueError, match="tenon is joined but not added"):
         asm.resolve()
+
+
+def test_twin_tenons() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=300, width=60))
+    rail = asm.add(ww.Board("rail", OAK, length=200, width=110))
+    asm.join(ww.MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge, shoulder=10, tenons=2))
+    model = asm.resolve()
+    assert model.joints[0].tenon_gap == 30  # as wide as the tenons
+    assert cuts(model, stile) == ["mortise 30 x 8 mm, 42 deep, in stile.back_edge"] * 2
+    assert cuts(model, rail) == ["2 tenons 30 x 8 mm, 40 long, 30 apart, on rail.left_end"]
+    assert model[rail].shape.volume == pytest.approx(200 * 110 * 20 + 2 * 30 * 8 * 40)
+    assert model[stile].shape.volume == pytest.approx(300 * 60 * 20 - 2 * 30 * 8 * 42)
+    # The mortises are 30 mm apart along the stile, centered on the rail.
+    mortises = sorted(cut.ranges()[0] for cut in model[stile].cuts)
+    assert mortises == [(105, 135), (165, 195)]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_three_chamfered_through_tenons_with_a_haunch() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=300, width=60))
+    rail = asm.add(ww.Board("rail", OAK, length=200, width=110))
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=ww.flush_with(stile.right_end),
+            shoulder=(15, 5),
+            tenons=3,
+            tenon_gap=15,
+            tenon_length=62,
+            tenon_chamfer=2,
+            haunch=rail.front_edge,
+            haunch_length=10,
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, rail) == [
+        "3 haunched tenons 20 x 8 mm, 62 long, 15 apart, haunch 10 long, "
+        "end chamfered 2 mm, on rail.left_end"
+    ]
+    assert cuts(model, stile)[:3] == ["through mortise 20 x 8 mm in stile.back_edge"] * 3
+    # Each tenon loses four chamfers around its end (with the corners counted twice).
+    chamfers = 2 * (20 + 8) * 2 * 2 / 2 - 4 * 2**3 / 3
+    tenons = 3 * 20 * 8 * 62 + 15 * 8 * 10
+    assert model[rail].shape.volume == pytest.approx(200 * 110 * 20 + tenons - 3 * chamfers)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_twin_tenons_with_mitred_shoulders() -> None:
+    stock = ww.Stock.board(30, "oak")
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", stock, length=300, width=45))
+    rail = asm.add(ww.Board("rail", stock, length=200, width=90))
+    asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, tenons=2))
+    model = asm.resolve()
+    # Both mortises are cut from the side, through the notch.
+    assert cuts(model, stile) == [
+        "mortise 25 x 10 mm, 37 deep, in stile.back_edge",
+        "mortise 25 x 10 mm, 37 deep, in stile.back_edge",
+        "notch 90 long, 15 deep, mitred at both ends, in stile.back_edge",
+    ]
+    assert interference(model) == pytest.approx(0, abs=1e-6)

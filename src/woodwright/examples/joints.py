@@ -323,6 +323,37 @@ def haunched_mortise_tenon_corner(
     return asm
 
 
+def twin_tenon_corner(
+    stile_length: float = 500,
+    rail_length: float = 300,
+    stile_width: float = 70,
+    rail_width: float = 150,
+    outer_shoulder: float = 20,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A wide rail at a frame corner (e.g. the bottom rail of a door) with twin tenons.
+
+    A single tenon as wide as the rail would need a long mortise weakening
+    the stile, and would shrink and swell too much across its width; two
+    tenons side by side, each in its own mortise, keep the material between
+    them. The outer shoulder keeps the mortises away from the end of the stile.
+    """
+    asm = Assembly("twin_tenon_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=stile_width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=rail_width))
+    asm.join(
+        MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=flush_with(stile.right_end),
+            shoulder=(outer_shoulder, 10),  # the front edge is outer, at the end of the stile
+            tenons=2,
+            tenon_length=45,
+        )
+    )
+    return asm
+
+
 def _leg_and_aprons(
     name: str, tenon_length: float | None, mitred: bool, setback: float
 ) -> Assembly:
