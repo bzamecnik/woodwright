@@ -80,6 +80,7 @@ ALL: list[Example] = [
     frames.bridle_frame,
     frames.half_lap_frame,
     frames.frame_and_panel,
+    frames.butt_frame_and_panel,
     frames.shoji_frame,
     projects.try_square,
     projects.mallet,

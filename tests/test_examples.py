@@ -191,3 +191,18 @@ def test_ledged_door_tongues_fill_the_grooves() -> None:
     # The tongues fill the grooves; only the V-chamfers along the joints are gone.
     boards = sum(part.shape.volume for part in model.parts if part.part.name.startswith("board"))
     assert boards == pytest.approx(400 * 600 * 20 - 6 * 3 * 3 / 2 * 600)
+
+
+def test_butt_frame_and_panel_tongues() -> None:
+    model = frames.butt_frame_and_panel().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((420, 20, 500))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["rail_top"].size == (300, 60, 20)  # butted, no tenons
+    assert parts["panel"].size == (400, 320, 10)  # the opening plus the tongues
+    # The tongue runs all round, its corners too, into the grooves in the stiles.
+    tongues = (2 * 380 + 2 * 300) * 10 * 6 + 4 * 10 * 10 * 6
+    assert parts["panel"].shape.volume == pytest.approx(380 * 300 * 10 + tongues)
+    for stile, edge in [("stile_left", "back_edge"), ("stile_right", "front_edge")]:
+        cuts = [cut.describe() for cut in parts[stile].cuts]
+        assert cuts == [f"groove 6 mm, 10 deep, in {stile}.{edge}"]  # through

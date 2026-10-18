@@ -1,12 +1,21 @@
-"""Frames of two stiles and two rails, a frame with a panel, a shoji lattice."""
+"""Frames of two stiles and two rails, frames with a panel, a shoji lattice."""
 
 from collections.abc import Callable
 
 from woodwright.assembly import Assembly
 from woodwright.examples._common import OAK, STANDING, THIN_OAK
-from woodwright.joints import Bridle, CrossLap, GrooveJoint, HalfLap, Joint, MortiseTenon
+from woodwright.joints import (
+    Bridle,
+    Butt,
+    CrossLap,
+    GrooveJoint,
+    HalfLap,
+    Joint,
+    MortiseTenon,
+    TongueAndGroove,
+)
 from woodwright.part import Board, SideRef
-from woodwright.placement import Position, flush_with, offset
+from woodwright.placement import CENTERED, Position, flush_with, offset
 from woodwright.stock import Stock
 
 # Kumiko: thin bars, much deeper (across the lattice) than wide.
@@ -133,6 +142,49 @@ def frame_and_panel(
         (rail_bottom.front_edge, panel.left_end),
     ]:
         asm.join(GrooveJoint(groove=groove, edge=edge))
+    return asm
+
+
+def butt_frame_and_panel(
+    stile_length: float = 500,
+    rail_length: float = 300,
+    width: float = 60,
+    tongue_length: float = 10,
+    stock: Stock = OAK,
+    panel_stock: Stock = THIN_OAK,
+) -> Assembly:
+    """A frame butt-joined at the corners, a panel tongued on all four edges
+    into grooves along its inside edges.
+
+    The panel's design size is the opening of the frame, the tongues add to
+    it; it is centered in the frame's thickness. The grooves run through,
+    as cut on a table saw: those in the rails into the ones in the stiles,
+    which show at the stiles' ends (stopped grooves would hide them). The
+    glued corners hold little (end grain on long grain): a frame for a
+    light panel, or one to be screwed or dowelled (not modelled).
+    """
+
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
+        return Butt(stile_edge, rail_end, position=position)
+
+    asm, (stile_left, stile_right, rail_top, rail_bottom) = _frame(
+        "butt_frame_and_panel", corner, stile_length, rail_length, width, stock
+    )
+    panel = asm.add(Board("panel", panel_stock, length=stile_length - 2 * width, width=rail_length))
+    for groove, edge in [
+        (stile_left.back_edge, panel.front_edge),
+        (stile_right.front_edge, panel.back_edge),
+        (rail_top.back_edge, panel.right_end),
+        (rail_bottom.front_edge, panel.left_end),
+    ]:
+        asm.join(
+            TongueAndGroove(
+                tongue=edge,
+                groove=groove,
+                tongue_length=tongue_length,
+                across=CENTERED,
+            )
+        )
     return asm
 
 

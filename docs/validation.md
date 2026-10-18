@@ -53,8 +53,9 @@ Done items name their example in `woodwright.examples`
     - [x] tongue and groove panel - tongue + groove – `joints.tongue_and_groove_panel`,
       V-chamfered boards on two ledges: `projects.ledged_door`
     - [ ] tongue and groove panel - two grooves + inserted tongue
-    - [ ] frame panel - butt-joint frame with a groove inside, panel with a tongue on all edges
-      (so far `frames.frame_and_panel`: a mortise-and-tenon frame, a plain panel;
+    - [x] frame panel - butt-joint frame with a groove inside, panel with a tongue on all edges –
+      `frames.butt_frame_and_panel` (the grooves through, showing at the stiles' ends;
+      a mortise-and-tenon frame with a plain panel: `frames.frame_and_panel`,
       `joints.panel_in_groove`)
   - rabbet
     - [x] corner with rabbet and plain board – `joints.rabbet_corner`, `projects.bookshelf`
