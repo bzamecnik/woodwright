@@ -5,7 +5,7 @@ import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.cuts import INF, Chamfer, Pocket
+from woodwright.cuts import INF, Chamfer, Pocket, Taper
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
@@ -656,6 +656,13 @@ def chair(
     tenon_chamfer: float = 2,
     top_chamfer: float = 4,
     overhang: float = 10,
+    seat_boards: int = 2,
+    seat_chamfer: float = 3,
+    splats: int = 3,
+    splat_width: float = 30,
+    splat_tenon_length: float = 20,
+    leg_taper: float = 5,
+    leg_taper_length: float = 140,
     leg_stock: Stock = CHAIR_LEG_STOCK,
     stock: Stock = OAK,
     seat_stock: Stock = OAK,
@@ -664,16 +671,21 @@ def chair(
 
     The back legs run up into the back. Under the seat, rails `rail_width`
     wide are tenoned into the legs as in a table frame, flush with the tops
-    of the front legs. The seat, a panel with its grain from side to side,
-    lies on them, its top `seat_height` above the floor; it overhangs the
-    frame by `overhang` at the front and the sides and is notched at the
-    back corners around the back legs, flush with their outsides. Stretchers near the
-    floor and two rails in the back (their top edges at `stretcher_heights`,
-    for the front and back and for the sides, and at `back_rails`) have
-    through tenons standing `protrusion` proud of the legs, their ends
-    chamfered. The side stretchers are lower than the front and back ones,
-    so that the tenons don't meet inside the legs. The tops of the back legs
-    are chamfered all round.
+    of the front legs. The seat, a panel glued up from `seat_boards` boards
+    edge to edge, its grain from side to side, lies on them, its top
+    `seat_height` above the floor; it overhangs the frame by `overhang` at
+    the front and the sides and the back board is notched at the corners
+    around the back legs, flush with their outsides. The arrises around
+    the seat, top and bottom, are chamfered. Stretchers near the floor and
+    two rails in the back (their top edges at `stretcher_heights`, for the
+    front and back and for the sides, and at `back_rails`) have through
+    tenons standing `protrusion` proud of the legs, their ends chamfered.
+    The side stretchers are lower than the front and back ones, so that the
+    tenons don't meet inside the legs. Between the back rails stand
+    `splats`, as thick as the rails, with blind tenons in their edges. The
+    tops of the back legs are chamfered all round; the legs taper on their
+    inner sides from `leg_taper_length` above the floor, below the
+    stretchers, to `leg_taper` thinner at the floor.
     """
     asm = Assembly("chair", root_location=STANDING)
     seat = seat_height - seat_stock.thickness
@@ -708,8 +720,11 @@ def chair(
     ]
     # Like the seat rails, each goes from the back edge of one leg to the top
     # face of the next one, but centered on them.
+    members = {}
     for name, i, length, level, member_width in spans:
-        member = asm.add(Board(name, stock, length=length - 2 * leg_width, width=member_width))
+        member = members[name] = asm.add(
+            Board(name, stock, length=length - 2 * leg_width, width=member_width)
+        )
         this_leg, next_leg = legs[i], legs[(i + 1) % 4]
         for end, leg, mortise, outside in [
             (member.left_end, this_leg, this_leg.back_edge, this_leg.bottom_face),
@@ -729,20 +744,63 @@ def chair(
     for leg in legs[2:]:
         for side in (leg.top_face, leg.bottom_face, leg.front_edge, leg.back_edge):
             leg.cut(Chamfer(leg.arris(leg.right_end, side), size=top_chamfer))
+    # The outer sides of the legs are their bottom faces and front edges.
+    for leg in legs:
+        for side in (leg.top_face, leg.back_edge):
+            leg.cut(Taper(side, end=leg.left_end, amount=leg_taper, length=leg_taper_length))
 
-    panel = asm.add(Board("seat", seat_stock, length=width + 2 * overhang, width=depth + overhang))
-    rail_front = rails[0]
+    # The splats stand evenly spaced between the back rails, whose back edges are up.
+    lower, upper = members["back_rail_lower"], members["back_rail_upper"]
+    splat_length = back_rails[1] - back_rail_width - back_rails[0]
+    gap = (lower.length - splats * splat_width) / (splats + 1)
+    for j in range(splats):
+        splat = asm.add(Board(f"splat_{j + 1}", stock, length=splat_length, width=splat_width))
+        distance = gap + j * (gap + splat_width)
+        for end, mortise in [
+            (splat.left_end, lower.back_edge),
+            (splat.right_end, upper.front_edge),
+        ]:
+            rail = mortise.part
+            asm.join(
+                MortiseTenon(
+                    tenon=end,
+                    mortise=mortise,
+                    position=offset(distance, ref=rail.left_end),
+                    flush=(rail.ref_face, splat.ref_face),
+                    tenon_length=splat_tenon_length,
+                )
+            )
+
+    # The seat boards go from the front to the back, glued edge to edge.
+    board_width = (depth + overhang) / seat_boards
+    boards = [
+        asm.add(Board(f"seat_{i + 1}", seat_stock, length=width + 2 * overhang, width=board_width))
+        for i in range(seat_boards)
+    ]
+    for a, b in itertools.pairwise(boards):
+        asm.join(Butt(a.back_edge, b.front_edge))
+    rail_front, front, back = rails[0], boards[0], boards[-1]
     asm.join(
         Butt(
             rail_front.back_edge,
-            panel.bottom_face,
+            front.bottom_face,
             position=offset(-(leg_width + overhang), ref=rail_front.left_end),
-            flush=(rail_front.ref_face, panel.front_edge),
+            flush=(rail_front.ref_face, front.front_edge),
             across=offset(-(setback + overhang)),
         )
     )
-    # The notches reach from the back edge (y = panel.width) and the ends.
-    notch_x, notch_y = overhang + leg_width, (panel.width - leg_width, INF)
-    for x in [(-INF, notch_x), (panel.length - notch_x, INF)]:
-        panel.cut(Pocket(panel.back_edge, (x, notch_y, (-INF, INF)), kind="notch"))
+    # The notches reach from the back edge (y = back.width) and the ends.
+    notch_x, notch_y = overhang + leg_width, (back.width - leg_width, INF)
+    for x in [(-INF, notch_x), (back.length - notch_x, INF)]:
+        back.cut(Pocket(back.back_edge, (x, notch_y, (-INF, INF)), kind="notch"))
+    for board in boards:
+        sides = [board.left_end, board.right_end]
+        sides += [
+            edge
+            for edge, outer in [(board.front_edge, front), (board.back_edge, back)]
+            if board is outer
+        ]
+        for side in sides:
+            for face in (board.top_face, board.bottom_face):
+                board.cut(Chamfer(board.arris(face, side), size=seat_chamfer))
     return asm

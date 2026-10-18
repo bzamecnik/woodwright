@@ -126,6 +126,8 @@ def test_drawer_groove_is_hidden_in_the_tails() -> None:
 
 
 def test_chair_sizes_and_through_tenons() -> None:
+    import build123d as bd
+
     from woodwright.examples import projects
 
     model = projects.chair().resolve()
@@ -138,10 +140,20 @@ def test_chair_sizes_and_through_tenons() -> None:
     assert parts["leg_front_left"].size == (430, 40, 40)
     assert parts["leg_back_left"].size == (900, 40, 40)
     assert pytest.approx(430) == parts["seat_rail_back"].placed_shape.bounding_box().max.Z
-    seat = parts["seat"]
-    assert seat.size == (460, 430, 20)
-    seat_box = seat.placed_shape.bounding_box()
-    assert pytest.approx((430, 450)) == (seat_box.min.Z, seat_box.max.Z)
-    # Notched at the back corners around the legs, 50 x 40 mm each.
-    assert seat.placed_shape.volume == pytest.approx((460 * 430 - 2 * 50 * 40) * 20)
-    assert pytest.approx(870) == parts["back_rail_upper"].placed_shape.bounding_box().max.Z
+    for board in ("seat_1", "seat_2"):
+        assert parts[board].size == (460, 215, 20)
+        seat_box = parts[board].placed_shape.bounding_box()
+        assert pytest.approx((430, 450)) == (seat_box.min.Z, seat_box.max.Z)
+    # The back board is notched at the corners around the legs, 50 x 40 mm each.
+    notches = parts["seat_1"].placed_shape.volume - parts["seat_2"].placed_shape.volume
+    assert notches == pytest.approx(2 * 50 * 40 * 20, rel=0.02)
+    # Three splats between the back rails, their tenons 20 mm into them.
+    splats = [part for key, part in parts.items() if key.startswith("splat")]
+    assert len(splats) == 3
+    for splat in splats:
+        splat_box = splat.placed_shape.bounding_box()
+        assert pytest.approx((600, 830)) == (splat_box.min.Z, splat_box.max.Z)
+    # The legs are 35 mm square at the floor.
+    leg = parts["leg_front_left"].placed_shape
+    foot = leg & bd.Box(100, 100, 0.01, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
+    assert pytest.approx((35, 35), abs=0.01) == tuple(foot.bounding_box().size)[:2]
