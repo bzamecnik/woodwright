@@ -46,6 +46,9 @@ Done items name their example in `woodwright.examples`
       - [x] edge on face - corner – `joints.butt_corner`, `joints.butt_frame_corner`
     - [x] box - four corner joint + bottom – `projects.butt_box`
     - [x] shelf with just butt joints – `projects.butt_shelf` (screws not modelled)
+    - [x] ledged and braced door - boards butted edge to edge, two ledges and a diagonal brace
+      face to face on the back, the brace's ends cut level against the ledges' edges –
+      `projects.ledged_and_braced_door` (nails not modelled)
   - dado
     - [x] T-joint with a dado – `joints.dado_shelf`, `projects.shooting_board`
     - [x] shelf with dados – `projects.bookshelf`

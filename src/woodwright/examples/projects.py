@@ -5,7 +5,7 @@ import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.cuts import INF, Chamfer, Pocket, Taper
+from woodwright.cuts import INF, Chamfer, Mitre, Pocket, Taper
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
@@ -236,6 +236,79 @@ def ledged_door(
                 across=offset(ledge_inset),
             )
         )
+    return asm
+
+
+def ledged_and_braced_door(
+    height: float = 1000,
+    width: float = 600,
+    boards: int = 5,
+    ledge_width: float = 100,
+    ledge_from_ends: float = 100,
+    ledge_inset: float = 20,
+    brace_width: float = 100,
+    brace_inset: float = 20,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A ledged and braced door, e.g. for a shed: boards butted edge to edge
+    on two ledges and a diagonal brace across the back.
+
+    The boards aren't glued: they would be nailed or screwed to the ledges
+    and the brace from the front (not modelled). The ledges lie
+    `ledge_from_ends` from the top and the bottom, `ledge_inset` in from
+    the sides. The brace lies between them, in the same plane, and keeps
+    the door from sagging: it rises from the hinge side (the left, seen
+    from the front) at the bottom ledge to the latch side at the top one,
+    so that it is in compression. Its ends are cut level and bear against
+    the ledges' edges, the long points `brace_inset` in from the ends of
+    the ledges.
+    """
+    # The boards' reference faces are at the back, their back edges to the right.
+    asm = Assembly("ledged_and_braced_door", root_location=STANDING)
+    door = [
+        asm.add(Board(f"board_{i + 1}", stock, length=height, width=width / boards))
+        for i in range(boards)
+    ]
+    for a, b in itertools.pairwise(door):
+        asm.join(Butt(a.back_edge, b.front_edge))
+    first = door[0]
+    for name, end in [("top", first.right_end), ("bottom", first.left_end)]:
+        ledge = asm.add(
+            Board(f"ledge_{name}", stock, length=width - 2 * ledge_inset, width=ledge_width)
+        )
+        asm.join(
+            Butt(
+                first.top_face,
+                ledge.bottom_face,
+                position=offset(ledge_from_ends, ref=end),
+                flush=(first.front_edge, ledge.left_end),
+                across=offset(ledge_inset),
+            )
+        )
+    # The brace's long points, on its upper (front) edge at the bottom and
+    # its lower (back) edge at the top, lie on the ledges' edges, `run` apart
+    # across the door and `rise` apart up it: its slope makes the brace's
+    # width fit between them.
+    rise = height - 2 * (ledge_from_ends + ledge_width)
+    run = width - 2 * (ledge_inset + brace_inset)
+    slope = math.atan2(rise, run) + math.asin(brace_width / math.hypot(run, rise))
+    length = (rise + brace_width * math.cos(slope)) / math.sin(slope)
+    brace = asm.add(Board("brace", stock, length=length, width=brace_width))
+    end_angle = 90 - math.degrees(slope)
+    brace.cut(Mitre(brace.left_end, inside=brace.back_edge, angle=end_angle))
+    brace.cut(Mitre(brace.right_end, inside=brace.front_edge, angle=end_angle))
+    # Lying along the top of the door, the brace is turned down about its
+    # lower long point, on the bottom ledge (measured from the top).
+    asm.join(
+        Butt(
+            first.top_face,
+            brace.bottom_face,
+            position=offset(height - ledge_from_ends - ledge_width),
+            flush=(first.front_edge, brace.left_end),
+            across=offset(ledge_inset + brace_inset),
+            angle=-math.degrees(slope),
+        )
+    )
     return asm
 
 

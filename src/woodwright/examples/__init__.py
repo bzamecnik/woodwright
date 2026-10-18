@@ -94,6 +94,7 @@ ALL: list[Example] = [
     projects.bench_hook,
     projects.stepstool_seat,
     projects.ledged_door,
+    projects.ledged_and_braced_door,
     projects.bow_saw_frame,
     projects.butt_box,
     projects.bookshelf,

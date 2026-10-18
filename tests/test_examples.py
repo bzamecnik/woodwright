@@ -199,6 +199,36 @@ def test_ledged_door_tongues_fill_the_grooves() -> None:
     assert boards == pytest.approx(400 * 600 * 20 - 6 * 3 * 3 / 2 * 600)
 
 
+def test_ledged_and_braced_door() -> None:
+    import math
+
+    import build123d as bd
+
+    from woodwright.examples import projects
+
+    model = projects.ledged_and_braced_door().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((600, 40, 1000))  # the ledges and brace behind
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["board_1"].size == (1000, 120, 20)  # butted, no cuts
+    assert parts["ledge_top"].size == (560, 100, 20)
+    # The brace runs between the ledges' edges, its long points 40 in from
+    # the sides of the door, its ends cut level.
+    brace = parts["brace"].placed_shape
+    lo, hi = brace.bounding_box().min, brace.bounding_box().max
+    assert pytest.approx((40, 20, 200)) == (lo.X, lo.Y, lo.Z)
+    assert pytest.approx((560, 40, 800)) == (hi.X, hi.Y, hi.Z)
+    ends = [face for face in brace.faces() if abs(face.normal_at().Z) > 1 - 1e-9]
+    assert sorted(face.center().Z for face in ends) == pytest.approx([200, 800])
+    # Rising to the right, seen from the front: the hinges are on the left.
+    assert brace.faces().sort_by(bd.Axis.Z)[0].center().X < 300
+    # A parallelogram: its slope fits the brace's width between the long points.
+    slope = math.radians(90 - parts["brace"].cuts[0].angle)
+    length = parts["brace"].size[0]
+    assert 520 * math.sin(slope) - 600 * math.cos(slope) == pytest.approx(100)
+    assert parts["brace"].shape.volume == pytest.approx(100 * (length - 100 / math.tan(slope)) * 20)
+
+
 def test_butt_frame_and_panel_tongues() -> None:
     model = frames.butt_frame_and_panel().resolve()
     box = model.compound().bounding_box()
