@@ -520,6 +520,159 @@ class Tenon(Cut):
 
 
 @dataclass
+class WedgedTenon(Tenon):
+    """A through tenon with saw kerfs across its thickness, spread by wedges.
+
+    Each tenon (see `count`) has one kerf in its middle or two, `kerf_inset`
+    in from its edges (by default a fifth of its width), `kerf` wide and
+    `kerf_depth` deep from its end. It is modelled as glued up: the wedges
+    driven into the kerfs have spread the tenon, so each end of it leans
+    out by `flare` where it leaves the mortised part, `proud` before its
+    end; the mortise is flared to match. The kerfs are the wedges' shapes,
+    straight at the stationary side of the kerf, sloped by `flare` at the
+    spread side (at both with one kerf). The cut list gives the tenon as
+    cut, straight with straight kerfs.
+    """
+
+    kerfs: int = 2
+    kerf: float = 2.0
+    kerf_inset: float | None = None
+    kerf_depth: float = 0.0
+    flare: float = 0.0
+    proud: float = 0.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.kerfs not in (1, 2):
+            raise ValueError("a wedged tenon has one or two kerfs")
+        if self.width is None:
+            raise ValueError("a wedged tenon needs shoulders to spread into")
+        if self.mitre is not None or self.chamfer or self.mitre_depth:
+            raise ValueError("a wedged tenon has a square end and square shoulders")
+        if not self.proud < self.kerf_depth <= self.length:
+            raise ValueError("the kerfs must reach into the mortise, but not beyond the tenon")
+        if self.flare <= 0 or self.kerf <= 0:
+            raise ValueError("a wedged tenon needs a kerf and a flare")
+        if self.kerfs == 2 and not 0 < self.inset < self.single_width / 2 - self.kerf:
+            raise ValueError("the kerfs must lie within the tenon, apart")
+        width_axis = 1 - self.side.axis
+        lo, hi = self.part.box
+        boxes = self.tenon_boxes()
+        if (
+            boxes[0][width_axis][0] - self.flare < lo[width_axis] - _EPS
+            or boxes[-1][width_axis][1] + self.flare > hi[width_axis] + _EPS
+            or (self.count > 1 and self.gap < 2 * self.flare)
+        ):
+            raise ValueError("the tenon must not spread wider than its shoulders")
+
+    @property
+    def inset(self) -> float:
+        return self.single_width / 5 if self.kerf_inset is None else self.kerf_inset
+
+    def _outlines(self, kerfs: bool) -> list[list[tuple[float, float]]]:
+        """The flares (or the kerfs) as outlines in (along the side's normal, across the tenon)."""
+        u, s = self.side.axis, self.side.side.sign
+        c = self.side.coordinate
+        length, k, f = self.length, self.kerf, self.flare
+        bottom, spread = length - self.kerf_depth, length - self.proud
+
+        def at(d: float, v: float) -> tuple[float, float]:
+            return c + s * d, v
+
+        def kerf(v: float, sign: int) -> list[tuple[float, float]]:
+            """A kerf at its stationary side v, the tenon beside it spreading towards `sign`."""
+            return [
+                at(bottom, v),
+                at(bottom, v + sign * k),
+                at(spread, v + sign * (k + f)),
+                at(length, v + sign * (k + f)),
+                at(length, v),
+            ]
+
+        outlines = []
+        for box in self.tenon_boxes():
+            lo, hi = box[1 - u]
+            if not kerfs:
+                outlines.append(
+                    [at(bottom, lo), at(spread, lo - f), at(length, lo - f), at(length, lo)]
+                )
+                outlines.append(
+                    [at(bottom, hi), at(length, hi), at(length, hi + f), at(spread, hi + f)]
+                )
+            elif self.kerfs == 2:
+                outlines.append(kerf(lo + self.inset + k, -1))
+                outlines.append(kerf(hi - self.inset - k, +1))
+            else:
+                m = (lo + hi) / 2
+                outlines.append(
+                    [
+                        at(bottom, m - k / 2),
+                        at(bottom, m + k / 2),
+                        at(spread, m + k / 2 + f),
+                        at(length, m + k / 2 + f),
+                        at(length, m - k / 2 - f),
+                        at(spread, m - k / 2 - f),
+                    ]
+                )
+        return outlines
+
+    def _solid(self, kerfs: bool) -> bd.Part:
+        """The flares or the kerfs through the tenon's thickness, in the part frame."""
+        z = self.tenon_box()[2]
+        u = self.side.axis
+        solids = [_prism(self.part, u, 1 - u, _dedup(points)) for points in self._outlines(kerfs)]
+        return functools.reduce(operator.add, solids) & _box(self.part, _ranges((2, z)))
+
+    def flare_solid(self) -> bd.Part:
+        """What the tenon spreads into beyond its straight cheeks (and the mortise is flared by)."""
+        return self._solid(kerfs=False)
+
+    def removal(self) -> bd.Part:
+        return super().removal() - self.flare_solid() + self._solid(kerfs=True)
+
+    def wedge_locations(self) -> list[bd.Location]:
+        """Of the wedges in the kerfs, in the part frame, in the order of the kerfs.
+
+        A wedge is a board with its thick end at its left end, at the end of
+        the tenon, its front edge at the stationary side of the kerf (for
+        one kerf, at the side towards the tenon's front edge or left end) and
+        as thick as the tenon. With two kerfs it is tapered on its back edge,
+        with one on both edges.
+        """
+        u, s = self.side.axis, self.side.side.sign
+        v = 1 - u
+        z0, z1 = self.tenon_box()[2]
+        end = self.side.coordinate + s * self.length
+        k, f = self.kerf, self.flare
+        starts: list[tuple[float, int]] = []  # the wedge's front edge and its direction
+        for box in self.tenon_boxes():
+            lo, hi = box[v]
+            if self.kerfs == 2:
+                starts += [(lo + self.inset + k, -1), (hi - self.inset - k, +1)]
+            else:
+                starts.append(((lo + hi) / 2 - k / 2 - f, +1))
+        locations = []
+        for start, sign in starts:
+            x_dir = -s * _unit(u)
+            y_dir = sign * _unit(v)
+            z_dir = x_dir.cross(y_dir)
+            origin = [0.0, 0.0, 0.0]
+            origin[u], origin[v] = end, start
+            origin[2] = z1 if z_dir.Z > 0 else z0
+            locations.append(bd.Location(bd.Plane(tuple(origin), x_dir=x_dir, z_dir=z_dir)))
+        return locations
+
+    def describe(self) -> str:
+        each = " each" if self.count > 1 else ""
+        kerfs = "a saw kerf" if self.kerfs == 1 else "2 saw kerfs"
+        tenon = super().describe().removesuffix(f", on {self.side}")
+        return (
+            f"{tenon}, {kerfs}{each} {self.kerf:g} mm, {self.kerf_depth:g} deep, "
+            f"for wedges, on {self.side}"
+        )
+
+
+@dataclass
 class Tongue(Tenon):
     """A tongue along an edge (or across an end): a tenon over the whole side,
     without shoulders.
@@ -919,6 +1072,17 @@ def _describe_box(
     if others:
         text += " at " + ", ".join(str(s) for s in others)
     return text
+
+
+def _dedup(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """The points of an outline without repeated ones (e.g. where a length is 0)."""
+    unique: list[tuple[float, float]] = []
+    for p in points:
+        if not unique or math.dist(p, unique[-1]) > _EPS:
+            unique.append(p)
+    if len(unique) > 1 and math.dist(unique[0], unique[-1]) <= _EPS:
+        unique.pop()
+    return unique
 
 
 def _side(axis: int, sign: int) -> Side:

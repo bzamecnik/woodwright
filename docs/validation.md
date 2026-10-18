@@ -111,8 +111,10 @@ Done items name their example in `woodwright.examples`
   - dovetailed half-lap
     - [ ] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight
   - wedged mortise and tenon
-    - [ ] through half-dovetail mortise with edges angled outward
-    - [ ] tenon with one or two slots ended with a drilled hole + wedge
+    - [x] through half-dovetail mortise with edges angled outward – `WedgedMortiseTenon`,
+      `joints.wedged_through_tenon`
+    - [x] tenon with one or two slots ended with a drilled hole + wedge – one or two kerfs per
+      tenon, the wedges as parts, in `joints.wedged_through_tenon` (the drilled hole not yet)
   - drawbore mortise and tenon
     - [ ] mortise and tenon plus each has a drill hole which is slightly offset + dowel
   - [ ] tusk mortise and tenon

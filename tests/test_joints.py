@@ -706,3 +706,88 @@ def test_twin_tenons_with_mitred_shoulders() -> None:
         "notch 90 long, 15 deep, mitred at both ends, in stile.back_edge",
     ]
     assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_wedged_through_tenon() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=300, width=60))
+    rail = asm.add(ww.Board("rail", OAK, length=200, width=60))
+    stock = ww.Stock.board(8, "oak")
+    wedges = tuple(asm.add(ww.Board(f"wedge_{i}", stock, length=40, width=5)) for i in range(2))
+    asm.join(
+        ww.WedgedMortiseTenon(
+            tenon=rail.left_end, mortise=stile.back_edge, shoulder=10, wedges=wedges
+        )
+    )
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert (joint.tenon_thickness, joint.tenon_length) == (8, 60)  # from the wedges, through
+    assert cuts(model, stile) == [
+        "through mortise 40 x 8 mm in stile.back_edge",
+        "mortise flared 3 mm at the ends over 40, in stile.back_edge",
+    ]
+    assert cuts(model, rail) == [
+        "tenon 40 x 8 mm, 60 long, 2 saw kerfs 2 mm, 40 deep, for wedges, on rail.left_end"
+    ]
+    assert cuts(model, wedges[0]) == ["taper 3 mm on wedge_0.back_edge towards wedge_0.right_end"]
+    # The tenon spreads 3 mm at each end over 40 mm; the wedges fill the kerfs.
+    flares = 2 * 3 * 40 / 2 * 8
+    wedge = (2 + 5) / 2 * 40 * 8
+    assert model[wedges[0]].shape.volume == pytest.approx(wedge)
+    assert model[stile].shape.volume == pytest.approx(300 * 60 * 20 - 40 * 8 * 60 - flares)
+    tenon = 40 * 8 * 60 + flares - 2 * wedge
+    assert model[rail].shape.volume == pytest.approx(200 * 60 * 20 + tenon)
+    # The wedges lie flush with the stile's front edge, in kerfs 8 mm in from
+    # the edges of the tenon (at 130 and 170), the outer parts spread outwards;
+    # the first one towards the rail's front edge, at the stile's right end.
+    assert bbox(model[wedges[0]].placed_shape) == (160, 0, -14, 165, 40, -6)
+    assert bbox(model[wedges[1]].placed_shape) == (135, 0, -14, 140, 40, -6)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_twin_wedged_tenons_proud_with_a_wedge_each() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=300, width=60))
+    rail = asm.add(ww.Board("rail", OAK, length=200, width=110))
+    stock = ww.Stock.board(8, "oak")
+    # 5 mm proud: the wedges are 5 mm longer than the flare.
+    wedges = tuple(asm.add(ww.Board(f"wedge_{i}", stock, length=35, width=6)) for i in range(2))
+    asm.join(
+        ww.WedgedMortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            shoulder=10,
+            tenons=2,
+            tenon_length=65,
+            wedges=wedges,
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, stile)[2] == "mortises flared 2 mm at the ends over 30, in stile.back_edge"
+    assert cuts(model, wedges[0]) == [
+        "taper 2 mm over 30 on wedge_0.front_edge towards wedge_0.right_end",
+        "taper 2 mm over 30 on wedge_0.back_edge towards wedge_0.right_end",
+    ]
+    flares = 2 * 2 * (2 * 30 / 2 + 2 * 5) * 8
+    wedge = ((2 + 6) / 2 * 30 + 6 * 5) * 8
+    assert model[wedges[0]].shape.volume == pytest.approx(wedge)
+    tenons = 2 * 30 * 8 * 65 + flares - 2 * wedge
+    assert model[rail].shape.volume == pytest.approx(200 * 110 * 20 + tenons)
+    assert pytest.approx(-5) == model[rail].placed_shape.bounding_box().min.Y
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_wedges_must_fit_the_tenon() -> None:
+    asm, stile, rail = stile_and_rail(rail_width=60)
+    wedge = asm.add(ww.Board("wedge", ww.Stock.board(6, "oak"), length=40, width=5))
+    asm.join(
+        ww.WedgedMortiseTenon(
+            tenon=rail.left_end, mortise=stile.back_edge, tenon_thickness=8, wedges=(wedge,)
+        )
+    )
+    with pytest.raises(ValueError, match="as thick as the tenon"):
+        asm.resolve()
+    with pytest.raises(ValueError, match="spread wider than its shoulders"):
+        ww.WedgedMortiseTenon(
+            tenon=rail.left_end, mortise=stile.back_edge, shoulder=1, wedges=(wedge,)
+        ).with_defaults().tenon_cut()

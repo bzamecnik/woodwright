@@ -19,6 +19,7 @@ from woodwright.cuts import (
     Taper,
     Tenon,
     Tongue,
+    WedgedTenon,
 )
 from woodwright.joints import (
     Bridle,
@@ -41,6 +42,7 @@ from woodwright.joints import (
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
+    WedgedMortiseTenon,
 )
 from woodwright.part import ArrisRef, Board, Side, SideRef
 from woodwright.placement import (
@@ -122,6 +124,8 @@ __all__ = [
     "ThroughDovetail",
     "Tongue",
     "TongueAndGroove",
+    "WedgedMortiseTenon",
+    "WedgedTenon",
     "centered",
     "flush_with",
     "mate",

@@ -24,9 +24,10 @@ from woodwright.joints import (
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
+    WedgedMortiseTenon,
 )
 from woodwright.part import Board
-from woodwright.placement import CENTERED, flush_with, offset
+from woodwright.placement import CENTERED, LEFT, UP, flush_with, offset, orient
 from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) frame stock
@@ -481,6 +482,41 @@ def chamfered_through_mortise_tenon(
             mortise=stile.back_edge,
             tenon_length=width + chamfer,
             tenon_chamfer=chamfer,
+        )
+    )
+    return asm
+
+
+def wedged_through_tenon(
+    stile_length: float = 600,
+    rail_length: float = 300,
+    width: float = 60,
+    kerf: float = 2,
+    flare: float = 3,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A through tenon spread by two wedges into a mortise flared towards the outside.
+
+    Two saw kerfs in the end of the tenon, near its edges, take the wedges;
+    driven in, they bend the outer parts of the tenon out into the flares at
+    the ends of the mortise, so the joint can't pull out even without glue.
+    The mortise is flared along the stile, not across it, which would split
+    it. The wedges are planed flush with the tenon; the stile stands with
+    the tenon's end towards the viewer.
+    """
+    asm = Assembly("wedged_through_tenon", root_location=orient(right_end=UP, back_edge=LEFT))
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    # As thick as the tenon, as long as the kerfs (two thirds of the stile),
+    # at the head as wide as the kerf and the spread.
+    wedge_stock = Stock.board(thickness=rules.tenon_thickness(stock.thickness), species="oak")
+    wedges = tuple(
+        asm.add(Board(f"wedge_{i + 1}", wedge_stock, length=width * 2 / 3, width=kerf + flare))
+        for i in range(2)
+    )
+    asm.join(
+        WedgedMortiseTenon(
+            tenon=rail.left_end, mortise=stile.back_edge, shoulder=10, wedges=wedges, kerf=kerf
         )
     )
     return asm

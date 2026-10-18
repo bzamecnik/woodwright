@@ -9,7 +9,7 @@ rabbet, groove, mortise, ...).
 import functools
 import math
 import operator
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from typing import Self
 
 import build123d as bd
@@ -25,8 +25,10 @@ from woodwright.cuts import (
     Range,
     ShapeCut,
     SlotMortise,
+    Taper,
     Tenon,
     Tongue,
+    WedgedTenon,
 )
 from woodwright.part import Board, Side, SideRef
 from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, offset
@@ -53,6 +55,7 @@ __all__ = [
     "TeeBridle",
     "ThroughDovetail",
     "TongueAndGroove",
+    "WedgedMortiseTenon",
 ]
 
 _EPS = 1e-6
@@ -532,6 +535,98 @@ class MortiseTenon(Housing):
             count=self.tenons,
             gap=self.tenon_gap or 0.0,
         )
+
+
+@dataclass
+class WedgedMortiseTenon(MortiseTenon):
+    """A through mortise and tenon, the tenon spread by wedges driven into saw
+    kerfs in its end, into a mortise flared towards the outside.
+
+    The `wedges` are separate parts, one per kerf: one or two per tenon (see
+    `tenons`), in the order of the kerfs along the tenon. They are given as
+    made: as thick as the tenon (which by default they set), as long as the
+    kerfs are deep, and as wide at their heads as the `kerf` plus the
+    spread of the tenon (twice the spread for one kerf in the middle). The
+    joint tapers them to fit. Two kerfs lie `kerf_inset` in from the edges of
+    the tenon (by default a fifth of its width), so the outer parts of the
+    tenon bend out into the flare at each end of the mortise; one kerf
+    spreads both halves of the tenon. The mortise is flared over the depth
+    of the kerfs (less what the tenon stands proud) and straight below.
+
+    The tenon goes through, by default flush with the far side of the
+    mortised part; it may stand proud of it, then the wedges are as long. The
+    model is of the joint glued up, the tenon spread (see `WedgedTenon`).
+    """
+
+    wedges: tuple[Board, ...] = ()
+    kerf: float = 2.0
+    kerf_inset: float | None = None
+
+    def __post_init__(self) -> None:
+        if not self.wedges:
+            raise ValueError("a wedged tenon needs wedges")
+        first = self.wedges[0]
+        size = (first.length, first.width, first.thickness)
+        if any((w.length, w.width, w.thickness) != size for w in self.wedges):
+            raise ValueError("the wedges must be of the same size")
+        if len(self.wedges) not in (self.tenons, 2 * self.tenons):
+            raise ValueError("a wedged tenon has one or two wedges per tenon")
+        if self.mitre is not None or self.tenon_chamfer:
+            raise ValueError("a wedged tenon has a square end")
+
+    def with_defaults(self) -> Self:
+        joint = replace(
+            self,
+            tenon_thickness=self.tenon_thickness or self.wedges[0].thickness,
+            tenon_length=self.tenon_length or self.mortise.depth,
+        )
+        joint = super(WedgedMortiseTenon, joint).with_defaults()
+        if joint.reach() < self.mortise.depth - _EPS:
+            raise ValueError("a wedged tenon goes through the mortised part")
+        if abs(_require(joint.tenon_thickness) - self.wedges[0].thickness) > _EPS:
+            raise ValueError("the wedges must be as thick as the tenon")
+        return joint
+
+    @property
+    def kerfs(self) -> int:
+        """Per tenon."""
+        return len(self.wedges) // self.tenons
+
+    def tenon_cut(self) -> WedgedTenon:
+        tenon = super().tenon_cut()
+        wedge = self.wedges[0]
+        return WedgedTenon(
+            **{field.name: getattr(tenon, field.name) for field in fields(tenon)},
+            kerfs=self.kerfs,
+            kerf=self.kerf,
+            kerf_inset=self.kerf_inset,
+            kerf_depth=wedge.length,
+            flare=(wedge.width - self.kerf) / (3 - self.kerfs),
+            proud=self.reach() - self.mortise.depth,
+        )
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+        locations = self.tenon_cut().wedge_locations()
+        return [(w, placement * loc) for w, loc in zip(self.wedges, locations, strict=True)]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tenon = self.tenon_cut()
+        mortises = "mortises" if self.tenons > 1 else "mortise"
+        flare = ShapeCut(
+            self.mortise.part,
+            placement * tenon.flare_solid(),
+            f"{mortises} flared {tenon.flare:g} mm at the ends over "
+            f"{tenon.kerf_depth - tenon.proud:g}, in {self.mortise}",
+        )
+        tapers: list[Cut] = []
+        length = None if tenon.proud < _EPS else tenon.kerf_depth - tenon.proud
+        for wedge in self.wedges:
+            edges = [wedge.back_edge] if self.kerfs == 2 else [wedge.front_edge, wedge.back_edge]
+            tapers += [
+                Taper(edge, end=wedge.right_end, amount=tenon.flare, length=length)
+                for edge in edges
+            ]
+        return [*super().cuts(placement), flare, *tapers]
 
 
 @dataclass
