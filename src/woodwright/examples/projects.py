@@ -341,12 +341,14 @@ def frame_and_panel_door(
     rails have haunches filling the grooves; the muntins' short tenons
     leave room for each other in the middle rail.
 
-    The panels, the grain upright, are raised on the front: a bevel `bevel`
-    wide, planed down to a tongue as thick as the grooves are wide, flush
-    with the flat back of the panel; the field of a 14 mm panel lies 1 mm
-    behind the face of a 22 mm frame. They aren't glued, but
-    float in the grooves: the tongues are `clearance` short of the bottom
-    across the grain, so the panels can swell, and 1 mm along it.
+    The panels, the grain upright, are raised on the front, their backs
+    flat: the bevel, as planed by hand, runs from the field right out to the
+    edges, at the mouths of the grooves (`bevel` out from the field) as
+    thick as the grooves are wide, and on into them, getting thinner; the
+    field of a 14 mm panel lies 1 mm behind the face of a 22 mm frame. They
+    aren't glued, but float in the grooves: the edges are `clearance` short
+    of the bottom across the grain, so the panels can swell, and 1 mm along
+    it.
     """
     rail_length = width - 2 * member_width
 
@@ -405,7 +407,9 @@ def frame_and_panel_door(
             )
         muntins.append(muntin)
 
-    def tongue(edge: SideRef, groove: SideRef, position: Position, length: float) -> None:
+    def into_groove(edge: SideRef, groove: SideRef, position: Position, length: float) -> None:
+        # The bevelled edge goes in whole, the back of the panel against the
+        # back of the groove.
         asm.join(
             TongueAndGroove(
                 tongue=edge,
@@ -413,6 +417,7 @@ def frame_and_panel_door(
                 tongue_thickness=groove_width,
                 tongue_length=length,
                 tongue_offset=0,
+                cut_tongue=False,
                 position=position,
                 across=offset((stock.thickness - groove_width) / 2),
                 clearance=groove_depth - length,
@@ -422,7 +427,7 @@ def frame_and_panel_door(
     # Standing like the stiles too, their reference faces at the back: the
     # front edges to the left, the right ends up.
     opening_width = (rail_length - member_width) / 2
-    edge_tongue, end_tongue = groove_depth - clearance, groove_depth - 1
+    edge_reach, end_reach = groove_depth - clearance, groove_depth - 1
     for row, muntin, above, under, stile_end in [
         ("top", muntins[0], rail_top.back_edge, rail_middle.front_edge, "right_end"),
         ("bottom", muntins[1], rail_middle.back_edge, rail_bottom.front_edge, "left_end"),
@@ -438,16 +443,18 @@ def frame_and_panel_door(
             if column == "right":
                 outer, inner = inner, outer
             stile_position = offset(member_width, getattr(stile_groove.part, stile_end))
-            tongue(outer, stile_groove, stile_position, edge_tongue)
-            tongue(inner, muntin_groove, CENTERED, edge_tongue)
+            into_groove(outer, stile_groove, stile_position, edge_reach)
+            into_groove(inner, muntin_groove, CENTERED, edge_reach)
             for end, groove in [(panel.right_end, above), (panel.left_end, under)]:
-                tongue(end, groove, flush_with(getattr(groove.part, rail_end)), end_tongue)
+                into_groove(end, groove, flush_with(getattr(groove.part, rail_end)), end_reach)
+            # On the design box, the bevel ends at the mouth of the groove.
             for side in (panel.front_edge, panel.back_edge, panel.left_end, panel.right_end):
                 panel.cut(
                     Chamfer(
                         panel.arris(panel.bottom_face, side),
                         size=bevel,
                         size_b=panel_stock.thickness - groove_width,
+                        run_out=True,
                     )
                 )
     return asm

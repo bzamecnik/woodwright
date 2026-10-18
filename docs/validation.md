@@ -69,7 +69,8 @@ Done items name their example in `woodwright.examples`
       `joints.panel_in_groove`)
     - [x] frame-and-panel door, 2 x 2 raised panels - stiles, three rails and two muntins,
       haunched mortise and tenons, grooves through along the inside edges, panels bevelled on
-      the front down to a tongue floating in the grooves – `projects.frame_and_panel_door`
+      the front right out to the edges, as thick as the grooves are wide at their mouths,
+      floating in the grooves – `projects.frame_and_panel_door`
   - rabbet
     - [x] corner with rabbet and plain board – `joints.rabbet_corner`, `projects.bookshelf`
     - [x] corner with two interlocking rabbets – `joints.interlocking_rabbet_corner`
