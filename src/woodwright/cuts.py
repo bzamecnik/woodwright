@@ -8,7 +8,9 @@ allowance there. The cut list names such cuts by their shape, whichever class
 made them: a `Groove` at the very edge of a board is listed as a rabbet.
 """
 
+import functools
 import math
+import operator
 from dataclasses import dataclass
 
 import build123d as bd
@@ -247,6 +249,10 @@ class Tenon(Cut):
     to the side, so the parts meet on a short mitre at that edge. A tenon
     wider than the space between the mitres reaches under them: there the
     mitre is cut only down to its cheeks, the tenon starts at the side.
+
+    With `chamfer`, the four arrises around the end of the tenon are
+    chamfered at 45 degrees that wide, e.g. on a through tenon standing
+    proud of the mortised part.
     """
 
     side: SideRef
@@ -261,10 +267,18 @@ class Tenon(Cut):
     mitre_angle: float = 45.0
     mitre_depth: float = 0.0
     mitred: tuple[SideRef, ...] = ()
+    chamfer: float = 0.0
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+        if self.chamfer:
+            if self.mitre is not None:
+                raise ValueError("a tenon is either mitred or chamfered at its end")
+            if not 0 < self.chamfer < min(self.length, self.thickness / 2):
+                raise ValueError("a tenon's chamfer must be thinner than half the tenon")
+            if self.width is not None and self.chamfer >= self.width / 2:
+                raise ValueError("a tenon's chamfer must be narrower than half the tenon")
         if self.mitre_depth < 0:
             raise ValueError("the mitred shoulders' depth must not be negative")
         for edge in self.mitred:
@@ -356,9 +370,31 @@ class Tenon(Cut):
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
         if self.mitre is not None:
             removal += self._mitre_removal() & _box(self.part, beyond)
+        if self.chamfer:
+            removal += self._chamfer_removal() & _box(self.part, beyond)
         if self.mitre_depth > 0:
             removal -= self.reach_solid()
         return removal
+
+    def _chamfer_removal(self) -> bd.Part:
+        """The four arrises around the end of the tenon, beyond the chamfers."""
+        box = self.tenon_box()
+        u, s, k = self.side.axis, self.side.side.sign, self.chamfer
+        end = box[u][1] if s > 0 else box[u][0]
+        m = _margin(self.part)
+        corners = []
+        for axis in (1 - u, 2):  # across the width, across the thickness
+            for sign, c in zip((-1, 1), box[axis], strict=True):
+                # As a `Chamfer` of the arris between the end and this side.
+                points = [
+                    (end, c - sign * k),
+                    (end + s * m, c - sign * k),
+                    (end + s * m, c + sign * m),
+                    (end - s * k, c + sign * m),
+                    (end - s * k, c),
+                ]
+                corners.append(_prism(self.part, u, axis, points))
+        return functools.reduce(operator.add, corners)
 
     def reach_solid(self) -> bd.Part:
         """What the part reaches beyond the side before the tenon (with mitred
@@ -428,6 +464,8 @@ class Tenon(Cut):
             size += f", haunch {self.haunch_length:g} long"
         if self.mitre is not None:
             size += f", end mitred {self.mitre_angle:g} deg towards {self.mitre}"
+        if self.chamfer:
+            size += f", end chamfered {self.chamfer:g} mm"
         if self.mitre_depth > 0:
             reach = f", reaching {self.mitre_depth:g} beyond the shoulder"
             if self.mitred:

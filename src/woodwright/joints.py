@@ -444,6 +444,10 @@ class MortiseTenon(Housing):
     With `mitre`, a face of the tenoned part, the end of the tenon is mitred
     at 45 degrees, shorter at the cheek towards that face: for two tenons
     meeting inside a leg. The mortise stays rectangular.
+
+    With `tenon_chamfer`, the arrises around the end of the tenon are
+    chamfered, e.g. on a through tenon a bit longer than the mortised part
+    is deep, so that it stands proud of it.
     """
 
     tenon: SideRef
@@ -457,6 +461,7 @@ class MortiseTenon(Housing):
     haunch: SideRef | None = None
     haunch_length: float | None = None
     mitre: SideRef | None = None
+    tenon_chamfer: float = 0.0
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -491,6 +496,7 @@ class MortiseTenon(Housing):
             haunch=self.haunch,
             haunch_length=self.haunch_length,
             mitre=self.mitre,
+            chamfer=self.tenon_chamfer,
         )
 
 

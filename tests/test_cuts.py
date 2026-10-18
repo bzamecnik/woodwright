@@ -353,3 +353,27 @@ def test_mitred_shoulders_describe_and_validate() -> None:
         ww.Tenon(rail.left_end, length=20, thickness=8, mitre_depth=15, mitred=(rail.top_face,))
     with pytest.raises(ValueError, match="deeper than the part is wide"):
         ww.Tenon(rail.left_end, length=20, thickness=8, mitre_depth=50, mitred=(rail.back_edge,))
+
+
+def test_tenon_with_a_chamfered_end() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=60)
+    tenon = ww.Tenon(rail.left_end, length=65, thickness=8, width=50, chamfer=3)
+    assert tenon.describe() == "tenon 50 x 8 mm, 65 long, end chamfered 3 mm, on rail.left_end"
+    shape = cut_part(rail, tenon)
+    # Over the last 3 mm the tenon tapers from 50 x 8 to 44 x 2 mm.
+    chamfers = 50 * 8 * 3 - (400 * 3 - 58 * 3**2 + 4 / 3 * 3**3)
+    assert shape.volume == pytest.approx(300 * 60 * 20 + 50 * 8 * 65 - chamfers)
+    end = shape & bd.Pos(-65, 0, -20) * bd.Box(1e-3, 60, 20, align=(bd.Align.MIN,) * 3)
+    # The end face is 44 x 2 mm, centered on the 60 x 20 mm rail.
+    box = end.bounding_box()
+    assert pytest.approx((8, -11, 52, -9), abs=1e-2) == (box.min.Y, box.min.Z, box.max.Y, box.max.Z)
+
+
+def test_tenon_chamfer_must_fit() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=60)
+    with pytest.raises(ValueError, match="thinner than half"):
+        ww.Tenon(rail.left_end, length=65, thickness=8, width=50, chamfer=4)
+    with pytest.raises(ValueError, match="narrower than half"):
+        ww.Tenon(rail.left_end, length=65, thickness=8, width=6, chamfer=3)
+    with pytest.raises(ValueError, match="either mitred or chamfered"):
+        ww.Tenon(rail.left_end, length=65, thickness=8, chamfer=2, mitre=rail.top_face)

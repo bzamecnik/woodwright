@@ -443,6 +443,21 @@ def test_mitred_shoulder_tenon_must_not_run_out_of_the_mitre() -> None:
         asm.resolve()
 
 
+def test_chamfered_tenon_standing_proud() -> None:
+    asm, stile, rail = stile_and_rail()
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end, mortise=stile.back_edge, tenon_length=50, tenon_chamfer=3
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, stile) == ["through mortise 30 x 8 mm in stile.back_edge"]
+    assert cuts(model, rail) == ["tenon 30 x 8 mm, 50 long, end chamfered 3 mm, on rail.left_end"]
+    # The tenon stands 10 mm proud of the stile's front edge (at y = 0).
+    assert pytest.approx(-10) == model[rail].placed_shape.bounding_box().min.Y
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 def _volume(shape) -> float:
     """Volume of an intersection: nothing, one shape or a list of them."""
     if shape is None:
