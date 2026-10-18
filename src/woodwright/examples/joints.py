@@ -339,6 +339,29 @@ def through_mortise_tenon(
     return asm
 
 
+def chamfered_through_mortise_tenon(
+    stile_length: float = 600,
+    rail_length: float = 300,
+    width: float = 60,
+    protrusion: float = 2,
+    chamfer: float = 2,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A through tenon standing `protrusion` proud of the stile, its end chamfered."""
+    asm = Assembly("chamfered_through_mortise_tenon", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(
+        MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            tenon_length=width + protrusion,
+            tenon_chamfer=chamfer,
+        )
+    )
+    return asm
+
+
 def mortise_tenon_thin_rail(
     stile_length: float = 600,
     rail_length: float = 300,

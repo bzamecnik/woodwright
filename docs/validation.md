@@ -80,7 +80,8 @@ Done items name their example in `woodwright.examples`
     - [x] mallet – `projects.mallet`
     - [ ] frame for a bow saw (two tenons)
     - [x] blind mortice – `joints.mortise_tenon`, `frames.mortise_tenon_frame`
-    - [ ] tenon extending out of the through mortice
+    - [x] tenon extending out of the through mortice, its end chamfered –
+      `joints.chamfered_through_mortise_tenon`
     - [ ] multiple tenon
     - [x] table leg accepting two perpendicular tenons with mitred ends –
       `joints.leg_and_aprons_mitred` (short tenons without mitres: `joints.leg_and_aprons`)
