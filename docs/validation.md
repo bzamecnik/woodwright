@@ -91,7 +91,8 @@ Done items name their example in `woodwright.examples`
     `BoxJoint`, `joints.box_joint_corner`
   - [x] sliding dovetail - one board with dovetail groove, another with dovetail tongue –
     `joints.sliding_dovetail_shelf`
-    - [ ] two butt-joined boards with a two sliding dovetail cross-pieces (seat of a stepstool)
+    - [x] two butt-joined boards with a two sliding dovetail cross-pieces (seat of a stepstool) –
+      `projects.stepstool_seat` (each batten's tongue housed in both boards, the housings through)
   - dovetail - similar to box joint, but the slot mortises are angled
     - [x] two boards (corner) – `joints.dovetail_corner`
     - [x] shelf with dovetailed corners – `projects.dovetail_shelf` (two stories)

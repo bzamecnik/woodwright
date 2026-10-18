@@ -329,6 +329,11 @@ class SlidingDovetail(Housing):
     narrower at the face than at its bottom, so the parts can only slide
     together along it. `thickness` is the tongue's thickness at the shoulder;
     with `half` only one cheek is angled.
+
+    Without `cut_tongue`, the tongue is cut by another sliding dovetail and
+    this one only places part b and cuts the socket into part a: e.g. a
+    batten whose tongue runs across several boards glued edge to edge, each
+    of them housing it.
     """
 
     socket: SideRef
@@ -337,6 +342,7 @@ class SlidingDovetail(Housing):
     thickness: float | None = None
     slope: float = 7.0
     half: bool = False
+    cut_tongue: bool = True
     position: Position = CENTERED
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
@@ -355,6 +361,9 @@ class SlidingDovetail(Housing):
     def reach(self) -> float:
         return _require(self.depth)
 
+    def allowances(self) -> list[Allowance]:
+        return super().allowances() if self.cut_tongue else []
+
     def tongue(self) -> DovetailTongue:
         return DovetailTongue(
             self.end,
@@ -372,7 +381,8 @@ class SlidingDovetail(Housing):
             f"dovetail socket {tongue.thickness:g} mm at the face, {self.reach():g} deep, "
             f"1:{self.slope:g}, in {self.socket}"
         )
-        return [ShapeCut(self.socket.part, socket, description), tongue]
+        cuts: list[Cut] = [ShapeCut(self.socket.part, socket, description)]
+        return [*cuts, tongue] if self.cut_tongue else cuts
 
 
 @dataclass

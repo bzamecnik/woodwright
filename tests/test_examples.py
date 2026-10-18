@@ -157,3 +157,22 @@ def test_chair_sizes_and_through_tenons() -> None:
     leg = parts["leg_front_left"].placed_shape
     foot = leg & bd.Box(100, 100, 0.01, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
     assert pytest.approx((35, 35), abs=0.01) == tuple(foot.bounding_box().size)[:2]
+
+
+def test_stepstool_seat_battens_housed_in_both_boards() -> None:
+    from woodwright.examples import projects
+
+    model = projects.stepstool_seat().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((400, 280, 60))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["batten_left"].size == (280, 46.5, 20)  # the tongue on top
+    for board in ("seat_1", "seat_2"):
+        sockets = [cut.describe() for cut in parts[board].cuts]
+        assert (
+            sockets
+            == [f"dovetail socket 10 mm at the face, 6.5 deep, 1:7, in {board}.bottom_face"] * 2
+        )
+    # Each batten's one tongue fills the housings in both boards.
+    total = sum(part.shape.volume for part in model.parts)
+    assert total == pytest.approx(2 * 400 * 140 * 20 + 2 * 280 * 40 * 20)
