@@ -289,7 +289,12 @@ def test_butt_frame_and_panel_tongues() -> None:
     assert parts["panel"].shape.volume == pytest.approx(380 * 300 * 10 + tongues)
     for stile, edge in [("stile_left", "back_edge"), ("stile_right", "front_edge")]:
         cuts = [cut.describe() for cut in parts[stile].cuts]
-        assert cuts == [f"groove 6 mm, 10 deep, in {stile}.{edge}"]  # through
+        # Stopped where the rails' grooves meet it, it doesn't show at the ends.
+        assert cuts == [
+            f"stopped groove 6 mm, 10 deep, in {stile}.{edge}, "
+            f"50 mm short of {stile}.left_end and 50 mm short of {stile}.right_end"
+        ]
+        assert parts[stile].shape.volume == pytest.approx(500 * 60 * 20 - 400 * 6 * 10)
 
 
 def test_shiplap_panel_laps_fill_the_rabbets() -> None:

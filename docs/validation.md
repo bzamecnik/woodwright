@@ -23,7 +23,7 @@ Done items name their example in `woodwright.examples`
     `cuts.rabbeted_panel`
   - [x] "endgrain rabbet" - dado at the end of the board – `cuts.end_rabbet`
   - stopped cuts - stopping short of one or both ends, so they don't show there
-    - [x] stopped groove – `cuts.stopped_groove`
+    - [x] stopped groove – `cuts.stopped_groove`, in the stiles of `frames.butt_frame_and_panel`
     - [x] stopped dado – `joints.stopped_dado_shelf`
     - [x] stopped rabbet – `cuts.stopped_rabbet`
   - [x] slot mortise - "endgrain groove", like a groove but open at the endgrain side –
@@ -63,7 +63,7 @@ Done items name their example in `woodwright.examples`
       V-chamfered boards on two ledges: `projects.ledged_door`
     - [ ] tongue and groove panel - two grooves + inserted tongue
     - [x] frame panel - butt-joint frame with a groove inside, panel with a tongue on all edges –
-      `frames.butt_frame_and_panel` (the grooves through, showing at the stiles' ends;
+      `frames.butt_frame_and_panel` (the grooves in the stiles stopped where the rails' end;
       a mortise-and-tenon frame with a plain panel: `frames.frame_and_panel`,
       `joints.panel_in_groove`)
     - [x] frame-and-panel door, 2 x 2 raised panels - stiles, three rails and two muntins,

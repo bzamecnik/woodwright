@@ -159,10 +159,10 @@ def butt_frame_and_panel(
     into grooves along its inside edges.
 
     The panel's design size is the opening of the frame, the tongues add to
-    it; it is centered in the frame's thickness. The grooves run through,
-    as cut on a table saw: those in the rails into the ones in the stiles,
-    which show at the stiles' ends (stopped grooves would hide them). The
-    glued corners hold little (end grain on long grain): a frame for a
+    it; it is centered in the frame's thickness. The grooves in the rails
+    run through, into those in the stiles, which are stopped where the
+    rails' grooves meet them, so that they don't show at the stiles' ends.
+    The glued corners hold little (end grain on long grain): a frame for a
     light panel, or one to be screwed or dowelled (not modelled).
     """
 
@@ -173,11 +173,20 @@ def butt_frame_and_panel(
         "butt_frame_and_panel", corner, stile_length, rail_length, width, stock
     )
     panel = asm.add(Board("panel", panel_stock, length=stile_length - 2 * width, width=rail_length))
-    for groove, edge in [
-        (stile_left.back_edge, panel.front_edge),
-        (stile_right.front_edge, panel.back_edge),
-        (rail_top.back_edge, panel.right_end),
-        (rail_bottom.front_edge, panel.left_end),
+    stop = width - tongue_length  # where the rails' grooves end
+    for groove, edge, stopped in [
+        (
+            stile_left.back_edge,
+            panel.front_edge,
+            {stile_left.left_end: stop, stile_left.right_end: stop},
+        ),
+        (
+            stile_right.front_edge,
+            panel.back_edge,
+            {stile_right.left_end: stop, stile_right.right_end: stop},
+        ),
+        (rail_top.back_edge, panel.right_end, None),
+        (rail_bottom.front_edge, panel.left_end, None),
     ]:
         asm.join(
             TongueAndGroove(
@@ -185,6 +194,7 @@ def butt_frame_and_panel(
                 groove=groove,
                 tongue_length=tongue_length,
                 across=CENTERED,
+                stopped=stopped,
             )
         )
     return asm
