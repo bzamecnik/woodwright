@@ -168,6 +168,25 @@ def test_tongue_and_groove() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+def test_bevelled_edge_in_a_groove_without_a_tongue() -> None:
+    # Like a raised panel: bevelled on both faces down to the groove's width
+    # at its mouth and on into it, going in whole.
+    asm, a, b = stile_and_rail()
+    asm.join(ww.TongueAndGroove(tongue=b.front_edge, groove=a.back_edge, cut_tongue=False))
+    for face in (b.bottom_face, b.top_face):
+        b.cut(ww.Chamfer(b.arris(face, b.front_edge), size=30, size_b=6, run_out=True))
+    model = asm.resolve()
+    assert cuts(model, a) == ["groove 8 mm, 10 deep, in stile.back_edge"]
+    assert cuts(model, b)[0] == (
+        "chamfer 30 x 6 mm on rail.bottom_face_front_edge_arris, running out past rail.front_edge"
+    )
+    assert model[b].size == (200, 50, 20)
+    # 8 mm thick at the mouth of the groove, 4 mm at the edge, 10 mm further.
+    bevels = 2 * 30 * 6 / 2 * 200
+    assert model[b].shape.volume == pytest.approx(200 * 40 * 20 - bevels + 200 * 10 * 6)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 @pytest.mark.parametrize(
     ("position", "socket"),
     [

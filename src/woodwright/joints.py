@@ -507,6 +507,11 @@ class TongueAndGroove(Housing):
     It is centered across the thickness unless `tongue_offset` (from the
     reference face) is given: with 0 it is flush with the reference face,
     as on a drawer bottom rabbeted on its underside.
+
+    Without `cut_tongue`, part b goes in whole and only the groove is cut,
+    as wide as the tongue would be: e.g. a raised panel whose bevel, planed
+    down to the groove's width at its mouth, runs on into it (see `Chamfer`
+    with `run_out`).
     """
 
     tongue: SideRef
@@ -514,6 +519,7 @@ class TongueAndGroove(Housing):
     tongue_thickness: float | None = None
     tongue_length: float | None = None
     tongue_offset: float | None = None
+    cut_tongue: bool = True
     through: bool = True  # the groove runs the whole length of part a
     position: Position = CENTERED
     across: Position = FLUSH
@@ -542,6 +548,10 @@ class TongueAndGroove(Housing):
             thickness=_require(self.tongue_thickness),
             thickness_offset=self.tongue_offset,
         )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        cuts = super().cuts(placement)
+        return cuts if self.cut_tongue else [c for c in cuts if not isinstance(c, Tongue)]
 
 
 @dataclass

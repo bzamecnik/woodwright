@@ -945,12 +945,16 @@ class DovetailLap(Tenon):
 class Chamfer(Cut):
     """A chamfer along an arris, `size` wide on its first side, `size_b` on the second.
 
-    With `size_b` None the chamfer is at 45 degrees.
+    With `size_b` None the chamfer is at 45 degrees. With `run_out`, it runs
+    on at the same slope past the second side, over any allowance there:
+    e.g. the bevel of a raised panel, planed down to the groove's width at
+    the edge of the design box (the mouth of the groove) and on into it.
     """
 
     arris: ArrisRef
     size: float
     size_b: float | None = None
+    run_out: bool = False
 
     @property
     def part(self) -> Board:
@@ -970,11 +974,16 @@ class Chamfer(Cut):
             (ca - sa * size_b, cb + sb * m),
             (ca - sa * size_b, cb),
         ]
+        if self.run_out:
+            # The chamfer line carried on m past side b.
+            run = m / self.size
+            points[3:] = [(ca - sa * size_b * (1 + run), cb + sb * m)]
         return _prism(self.part, a.axis, b.axis, points)
 
     def describe(self) -> str:
         size_b = "" if self.size_b is None else f" x {self.size_b:g}"
-        return f"chamfer {self.size:g}{size_b} mm on {self.arris}"
+        run_out = f", running out past {self.arris.b}" if self.run_out else ""
+        return f"chamfer {self.size:g}{size_b} mm on {self.arris}{run_out}"
 
 
 @dataclass
