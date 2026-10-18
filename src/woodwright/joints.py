@@ -37,6 +37,7 @@ from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, of
 
 __all__ = [
     "Allowance",
+    "BoxJoint",
     "Bridle",
     "Butt",
     "Button",
@@ -995,8 +996,157 @@ class DovetailHalfLap(HalfLap):
         return [ShapeCut(a, socket, description), lap]
 
 
+class _CornerJoint(Joint):
+    """Two ends interlocking at a corner, each board reaching through the other.
+
+    The end of part a (`ends()[0]`) gets pins or fingers, the end of part b
+    the tails or fingers between them. Both boards reach through each other,
+    so each gets an allowance of the other's thickness. Part a's reference
+    face is outside; `flush` are the sides kept flush along the corner (by
+    default the reference edges). Part a may be narrower than part b, e.g.
+    the back of a drawer sitting on its bottom. The geometry is built once
+    in the frame of part a and split: subclasses give the outlines of part
+    a's pins (or fingers) across the corner.
+    """
+
+    flush: tuple[SideRef, SideRef] | None
+
+    def ends(self) -> tuple[SideRef, SideRef]:
+        raise NotImplementedError
+
+    def parts(self) -> tuple[Board, Board]:
+        a, b = self.ends()
+        return a.part, b.part
+
+    def __post_init__(self) -> None:
+        a, b = self.ends()
+        if a.axis != 0 or b.axis != 0:
+            raise ValueError(f"{type(self).__name__} is cut on the ends of boards")
+        if a.part.width > b.part.width:
+            raise ValueError(f"{a.part.name} must not be wider than {b.part.name}")
+
+    def reach(self) -> float:
+        """How far part b reaches into part a, from its inside face."""
+        return self.ends()[0].part.thickness
+
+    def allowances(self) -> list[Allowance]:
+        # Part b reaches into part a, part a past part b.
+        a, b = self.ends()
+        return [Allowance(b, self.reach()), Allowance(a, b.part.thickness)]
+
+    def placement(self) -> bd.Location:
+        # Part b's end lies against the inside face of part a, its outside
+        # face level with the end of part a's blank.
+        (a_end, b_end), (a, b) = self.ends(), self.parts()
+        return mate(
+            a.bottom_face,
+            b_end,
+            flush=self.flush or (a.ref_edge, b.ref_edge),
+            position=offset(-b.thickness, ref=a_end),
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a, b = self.parts()
+        corner = self._corner()
+        sockets, dovetails = self._descriptions()
+        return [
+            ShapeCut(a, self._block() - corner, sockets),
+            ShapeCut(b, placement.inverse() * corner, dovetails),
+        ]
+
+    def _x_range(self, length: float) -> Range:
+        """Along part a, from the inside face of part b outwards by `length`."""
+        a_end = self.ends()[0]
+        c = a_end.coordinate
+        return (c, c + length) if a_end.side.sign > 0 else (c - length, c)
+
+    def _block(self) -> bd.Part:
+        """Where part b meets part a, beyond part a's end, in its frame."""
+        a, b = self.parts()
+        x0, _ = self._x_range(b.thickness)
+        return bd.Pos(x0, 0, -a.thickness) * bd.Box(
+            b.thickness, a.width, self.reach(), align=(bd.Align.MIN,) * 3
+        )
+
+    def _corner(self) -> bd.Part:
+        """Part a's share of the block: its pins (or fingers)."""
+        return self._pins(self.ends()[1].part.thickness)
+
+    def _pins(self, length: float) -> bd.Part:
+        """The pins, `length` long along part a from the inside face of part b.
+
+        Their profiles are drawn across the width (x) and the thickness (y) of
+        part a and extruded along its length.
+        """
+        x0, _ = self._x_range(length)
+        profile_plane = bd.Plane((x0, 0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0))
+        solids = [
+            bd.extrude(profile_plane * bd.Polygon(*points), amount=length)
+            for points in self._pin_profiles()
+        ]
+        return functools.reduce(operator.add, solids)
+
+    def _pin_profiles(self) -> list[list[tuple[float, float]]]:
+        """Outlines of part a's pins as (across the width, along the normal)."""
+        raise NotImplementedError
+
+    def _descriptions(self) -> tuple[str, str]:
+        """Of the cuts on part a and on part b."""
+        raise NotImplementedError
+
+
 @dataclass
-class ThroughDovetail(Joint):
+class BoxJoint(_CornerJoint):
+    """A box (finger) joint: both ends cut into square fingers that interlock.
+
+    The fingers alternate across the width, part a's at its reference edge;
+    each finger is as long as the other board is thick, so the boards reach
+    through each other, as with through dovetails: part a's reference face
+    is outside, `flush` are the sides kept flush (by default the reference
+    edges). The fingers are all equally wide: `fingers` of them in all, or
+    else the odd number of them coming closest to `finger_width` (by default
+    the thickness of part a), so that part a has fingers at both edges and
+    the width is used up without a narrow finger left over.
+    """
+
+    a: SideRef
+    b: SideRef
+    fingers: int | None = None
+    finger_width: float | None = None
+    flush: tuple[SideRef, SideRef] | None = None
+
+    def ends(self) -> tuple[SideRef, SideRef]:
+        return self.a, self.b
+
+    def with_defaults(self) -> Self:
+        width = self.a.part.width
+        fingers = self.fingers
+        if fingers is None:
+            nominal = self.finger_width or rules.finger_width(self.a.part.thickness)
+            fingers = max(1, 2 * round((width / nominal - 1) / 2) + 1)
+        if fingers < 2:
+            raise ValueError("a box joint needs at least two fingers")
+        return replace(self, fingers=fingers, finger_width=width / fingers)
+
+    def _pin_profiles(self) -> list[list[tuple[float, float]]]:
+        # Part a's fingers: every other one, from its reference edge (y = 0).
+        t, w = self.a.part.thickness, _require(self.finger_width)
+        return [
+            [(u, 0), (u, -t), (u + w, -t), (u + w, 0)]
+            for u in (i * w for i in range(0, _require(self.fingers), 2))
+        ]
+
+    def _descriptions(self) -> tuple[str, str]:
+        n, w = _require(self.fingers), round(_require(self.finger_width), 1)
+        a, b = self.parts()
+        return (
+            f"box joint, {(n + 1) // 2} fingers {w:g} mm wide, {b.thickness:g} long",
+            f"box joint, {n // 2} fingers {w:g} mm wide, {a.thickness:g} long",
+        )
+
+
+@dataclass
+class ThroughDovetail(_CornerJoint):
     """Through dovetails at a corner of two boards.
 
     The tails are cut on an end of one board, the pins on an end of the
@@ -1017,63 +1167,20 @@ class ThroughDovetail(Joint):
     half_pin_width: float = 10.0
     flush: tuple[SideRef, SideRef] | None = None
 
-    def parts(self) -> tuple[Board, Board]:
-        return self.pins.part, self.tails.part
-
-    def __post_init__(self) -> None:
-        if self.pins.axis != 0 or self.tails.axis != 0:
-            raise ValueError("dovetails are cut on the ends of boards")
-        if self.pins.part.width > self.tails.part.width:
-            raise ValueError("the pin board must not be wider than the tail board")
-
-    def reach(self) -> float:
-        """How far the tails reach into the pin board, from its inside face."""
-        return self.pins.part.thickness
-
-    def allowances(self) -> list[Allowance]:
-        # The tails reach into the pin board, the pin board past the tail board.
-        return [
-            Allowance(self.tails, self.reach()),
-            Allowance(self.pins, self.tails.part.thickness),
-        ]
-
-    def placement(self) -> bd.Location:
-        # The tail board's end lies against the inside face of the pin board,
-        # its outside face level with the end of the pin board's blank.
-        pins, tails = self.parts()
-        return mate(
-            pins.bottom_face,
-            self.tails,
-            flush=self.flush or (pins.ref_edge, tails.ref_edge),
-            position=offset(-tails.thickness, ref=self.pins),
-        )
-
-    def cuts(self, placement: bd.Location) -> list[Cut]:
-        pins, tails = self.parts()
-        # The block where the tails go, beyond the pin board's end, in its frame.
-        c = self.pins.coordinate
-        x0 = c if self.pins.side.sign > 0 else c - tails.thickness
-        block = bd.Pos(x0, 0, -pins.thickness) * bd.Box(
-            tails.thickness, pins.width, self.reach(), align=(bd.Align.MIN,) * 3
-        )
-        # Pin profiles are drawn across the width (x) and the thickness (y) of
-        # the pin board and extruded along its length, through the tail board.
-        profile_plane = bd.Plane((x0, 0, 0), x_dir=(0, 1, 0), z_dir=(1, 0, 0))
-        pin_solids = [
-            bd.extrude(profile_plane * bd.Polygon(*points), amount=tails.thickness)
-            for points in self._pin_profiles()
-        ]
-        pin_solid = functools.reduce(operator.add, pin_solids)
-        sockets, dovetails = self._descriptions()
-        return [
-            ShapeCut(pins, block - pin_solid, sockets),
-            ShapeCut(tails, placement.inverse() * pin_solid, dovetails),
-        ]
+    def ends(self) -> tuple[SideRef, SideRef]:
+        return self.pins, self.tails
 
     def _descriptions(self) -> tuple[str, str]:
-        """Of the cuts on the pin board and on the tail board."""
         n = self.tail_count
         return f"sockets for {n} dovetails", f"{n} dovetails, slope 1:{self.slope:g}"
+
+    def _tail_length(self) -> float:
+        """How long the tails are: as far as the tail board reaches into the pin board."""
+        return self.reach()
+
+    def _span(self) -> Range:
+        """Where the dovetails are laid out across the width of the pin board."""
+        return 0.0, self.pins.part.width
 
     def _pin_profiles(self) -> list[list[tuple[float, float]]]:
         """Outlines of the pins (incl. half pins) as (across the width, along the normal).
@@ -1083,23 +1190,24 @@ class ThroughDovetail(Joint):
         (y = -thickness). Along the width the joint is laid out as:
         half pin | tail | pin | tail | ... | pin | tail | half pin
         """
-        t, width = self.pins.part.thickness, self.pins.part.width
-        top, bottom = self.reach() - t, -t
-        flare = self.reach() / self.slope  # how far each sloped flank leans
+        t = self.pins.part.thickness
+        start, stop = self._span()
+        top, bottom = self._tail_length() - t, -t
+        flare = self._tail_length() / self.slope  # how far each sloped flank leans
         n = self.tail_count
-        tail_wide = (width - 2 * self.half_pin_width - (n - 1) * self.pin_width) / n
+        tail_wide = (stop - start - 2 * self.half_pin_width - (n - 1) * self.pin_width) / n
         if tail_wide - 2 * flare <= 0:
             raise ValueError("tails too narrow for this slope and pin width")
 
-        u = self.half_pin_width
-        profiles = [[(0, top), (0, bottom), (u + flare, bottom), (u, top)]]
+        u = start + self.half_pin_width
+        profiles = [[(start, top), (start, bottom), (u + flare, bottom), (u, top)]]
         for _ in range(n - 1):
             u0 = u + tail_wide
             u1 = u0 + self.pin_width
             profiles.append([(u0, top), (u0 - flare, bottom), (u1 + flare, bottom), (u1, top)])
             u = u1
         u0 = u + tail_wide
-        profiles.append([(u0, top), (u0 - flare, bottom), (width, bottom), (width, top)])
+        profiles.append([(u0, top), (u0 - flare, bottom), (stop, bottom), (stop, top)])
         return profiles
 
 

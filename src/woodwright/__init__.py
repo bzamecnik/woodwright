@@ -23,6 +23,7 @@ from woodwright.cuts import (
     WedgedTenon,
 )
 from woodwright.joints import (
+    BoxJoint,
     Bridle,
     Butt,
     Button,
@@ -82,6 +83,7 @@ __all__ = [
     "Assembly",
     "Board",
     "BoxCut",
+    "BoxJoint",
     "Bridle",
     "Butt",
     "Button",

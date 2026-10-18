@@ -7,6 +7,7 @@ from woodwright.assembly import Assembly
 from woodwright.cuts import Groove
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
+    BoxJoint,
     Bridle,
     Butt,
     CrossLap,
@@ -604,6 +605,29 @@ def mitred_shoulder_corner(
             tenon_length=width - depth,  # through
         )
     )
+    return asm
+
+
+# --- Box joints -------------------------------------------------------------
+
+
+def box_joint_corner(
+    front_length: float = 300,
+    side_length: float = 200,
+    height: float = 100,
+    stock: Stock = SIDE_OAK,
+) -> Assembly:
+    """The corner of a box with a box (finger) joint: square fingers on both ends.
+
+    The fingers come out close to the stock's thickness, nine of them, the
+    front's at the top and the bottom edges. The lengths are outside
+    dimensions: the boards reach through each other.
+    """
+    asm = Assembly("box_joint_corner", root_location=BOX_FRONT)
+    t = stock.thickness
+    front = asm.add(Board("front", stock, length=front_length - t, width=height))
+    side = asm.add(Board("side", stock, length=side_length - t, width=height))
+    asm.join(BoxJoint(front.left_end, side.right_end))
     return asm
 
 

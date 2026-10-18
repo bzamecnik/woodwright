@@ -87,7 +87,8 @@ Done items name their example in `woodwright.examples`
       `joints.twin_tenon_corner`
     - [x] table leg accepting two perpendicular tenons with mitred ends –
       `joints.leg_and_aprons_mitred` (short tenons without mitres: `joints.leg_and_aprons`)
-  - [ ] box joint - both boards have a set of shallow regular slot mortises of equal widths
+  - [x] box joint - both boards have a set of shallow regular slot mortises of equal widths –
+    `BoxJoint`, `joints.box_joint_corner`
   - [x] sliding dovetail - one board with dovetail groove, another with dovetail tongue –
     `joints.sliding_dovetail_shelf`
     - [ ] two butt-joined boards with a two sliding dovetail cross-pieces (seat of a stepstool)

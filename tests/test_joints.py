@@ -342,6 +342,35 @@ def test_through_dovetail_on_any_ends(pins_end: str, tails_end: str) -> None:
     assert bbox(model[tails].placed_shape) == (x0, 0, -220, x0 + 20, 100, 0)
 
 
+@pytest.mark.parametrize(
+    ("kw", "fingers", "described"),
+    [
+        ({}, 5, ("3 fingers 20 mm wide", "2 fingers 20 mm wide")),
+        ({"finger_width": 12}, 9, ("5 fingers 11.1 mm wide", "4 fingers 11.1 mm wide")),
+        ({"fingers": 4}, 4, ("2 fingers 25 mm wide", "2 fingers 25 mm wide")),
+    ],
+)
+def test_box_joint(kw: dict, fingers: int, described: tuple[str, str]) -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=100))
+    b = asm.add(ww.Board("b", ww.Stock.board(12, "oak"), length=200, width=100))
+    asm.join(ww.BoxJoint(a.right_end, b.left_end, **kw))
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert isinstance(joint, ww.BoxJoint)
+    assert joint.fingers == fingers
+    assert cuts(model, a) == [f"box joint, {described[0]}, 12 long"]
+    assert cuts(model, b) == [f"box joint, {described[1]}, 20 long"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # The fingers fill the corner: no gaps.
+    total = model[a].shape.volume + model[b].shape.volume
+    assert total == pytest.approx(312 * 100 * 20 + 220 * 100 * 12 - 12 * 100 * 20)
+    # Part b stands beyond part a's end, against its inside face, reaching through it.
+    assert bbox(model[b].placed_shape) == (300, 0, -220, 312, 100, 0)
+    with pytest.raises(ValueError, match="at least two fingers"):
+        ww.BoxJoint(a.right_end, b.left_end, fingers=1).with_defaults()
+
+
 def test_through_dovetail_with_a_narrower_pin_board() -> None:
     asm = ww.Assembly("test")
     pins = asm.add(ww.Board("pins", OAK, length=300, width=80))
