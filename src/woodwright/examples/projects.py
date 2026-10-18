@@ -5,7 +5,7 @@ import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.cuts import Chamfer
+from woodwright.cuts import INF, Chamfer, Pocket
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
@@ -655,14 +655,19 @@ def chair(
     protrusion: float = 2,
     tenon_chamfer: float = 2,
     top_chamfer: float = 4,
+    overhang: float = 10,
     leg_stock: Stock = CHAIR_LEG_STOCK,
     stock: Stock = OAK,
+    seat_stock: Stock = OAK,
 ) -> Assembly:
-    """The frame of a simple chair, all square, without the seat; outside sizes.
+    """A simple chair, all square; outside sizes of the frame.
 
     The back legs run up into the back. Under the seat, rails `rail_width`
     wide are tenoned into the legs as in a table frame, flush with the tops
-    of the front legs, `seat_height` above the floor. Stretchers near the
+    of the front legs. The seat, a panel with its grain from side to side,
+    lies on them, its top `seat_height` above the floor; it overhangs the
+    frame by `overhang` at the front and the sides and is notched at the
+    back corners around the back legs, flush with their outsides. Stretchers near the
     floor and two rails in the back (their top edges at `stretcher_heights`,
     for the front and back and for the sides, and at `back_rails`) have
     through tenons standing `protrusion` proud of the legs, their ends
@@ -671,8 +676,8 @@ def chair(
     are chamfered all round.
     """
     asm = Assembly("chair", root_location=STANDING)
-    seat = seat_height
-    legs, _ = _table_frame(
+    seat = seat_height - seat_stock.thickness
+    legs, rails = _table_frame(
         asm,
         width,
         depth,
@@ -724,4 +729,20 @@ def chair(
     for leg in legs[2:]:
         for side in (leg.top_face, leg.bottom_face, leg.front_edge, leg.back_edge):
             leg.cut(Chamfer(leg.arris(leg.right_end, side), size=top_chamfer))
+
+    panel = asm.add(Board("seat", seat_stock, length=width + 2 * overhang, width=depth + overhang))
+    rail_front = rails[0]
+    asm.join(
+        Butt(
+            rail_front.back_edge,
+            panel.bottom_face,
+            position=offset(-(leg_width + overhang), ref=rail_front.left_end),
+            flush=(rail_front.ref_face, panel.front_edge),
+            across=offset(-(setback + overhang)),
+        )
+    )
+    # The notches reach from the back edge (y = panel.width) and the ends.
+    notch_x, notch_y = overhang + leg_width, (panel.width - leg_width, INF)
+    for x in [(-INF, notch_x), (panel.length - notch_x, INF)]:
+        panel.cut(Pocket(panel.back_edge, (x, notch_y, (-INF, INF)), kind="notch"))
     return asm

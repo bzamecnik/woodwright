@@ -130,11 +130,18 @@ def test_chair_sizes_and_through_tenons() -> None:
 
     model = projects.chair().resolve()
     box = model.compound().bounding_box()
-    # The through tenons stand 2 mm proud of the legs on all sides.
-    assert tuple(box.min) == pytest.approx((-2, -2, 0))
-    assert tuple(box.size) == pytest.approx((444, 424, 900))
+    # The through tenons stand 2 mm proud of the legs on all sides,
+    # and the seat overhangs the frame by 10 mm at the front and the sides.
+    assert tuple(box.min) == pytest.approx((-10, -10, 0))
+    assert tuple(box.size) == pytest.approx((460, 432, 900))
     parts = {part.part.name: part for part in model.parts}
-    assert parts["leg_front_left"].size == (450, 40, 40)
+    assert parts["leg_front_left"].size == (430, 40, 40)
     assert parts["leg_back_left"].size == (900, 40, 40)
-    assert pytest.approx(450) == parts["seat_rail_back"].placed_shape.bounding_box().max.Z
+    assert pytest.approx(430) == parts["seat_rail_back"].placed_shape.bounding_box().max.Z
+    seat = parts["seat"]
+    assert seat.size == (460, 430, 20)
+    seat_box = seat.placed_shape.bounding_box()
+    assert pytest.approx((430, 450)) == (seat_box.min.Z, seat_box.max.Z)
+    # Notched at the back corners around the legs, 50 x 40 mm each.
+    assert seat.placed_shape.volume == pytest.approx((460 * 430 - 2 * 50 * 40) * 20)
     assert pytest.approx(870) == parts["back_rail_upper"].placed_shape.bounding_box().max.Z
