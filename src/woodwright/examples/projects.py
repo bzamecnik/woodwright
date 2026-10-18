@@ -149,18 +149,22 @@ def stepstool_seat(
     length: float = 400,
     depth: float = 280,
     boards: int = 2,
-    batten_width: float = 40,
-    batten_inset: float = 50,
+    batten_width: float = 90,
+    batten_inset: float = 30,
+    slope: float = 4,
     stock: Stock = OAK,
 ) -> Assembly:
-    """The seat of a stepstool: boards glued edge to edge, two battens
-    underneath across the grain, in sliding dovetail housings.
+    """The seat of a stepstool: boards edge to edge, two battens underneath
+    across the grain, in wide, shallow sliding dovetail housings.
 
-    The battens stand on edge, `batten_inset` in from the ends, and keep the
-    seat flat; not glued, they let it shrink and swell across its grain. Each
-    batten's tongue runs across all the boards, housed in each of them. The
-    housings run through, out of the front and the back edges, where the
-    battens' ends are flush with the seat's.
+    The battens lie flat, `batten_inset` in from the ends, and keep the seat
+    flat and its boards together, even without glue; not glued, they let it
+    shrink and swell across its grain. Each batten's whole width goes into a
+    housing a third of the seat deep, its edges bevelled by 1:`slope`, and
+    runs across all the boards, housed in each of them. The housings run
+    through, out of the front and the back edges, where the battens' ends
+    are flush with the seat's. The battens are wide enough for the legs'
+    through tenons (not modelled), which cross their grain.
     """
     asm = Assembly("stepstool_seat")
     seat = [
@@ -171,13 +175,14 @@ def stepstool_seat(
         asm.join(Butt(a.back_edge, b.front_edge))
     for name in ("left", "right"):
         batten = asm.add(Board(f"batten_{name}", stock, length=depth, width=batten_width))
-        # The batten's top (back) edge runs from the front (its left end) to
-        # the back, across each board in turn; the first joint cuts its tongue.
+        # The batten's top face runs from the front (its left end) to the
+        # back, across each board in turn; the first joint cuts its tongue.
         for i, board in enumerate(seat):
             asm.join(
                 SlidingDovetail(
                     socket=board.bottom_face,
-                    end=batten.back_edge,
+                    end=batten.top_face,
+                    slope=slope,
                     position=offset(batten_inset, ref=getattr(board, f"{name}_end")),
                     flush=(board.front_edge, batten.left_end),
                     across=offset(-i * depth / boards),

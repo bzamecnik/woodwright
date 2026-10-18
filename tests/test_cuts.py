@@ -263,10 +263,22 @@ def test_dovetail_tongue(half: bool) -> None:
     assert tongue.describe().startswith("half dovetail tongue" if half else "dovetail tongue")
 
 
-def test_dovetail_tongue_not_on_a_face() -> None:
-    b = board()
-    with pytest.raises(ValueError, match="end or an edge"):
-        ww.DovetailTongue(b.top_face, length=7, thickness=10)
+def test_dovetail_tongue_on_a_face() -> None:
+    # The whole width goes in, the edges bevelled: 96 mm at the shoulder, 100 at the end.
+    b = board(length=300, width=100)
+    tongue = ww.DovetailTongue(b.top_face, length=6, thickness=96, slope=3)
+    assert tongue.allowances() == [ww.Allowance(b.top_face, 6)]
+    shape = cut_part(b, tongue)
+    assert shape.volume == pytest.approx(300 * 100 * 40 + (96 + 100) / 2 * 6 * 300)
+    top = shape.faces().sort_by(bd.Axis.Z)[-1].bounding_box()
+    assert (pytest.approx(6), pytest.approx(0), pytest.approx(100)) == (
+        top.min.Z,
+        top.min.Y,
+        top.max.Y,
+    )
+    assert tongue.describe() == (
+        "dovetail tongue 96 mm wide at the shoulder, 6 deep, 1:3, on b.top_face"
+    )
 
 
 def test_haunched_tenon() -> None:

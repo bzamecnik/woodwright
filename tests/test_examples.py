@@ -164,18 +164,24 @@ def test_stepstool_seat_battens_housed_in_both_boards() -> None:
 
     model = projects.stepstool_seat().resolve()
     box = model.compound().bounding_box()
-    assert tuple(box.size) == pytest.approx((400, 280, 60))
+    assert tuple(box.size) == pytest.approx((400, 280, 40))
     parts = {part.part.name: part for part in model.parts}
-    assert parts["batten_left"].size == (280, 46.5, 20)  # the tongue on top
+    # Lying flat, the whole width goes into the housing, its edges bevelled.
+    assert parts["batten_left"].size == (280, 90, 26.5)
+    assert [cut.describe() for cut in parts["batten_left"].cuts] == [
+        "dovetail tongue 86.75 mm wide at the shoulder, 6.5 deep, 1:4, on batten_left.top_face"
+    ]
     for board in ("seat_1", "seat_2"):
         sockets = [cut.describe() for cut in parts[board].cuts]
         assert (
             sockets
-            == [f"dovetail socket 10 mm at the face, 6.5 deep, 1:7, in {board}.bottom_face"] * 2
+            == [f"dovetail socket 86.75 mm at the face, 6.5 deep, 1:4, in {board}.bottom_face"] * 2
         )
+    batten_box = parts["batten_left"].placed_shape.bounding_box()
+    assert tuple(batten_box.min) == pytest.approx((30, 0, -40))
     # Each batten's one tongue fills the housings in both boards.
     total = sum(part.shape.volume for part in model.parts)
-    assert total == pytest.approx(2 * 400 * 140 * 20 + 2 * 280 * 40 * 20)
+    assert total == pytest.approx(2 * 400 * 140 * 20 + 2 * 280 * 90 * 20)
 
 
 def test_ledged_door_tongues_fill_the_grooves() -> None:

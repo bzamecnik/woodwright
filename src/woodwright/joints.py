@@ -330,6 +330,12 @@ class SlidingDovetail(Housing):
     together along it. `thickness` is the tongue's thickness at the shoulder;
     with `half` only one cheek is angled.
 
+    With `end` a face of part b, part b lies flat against part a and its
+    whole width goes into a wide, shallow socket, its edges bevelled by
+    1:`slope` (`thickness` is then the width at the shoulder, by default
+    so that the tongue is as wide as part b at its end): e.g. a batten
+    across the underside of a glued-up panel.
+
     Without `cut_tongue`, the tongue is cut by another sliding dovetail and
     this one only places part b and cuts the socket into part a: e.g. a
     batten whose tongue runs across several boards glued edge to edge, each
@@ -352,10 +358,15 @@ class SlidingDovetail(Housing):
         return self.socket, self.end
 
     def with_defaults(self) -> Self:
+        depth = self.depth or rules.dado_depth(self.socket.depth)
+        thickness = self.thickness
+        if thickness is None and self.end.axis == 2:
+            # The whole width at the tongue's end, less the flare at the shoulder.
+            thickness = self.end.part.width - (1 if self.half else 2) * depth / self.slope
         return replace(
             self,
-            depth=self.depth or rules.dado_depth(self.socket.depth),
-            thickness=self.thickness or rules.dovetail_thickness(self.end.part.thickness),
+            depth=depth,
+            thickness=thickness or rules.dovetail_thickness(self.end.part.thickness),
         )
 
     def reach(self) -> float:
