@@ -46,20 +46,30 @@ rail   340 x 60 x 20 mm  oak
        - tenon 50 x 8 mm, 40 long, on rail.left_end
 ```
 
-Cuts and joints so far: grooves, dados, rabbets, mortises, tenons (haunched,
-mitred, with mitred shoulders), chamfers, mitres, tapers; butt, dado, rabbet, groove, tongue and
-groove, mortise and tenon, bridle, half lap, cross lap, mitre corners and
-splices, sliding, through and half-blind dovetails, and table-top buttons.
+What's there so far:
+
+- **Cuts:** grooves, dados and rabbets (through or stopped), mortises, slot
+  mortises, tenons (haunched, mitred, chamfered, multiple side by side or
+  across the thickness, wedged), tongues, dovetail tongues and laps,
+  chamfers, mitres (across the face, the edge, or along the grain), tapers.
+- **Joints:** butt (also turned at an angle); dado, rabbet, groove and
+  tongue and groove housings (also stopped); mortise and tenon (blind,
+  through, stub, haunched, mitred, with mitred shoulders, multiple, wedged,
+  tusk); loose tenons and loose tongues; bridles (L and T); half laps
+  (plain, dovetailed, mitred), cross laps, mitred face tenons; box joints;
+  sliding, through, half-blind, mitred-corner and blind mitred dovetails;
+  mitre corners and splices; table-top buttons.
 
 ## Example library
 
-`woodwright.examples` holds over fifty examples, from single cuts through
+`woodwright.examples` holds over ninety examples, from single cuts through
 joints to projects: a try square, a mallet, a bookshelf, a dovetailed drawer
-with a bottom, a dining table.
+with a bottom, a dining table, a side table, a chair, a step stool seat,
+ledged and frame-and-panel doors.
 
 ```shell
 python -m woodwright.examples list
-python -m woodwright.examples export projects.table --out output
+python -m woodwright.examples export projects.chair --out output
 ```
 
 The design ideas are in [docs/vision.md](https://github.com/bzamecnik/woodwright/blob/HEAD/docs/vision.md)
