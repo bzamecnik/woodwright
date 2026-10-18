@@ -24,6 +24,7 @@ from woodwright.cuts import (
     Pocket,
     Range,
     ShapeCut,
+    SlotMortise,
     Tenon,
     Tongue,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "MortiseTenon",
     "RabbetJoint",
     "SlidingDovetail",
+    "TeeBridle",
     "ThroughDovetail",
     "TongueAndGroove",
 ]
@@ -267,7 +269,8 @@ class RabbetJoint(Housing):
     reference face of part b is flush with `at`; along the arris b is
     centered (or as given by `position`). With `lap`, part b gets a rabbet
     too, keeping a lip `lap` thick at its reference face: the two rabbets
-    interlock.
+    interlock. With `through`, the rabbet runs the whole length of part a,
+    e.g. for a box bottom, into the rabbets at the box's corners.
     """
 
     rabbet: SideRef
@@ -275,6 +278,7 @@ class RabbetJoint(Housing):
     at: SideRef
     depth: float | None = None
     lap: float | None = None
+    through: bool = False
     position: Position = CENTERED
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
@@ -590,7 +594,8 @@ class Bridle(Housing):
     """A tenon over the whole width of an end of part b, through a slot in part a.
 
     For an L-shaped corner the slot is at an end of part a, e.g. with
-    `position=flush_with(a.left_end)`; it then is a slot mortise. The tenon
+    `position=flush_with(a.left_end)`; it then is a slot mortise. For a
+    T-shaped bridle, with the slot in part b, see `TeeBridle`. The tenon
     is centered across the thickness unless `tenon_offset` is given.
     """
 
@@ -620,6 +625,77 @@ class Bridle(Housing):
             thickness=_require(self.tenon_thickness),
             thickness_offset=self.tenon_offset,
         )
+
+
+@dataclass
+class TeeBridle(Joint):
+    """A T-shaped bridle joint: a slot in the end of part b straddles part a,
+    which is cut down to a tongue by a dado across each of its faces.
+
+    Part b comes to part a at its side `edge` and reaches across it, its
+    end flush with a's opposite side: its design length is overall. The
+    slot is `slot_thickness` wide (by default a third of part a, as is
+    usual for bridles), centered across b's thickness unless `slot_offset`
+    (from b's reference face) is given. The reference faces are flush (see
+    `across` to change that); along part a, b is centered (or as given by
+    `position`).
+    """
+
+    slot: SideRef
+    edge: SideRef
+    position: Position = CENTERED
+    slot_thickness: float | None = None
+    slot_offset: float | None = None
+    across: Position = FLUSH
+    flush: tuple[SideRef, SideRef] | None = None
+
+    def __post_init__(self) -> None:
+        if self.slot.axis != 0:
+            raise ValueError(f"a bridle's slot is in an end, not in {self.slot}")
+        if self.edge.axis != 1:
+            raise ValueError(f"a T-bridle straddles an edge, not {self.edge}")
+
+    def parts(self) -> tuple[Board, Board]:
+        return self.edge.part, self.slot.part
+
+    def with_defaults(self) -> Self:
+        thickness = self.slot_thickness or rules.tenon_thickness(self.edge.part.thickness)
+        return replace(self, slot_thickness=thickness)
+
+    def slot_cut(self) -> SlotMortise:
+        return SlotMortise(
+            self.slot,
+            width=_require(self.slot_thickness),
+            depth=self.edge.depth,
+            distance=self.slot_offset,
+        )
+
+    def placement(self) -> bd.Location:
+        flush = self.flush or default_flush(self.edge, self.slot)
+        return mate(
+            self.edge,
+            self.slot,
+            flush=flush,
+            position=self.position,
+            across=self.across,
+            gap=-self.edge.depth,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        slot = self.slot_cut()
+        a, b = self.parts()
+        # The cheeks either side of the slot, in b's frame, give the dados in a.
+        (x0, x1), _, (z0, z1) = slot.ranges()
+        x = (max(x0, b.box[0][0]), min(x1, b.box[1][0]))
+        y = (b.box[0][1], b.box[1][1])
+        dados = []
+        for z in [(z1, b.box[1][2]), (b.box[0][2], z0)]:
+            if z[1] - z[0] < _EPS:
+                continue
+            box = _socket(a.top_face, placement, (x, y, z), 0.0)
+            face = a.top_face if box[2][1] == INF else a.bottom_face
+            dados.append(Pocket(face, box))
+        return [slot, *dados]
 
 
 @dataclass

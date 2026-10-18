@@ -37,6 +37,7 @@ from woodwright.joints import (
     MortiseTenon,
     RabbetJoint,
     SlidingDovetail,
+    TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
 )
@@ -114,6 +115,7 @@ __all__ = [
     "SlotMortise",
     "Stock",
     "Taper",
+    "TeeBridle",
     "Tenon",
     "ThroughDovetail",
     "Tongue",

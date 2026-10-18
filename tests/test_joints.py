@@ -458,6 +458,59 @@ def test_chamfered_tenon_standing_proud() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+def test_tee_bridle() -> None:
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", OAK, length=400, width=50))
+    rail = asm.add(ww.Board("rail", OAK, length=300, width=40))
+    asm.join(ww.TeeBridle(slot=rail.left_end, edge=stile.back_edge))
+    model = asm.resolve()
+    assert cuts(model, rail) == ["slot mortise 8 mm, 50 deep, in rail.left_end"]
+    assert cuts(model, stile) == [
+        "dado 40 mm, 6 deep, in stile.top_face",
+        "dado 40 mm, 6 deep, in stile.bottom_face",
+    ]
+    # The rail reaches across the stile, its end flush with the front edge.
+    box = model[rail].placed_shape.bounding_box()
+    assert pytest.approx((0, 300, 180, 220)) == (box.min.Y, box.max.Y, box.min.X, box.max.X)
+    assert model[stile].shape.volume == pytest.approx(400 * 50 * 20 - 2 * 40 * 50 * 6)
+    assert model[rail].shape.volume == pytest.approx(300 * 40 * 20 - 50 * 40 * 8)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_tee_bridle_with_an_offset_slot() -> None:
+    asm, stile, rail = stile_and_rail()
+    asm.join(ww.TeeBridle(slot=rail.left_end, edge=stile.back_edge, slot_offset=4))
+    model = asm.resolve()
+    assert cuts(model, stile) == [
+        "dado 40 mm, 4 deep, in stile.top_face",
+        "dado 40 mm, 8 deep, in stile.bottom_face",
+    ]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_tee_bridle_needs_an_end_and_an_edge() -> None:
+    _, stile, rail = stile_and_rail()
+    with pytest.raises(ValueError, match="slot is in an end"):
+        ww.TeeBridle(slot=rail.front_edge, edge=stile.back_edge)
+    with pytest.raises(ValueError, match="straddles an edge"):
+        ww.TeeBridle(slot=rail.left_end, edge=stile.top_face)
+
+
+@pytest.mark.parametrize("through", [False, True])
+def test_rabbet_joint_through(through: bool) -> None:
+    asm = ww.Assembly("test")
+    wall = asm.add(ww.Board("wall", OAK, length=300, width=100))
+    bottom = asm.add(ww.Board("bottom", OAK, length=200, width=150))
+    asm.join(
+        ww.RabbetJoint(
+            rabbet=wall.bottom_face, end=bottom.front_edge, at=wall.front_edge, through=through
+        )
+    )
+    model = asm.resolve()
+    expected = "rabbet 20 mm, 10 deep" if through else "notch 200 x 20 mm, 10 deep"
+    assert cuts(model, wall) == [f"{expected}, in wall.bottom_face at wall.front_edge"]
+
+
 def _volume(shape) -> float:
     """Volume of an intersection: nothing, one shape or a list of them."""
     if shape is None:
