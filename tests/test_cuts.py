@@ -323,3 +323,33 @@ def test_tenon_mitre_errors() -> None:
         ww.Tenon(
             rail.left_end, length=36, thickness=8, width=80, mitre=rail.top_face, mitre_angle=0
         )
+
+
+@pytest.mark.parametrize(
+    ("edges", "mitres"), [((), 0), (("back_edge",), 1), (("front_edge", "back_edge"), 2)]
+)
+def test_tenon_with_mitred_shoulders(edges, mitres) -> None:
+    rail = ww.Board("rail", OAK, length=300, width=45)
+    mitred = tuple(getattr(rail, edge) for edge in edges)
+    tenon = ww.Tenon(rail.left_end, length=20, thickness=8, width=15, mitre_depth=15, mitred=mitred)
+    assert tenon.allowances() == [ww.Allowance(rail.left_end, 35)]
+    shape = cut_part(rail, tenon)
+    # The rail reaches 15 mm beyond the shoulder, less a 15 x 15 mm triangle per mitre.
+    reach = (45 * 15 - mitres * 15 * 15 / 2) * 20
+    assert shape.volume == pytest.approx(300 * 45 * 20 + reach + 15 * 8 * 20)
+    assert pytest.approx(-35) == shape.bounding_box().min.X
+
+
+def test_mitred_shoulders_describe_and_validate() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=45)
+    tenon = ww.Tenon(
+        rail.left_end, length=20, thickness=8, width=15, mitre_depth=15, mitred=(rail.back_edge,)
+    )
+    assert tenon.describe() == (
+        "tenon 15 x 8 mm, 20 long, reaching 15 beyond the shoulder, mitred at rail.back_edge, "
+        "on rail.left_end"
+    )
+    with pytest.raises(ValueError, match="at an edge or an end"):
+        ww.Tenon(rail.left_end, length=20, thickness=8, mitre_depth=15, mitred=(rail.top_face,))
+    with pytest.raises(ValueError, match="deeper than the part is wide"):
+        ww.Tenon(rail.left_end, length=20, thickness=8, mitre_depth=50, mitred=(rail.back_edge,))

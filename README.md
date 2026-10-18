@@ -47,7 +47,7 @@ rail   340 x 60 x 20 mm  oak
 ```
 
 Cuts and joints so far: grooves, dados, rabbets, mortises, tenons (haunched,
-mitred), chamfers, mitres, tapers; butt, dado, rabbet, groove, tongue and
+mitred, with mitred shoulders), chamfers, mitres, tapers; butt, dado, rabbet, groove, tongue and
 groove, mortise and tenon, bridle, half lap, cross lap, mitre corners and
 splices, sliding, through and half-blind dovetails, and table-top buttons.
 

@@ -239,6 +239,12 @@ class Tenon(Cut):
     `mitre_angle` across its thickness: the cheek towards that face is
     shorter, the other one keeps the full length. Two tenons meeting inside
     a leg from adjacent sides are mitred like this so they don't clash.
+
+    With `mitre_depth`, the shoulders are mitred: the part reaches that far
+    beyond the side with its whole cross-section, into a notch in the
+    mortised part, and the tenon starts there, `length` long. At each of
+    `mitred`, edges next to the side, the reach is mitred at 45 degrees back
+    to the side, so the parts meet on a short mitre at that edge.
     """
 
     side: SideRef
@@ -251,10 +257,23 @@ class Tenon(Cut):
     haunch_length: float | None = None
     mitre: SideRef | None = None
     mitre_angle: float = 45.0
+    mitre_depth: float = 0.0
+    mitred: tuple[SideRef, ...] = ()
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
+        if self.mitre_depth < 0:
+            raise ValueError("the mitred shoulders' depth must not be negative")
+        for edge in self.mitred:
+            _check_adjacent(self.side, edge)
+            if edge.axis == 2:
+                raise ValueError(f"a shoulder is mitred at an edge or an end, not at {edge}")
+            if (
+                self.mitre_depth
+                > self.side.part.box[1][edge.axis] - self.side.part.box[0][edge.axis]
+            ):
+                raise ValueError("mitred shoulders must not be deeper than the part is wide")
         if self.mitre is not None:
             if self.mitre.part is not self.side.part or self.mitre.axis != 2:
                 raise ValueError(f"a tenon is mitred towards a face, not towards {self.mitre}")
@@ -273,7 +292,9 @@ class Tenon(Cut):
         """Ranges of the tenon itself in the part frame."""
         lo, hi = self.part.box
         width_axis = 1 - self.side.axis  # across the width for ends, the length for edges
-        boxes: dict[int, Range] = {self.side.axis: _beyond(self.side, self.length)}
+        boxes: dict[int, Range] = {
+            self.side.axis: _beyond(self.side, self.length, start=self.mitre_depth)
+        }
         t, offset = self.part.thickness, self.thickness_offset
         offset = (t - self.thickness) / 2 if offset is None else offset
         boxes[2] = (-offset - self.thickness, -offset)
@@ -303,7 +324,7 @@ class Tenon(Cut):
                 a,
             )
         )
-        box[self.side.axis] = _beyond(self.side, self.haunch_length)
+        box[self.side.axis] = _beyond(self.side, self.haunch_length, start=self.mitre_depth)
         return box[0], box[1], box[2]
 
     def boxes(self) -> list[tuple[Range, Range, Range]]:
@@ -331,14 +352,35 @@ class Tenon(Cut):
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
         if self.mitre is not None:
             removal += self._mitre_removal() & _box(self.part, beyond)
+        if self.mitre_depth > 0:
+            removal -= self.reach_solid()
         return removal
+
+    def reach_solid(self) -> bd.Part:
+        """What the part reaches beyond the side before the tenon (with mitred
+        shoulders), in the part frame, open behind the side and at the edges
+        that aren't mitred, so that it doesn't leave slivers."""
+        u, v = self.side.axis, 1 - self.side.axis
+        c, s, d = self.side.coordinate, self.side.side.sign, self.mitre_depth
+        lo, hi = self.part.box
+        m = _margin(self.part)
+
+        def corner(edge: float, inwards: int) -> list[tuple[float, float]]:
+            if any(e.axis == v and e.side.sign == -inwards for e in self.mitred):
+                return [(c - s * m, edge), (c, edge), (c + s * d, edge + inwards * d)]
+            return [(c - s * m, edge - inwards * m), (c + s * d, edge - inwards * m)]
+
+        points = corner(lo[v], +1) + corner(hi[v], -1)[::-1]
+        if u == 1:
+            points = [(q, p) for p, q in points]
+        return _prism(self.part, 0, 1, points)
 
     def _mitre_removal(self) -> bd.Part:
         """The part of the tenon's end beyond the mitre, through the whole width."""
         assert self.mitre is not None
         (_, _), (_, _), (z0, z1) = self.tenon_box()
         inner, outer = (z1, z0) if self.mitre.side.sign > 0 else (z0, z1)
-        c, s = self.side.coordinate, self.side.side.sign
+        c, s = self.side.coordinate + self.side.side.sign * self.mitre_depth, self.side.side.sign
         shortening = self.thickness * math.tan(math.radians(self.mitre_angle))
         long_point = (c + s * self.length, outer)
         short_point = (c + s * (self.length - shortening), inner)
@@ -350,7 +392,7 @@ class Tenon(Cut):
         return _prism(self.part, self.side.axis, 2, points)
 
     def allowances(self) -> list[Allowance]:
-        return [Allowance(self.side, self.length)]
+        return [Allowance(self.side, self.mitre_depth + self.length)]
 
     def cheeks(self) -> int:
         """How many cheeks are cut: 0, 1 or 2."""
@@ -382,6 +424,12 @@ class Tenon(Cut):
             size += f", haunch {self.haunch_length:g} long"
         if self.mitre is not None:
             size += f", end mitred {self.mitre_angle:g} deg towards {self.mitre}"
+        if self.mitre_depth > 0:
+            reach = f", reaching {self.mitre_depth:g} beyond the shoulder"
+            if self.mitred:
+                edges = ", ".join(str(edge) for edge in self.mitred)
+                reach += f", mitred at {edges}"
+            size += reach
         return f"{kind} {size}, on {self.side}"
 
 
@@ -644,9 +692,9 @@ def _into(side: SideRef, depth: float) -> tuple[int, Range]:
     return side.axis, ((c - depth, INF) if side.side.sign > 0 else (-INF, c + depth))
 
 
-def _beyond(side: SideRef, length: float) -> Range:
-    """From `side` outwards by `length`."""
-    c = side.coordinate
+def _beyond(side: SideRef, length: float, start: float = 0.0) -> Range:
+    """From `start` beyond `side` outwards by `length`."""
+    c = side.coordinate + side.side.sign * start
     return (c, c + length) if side.side.sign > 0 else (c - length, c)
 
 

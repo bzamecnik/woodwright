@@ -389,6 +389,49 @@ def test_haunched_mortise_and_tenon() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+@pytest.mark.parametrize("corner", [False, True])
+def test_mitred_shoulder_tenon(corner: bool) -> None:
+    stock = ww.Stock.board(30, "oak")
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", stock, length=300, width=45))
+    rail = asm.add(ww.Board("rail", stock, length=200, width=45))
+    if corner:  # mitred at the inner edge only, the tenon through
+        kw = dict(
+            position=ww.flush_with(stile.right_end), mitred=(rail.back_edge,), tenon_length=30
+        )
+    else:
+        kw = {}
+    asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, **kw))
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert (joint.mitre_depth, joint.shoulder) == (15, 15)  # a third of the stile
+    notch = (45 * 15 - (1 if corner else 2) * 15 * 15 / 2) * 30
+    mortise = 15 * 10 * (30 if corner else 20 + 2)  # behind the notch, with clearance
+    tenon = 15 * 10 * (30 if corner else 20)
+    assert model[stile].shape.volume == pytest.approx(300 * 45 * 30 - notch - mortise)
+    assert model[rail].shape.volume == pytest.approx(200 * 45 * 30 + notch + tenon)
+    assert model[rail].size[0] == (245 if corner else 235)
+    assert cuts(model, stile) == (
+        [
+            "through mortise 15 x 10 mm in stile.back_edge",
+            "notch 45 long, 15 deep, mitred at one end, in stile.back_edge",
+        ]
+        if corner
+        else [
+            "mortise 15 x 10 mm, 37 deep, in stile.back_edge",
+            "notch 45 long, 15 deep, mitred at both ends, in stile.back_edge",
+        ]
+    )
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_mitred_shoulder_tenon_stays_between_the_mitres() -> None:
+    asm, stile, rail = stile_and_rail(rail_width=45)
+    asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, shoulder=5))
+    with pytest.raises(ValueError, match="under the mitre"):
+        asm.resolve()
+
+
 def _volume(shape) -> float:
     """Volume of an intersection: nothing, one shape or a list of them."""
     if shape is None:

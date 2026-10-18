@@ -44,6 +44,7 @@ __all__ = [
     "Joint",
     "MitreCorner",
     "MitreSplice",
+    "MitredShoulderTenon",
     "MortiseTenon",
     "RabbetJoint",
     "SlidingDovetail",
@@ -491,6 +492,82 @@ class MortiseTenon(Housing):
             haunch_length=self.haunch_length,
             mitre=self.mitre,
         )
+
+
+@dataclass
+class MitredShoulderTenon(MortiseTenon):
+    """A mortise and tenon whose shoulders are partly mitred, e.g. in a frame
+    of square-ish stock.
+
+    The tenoned part reaches `mitre_depth` into the mortised part (by default
+    a third of its width) with its whole cross-section, into a notch, and
+    the tenon starts there. At each of `mitred`, edges of the tenoned part
+    (by default both of them, for a T-joint), the notch is mitred at 45
+    degrees back to the side of the mortised part: the parts meet on a short
+    mitre there and along the mortised part in between. For an L-shaped
+    corner, mitre only the inner edge; the tenon may then go through, as long
+    as the material behind the notch. The design length of the tenoned part
+    is to the side of the mortised part, as for a plain tenon.
+
+    The tenon stays between the mitres: its shoulders are by default as deep
+    as the mitres (on both edges), and at the mitred ones must not be shallower. Its
+    length is measured from the bottom of the notch; the mortise is cut
+    from the side of the mortised part, through the notch.
+    """
+
+    shoulder: float | tuple[float, float] | None = None  # by default the mitre depth
+    mitre_depth: float | None = None
+    mitred: tuple[SideRef, ...] | None = None
+
+    def with_defaults(self) -> Self:
+        board = self.tenon.part
+        depth = self.mitre_depth
+        if depth is None:
+            depth = self.mortise.depth / 3
+        mitred = self.mitred
+        if mitred is None:
+            mitred = (board.front_edge, board.back_edge) if self.tenon.axis == 0 else ()
+        shoulder = depth if self.shoulder is None else self.shoulder
+        tenon_length = self.tenon_length or rules.tenon_length(self.mortise.depth - depth)
+        joint = replace(
+            self,
+            mitre_depth=depth,
+            mitred=mitred,
+            shoulder=shoulder,
+            tenon_length=tenon_length,
+        )
+        return super(MitredShoulderTenon, joint).with_defaults()
+
+    def allowances(self) -> list[Allowance]:
+        return self.tenon_cut().allowances()
+
+    def tenon_cut(self) -> Tenon:
+        depth, mitred = _require(self.mitre_depth), _require(self.mitred)
+        tenon = replace(super().tenon_cut(), mitre_depth=depth, mitred=mitred)
+        lo, hi = tenon.tenon_box()[1 - self.tenon.axis]
+        part_lo, part_hi = self.tenon.part.box
+        for edge in mitred:
+            shoulder = lo - part_lo[edge.axis] if edge.side.sign < 0 else part_hi[edge.axis] - hi
+            if shoulder < depth - _EPS:
+                raise ValueError(f"the tenon must not reach under the mitre at {edge}")
+        return tenon
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        cuts = super().cuts(placement)
+        mortise = cuts[0]
+        assert isinstance(mortise, Pocket)
+        # The mortise is open to the notch, so cut it from the side.
+        box = list(mortise.box)
+        axis, (a, b) = self.mortise.axis, box[self.mortise.axis]
+        box[axis] = (a, INF) if self.mortise.side.sign > 0 else (-INF, b)
+        cuts[0] = replace(mortise, box=(box[0], box[1], box[2]))
+        tenon = self.tenon_cut()
+        mitred = _require(self.mitred)
+        ends = {0: "", 1: ", mitred at one end", 2: ", mitred at both ends"}[len(mitred)]
+        width = self.tenon.size[0]
+        description = f"notch {width:g} long, {tenon.mitre_depth:g} deep{ends}, in {self.mortise}"
+        notch = placement * tenon.reach_solid()
+        return [*cuts, ShapeCut(self.mortise.part, notch, description)]
 
 
 @dataclass
