@@ -24,7 +24,9 @@ Example = Callable[[], Assembly]
 ALL: list[Example] = [
     cuts.dado,
     cuts.groove,
+    cuts.stopped_groove,
     cuts.rabbet,
+    cuts.stopped_rabbet,
     cuts.end_rabbet,
     cuts.slot_mortise,
     cuts.mortise,
@@ -41,6 +43,7 @@ ALL: list[Example] = [
     joints.laminated_leg,
     joints.butt_corner,
     joints.dado_shelf,
+    joints.stopped_dado_shelf,
     joints.rabbet_corner,
     joints.sliding_dovetail_shelf,
     joints.interlocking_rabbet_corner,

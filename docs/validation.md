@@ -22,6 +22,10 @@ Done items name their example in `woodwright.examples`
   - [x] rabbet - groove at the edge of the board, groove from two faces – `cuts.rabbet`,
     `cuts.rabbeted_panel`
   - [x] "endgrain rabbet" - dado at the end of the board – `cuts.end_rabbet`
+  - stopped cuts - stopping short of one or both ends, so they don't show there
+    - [x] stopped groove – `cuts.stopped_groove`
+    - [x] stopped dado – `joints.stopped_dado_shelf`
+    - [x] stopped rabbet – `cuts.stopped_rabbet`
   - [x] slot mortise - "endgrain groove", like a groove but open at the endgrain side –
     `cuts.slot_mortise`
   - [x] tongue - rabbets at the edge from two opposite faces – `cuts.tongue`
@@ -51,6 +55,8 @@ Done items name their example in `woodwright.examples`
       `projects.ledged_and_braced_door` (nails not modelled)
   - dado
     - [x] T-joint with a dado – `joints.dado_shelf`, `projects.shooting_board`
+    - [x] T-joint with a stopped dado, the shelf's front corner notched to the stop –
+      `joints.stopped_dado_shelf`
     - [x] shelf with dados – `projects.bookshelf`
   - groove
     - [x] tongue and groove panel - tongue + groove – `joints.tongue_and_groove_panel`,

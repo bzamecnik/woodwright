@@ -153,9 +153,14 @@ class Housing(Joint):
     with its whole cross-section or with a tenon. The socket is cut where it
     lands, with `clearance` at the bottom if it doesn't go through.
     With `through`, the socket runs out of part a at both ends of the mating
-    arris, e.g. a groove along the whole edge. Subclasses give the sides, the
+    arris, e.g. a groove along the whole edge. With `stopped`, it stops that
+    far short of each of the given sides of part a, e.g. a dado stopped short
+    of the front edge so that it doesn't show; where part b would reach into
+    the part left standing there, it is notched to clear it (e.g. the front
+    corner of a shelf in a stopped dado). Subclasses give the sides, the
     depth and the tenon, and are dataclasses with the fields `position`,
-    `across`, `flush` and `clearance` (and `through`, if it applies).
+    `across`, `flush` and `clearance` (and `through` and `stopped`, if they
+    apply).
     """
 
     position: Position
@@ -163,6 +168,7 @@ class Housing(Joint):
     flush: tuple[SideRef, SideRef] | None
     clearance: float
     through: bool = False  # the socket runs the whole length of part a along the arris
+    stopped: dict[SideRef, float] | None = None  # the socket stops short of these sides of a
 
     def sides(self) -> tuple[SideRef, SideRef]:
         """The side the socket is cut into and the side going into it."""
@@ -192,25 +198,79 @@ class Housing(Joint):
         return mate(socket, insert, flush=flush, position=self.position, across=self.across)
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
-        socket, insert = self.sides()
+        insert = self.sides()[1]
         tenon = self.tenon_cut()
         if tenon is None:
             lo, hi = insert.part.box
             box = [(lo[axis], hi[axis]) for axis in range(3)]
             c, d = insert.coordinate, self.reach()
             box[insert.axis] = (c, c + d) if insert.side.sign > 0 else (c - d, c)
-            pockets = [Pocket(socket, self.socket_box(placement, (box[0], box[1], box[2])))]
+            inserted = [(box[0], box[1], box[2])]
+            pockets = [self._pocket(self.socket_box(placement, inserted[0]))]
         else:
-            pockets = [
-                Pocket(socket, self.socket_box(placement, box)) for box in tenon.tenon_boxes()
-            ]
+            inserted = tenon.boxes()
+            pockets = [self._pocket(self.socket_box(placement, box)) for box in tenon.tenon_boxes()]
             for haunch in tenon.haunch_boxes():
                 # Without clearance: as deep as the groove the haunch fills.
                 haunch_socket = self.socket_box(placement, haunch, clearance=0.0)
-                pockets.append(Pocket(socket, haunch_socket, kind="haunch mortise"))
+                pockets.append(self._pocket(haunch_socket, kind="haunch mortise"))
+        notches = self.notches(placement, inserted)
         if tenon is None or not tenon.removes_material:
-            return pockets
-        return [*pockets, tenon]
+            return [*pockets, *notches]
+        return [*pockets, tenon, *notches]
+
+    def _pocket(self, box: tuple[Range, Range, Range], kind: str | None = None) -> Pocket:
+        """The socket, stopped short of those of the sides it would reach."""
+        socket = self.sides()[0]
+        stopped = {}
+        for side, distance in (self.stopped or {}).items():
+            if side.part is not socket.part or side.axis == socket.axis:
+                raise ValueError(
+                    f"a socket in {socket} stops short of a side next to it, not {side}"
+                )
+            a, b = box[side.axis]
+            stop = side.coordinate - side.side.sign * distance
+            if (b > stop) if side.side.sign > 0 else (a < stop):
+                stopped[side] = distance
+        return Pocket(socket, box, kind=kind, stopped=stopped or None)
+
+    def notches(
+        self, placement: bd.Location, inserted: list[tuple[Range, Range, Range]]
+    ) -> list[Cut]:
+        """Notches in part b where it reaches past the stops of the socket, so
+        it clears the part of a left standing there; `inserted` are the boxes
+        of b (in its frame) going into the socket."""
+        insert = self.sides()[1]
+        b = insert.part
+        lo, hi = b.box
+        notches: list[Cut] = []
+        for side, distance in (self.stopped or {}).items():
+            b_side = _flush_side(b, side, placement)
+            stop = [0.0, 0.0, 0.0]
+            stop[side.axis] = side.coordinate - side.side.sign * distance
+            at = tuple((placement.inverse() * bd.Location(tuple(stop))).position)[b_side.axis]
+            for box in inserted:
+                ranges = list(box)
+                start, end = ranges[b_side.axis]
+                ranges[b_side.axis] = (
+                    (max(start, at), end) if b_side.side.sign > 0 else (start, min(end, at))
+                )
+                width = ranges[b_side.axis][1] - ranges[b_side.axis][0]
+                if width < _EPS:
+                    continue
+                # Open where it reaches the sides of b and beyond side `insert`.
+                for axis in range(3):
+                    a0, a1 = ranges[axis]
+                    ranges[axis] = (
+                        -INF if a0 <= lo[axis] + _EPS else a0,
+                        INF if a1 >= hi[axis] - _EPS else a1,
+                    )
+                c = insert.coordinate
+                ranges[insert.axis] = (c, INF) if insert.side.sign > 0 else (-INF, c)
+                removal = Pocket(insert, (ranges[0], ranges[1], ranges[2])).removal()
+                text = f"notch {width:g} x {self.reach():g} mm in {insert} at {b_side}"
+                notches.append(ShapeCut(b, removal, text))
+        return notches
 
     def socket_box(
         self,
@@ -267,7 +327,9 @@ class DadoJoint(Housing):
 
     Part b's design length stops at the face of part a; the dado depth is
     added to it. By default the reference edges are flush and b is centered
-    along a; give `position` e.g. as `offset(100, ref=a.left_end)`.
+    along a; give `position` e.g. as `offset(100, ref=a.left_end)`. With
+    `stopped`, e.g. `{a.front_edge: 15}`, a stopped dado: it stops short of
+    the front edge, and the front corner of part b is notched to the stop.
     """
 
     dado: SideRef
@@ -277,6 +339,7 @@ class DadoJoint(Housing):
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
     clearance: float = 0.0
+    stopped: dict[SideRef, float] | None = None
 
     def sides(self) -> tuple[SideRef, SideRef]:
         return self.dado, self.end
@@ -310,6 +373,7 @@ class RabbetJoint(Housing):
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
     clearance: float = 0.0
+    stopped: dict[SideRef, float] | None = None
 
     def sides(self) -> tuple[SideRef, SideRef]:
         return self.rabbet, self.end
@@ -420,6 +484,7 @@ class GrooveJoint(Housing):
     across: Position = CENTERED
     flush: tuple[SideRef, SideRef] | None = None
     clearance: float = 0.0
+    stopped: dict[SideRef, float] | None = None
 
     def sides(self) -> tuple[SideRef, SideRef]:
         return self.groove, self.edge
@@ -451,6 +516,7 @@ class TongueAndGroove(Housing):
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
     clearance: float = 0.0
+    stopped: dict[SideRef, float] | None = None
 
     def sides(self) -> tuple[SideRef, SideRef]:
         return self.groove, self.tongue

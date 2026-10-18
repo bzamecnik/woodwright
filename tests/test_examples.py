@@ -413,3 +413,21 @@ def test_hollow_leg() -> None:
     assert union.volume == pytest.approx((60 * 60 - 30 * 30) * 700)
     hole = bd.Pos(15, 15, 0) * bd.Box(30, 30, 700, align=(bd.Align.MIN,) * 3)
     assert _volume(leg.intersect(hole)) == pytest.approx(0, abs=1e-6)
+
+
+def test_stopped_dado_shelf_is_notched_to_the_stop() -> None:
+    from woodwright.examples import joints
+
+    model = joints.stopped_dado_shelf().resolve()
+    parts = {part.part.name: part for part in model.parts}
+    assert [cut.describe() for cut in parts["side"].cuts] == [
+        "stopped dado 20 mm, 6.5 deep, in side.bottom_face, 15 mm short of side.front_edge"
+    ]
+    assert [cut.describe() for cut in parts["shelf"].cuts] == [
+        "notch 15 x 6.5 mm in shelf.left_end at shelf.front_edge"
+    ]
+    # The shelf fills the dado and its front is flush with the side's.
+    total = sum(part.shape.volume for part in model.parts)
+    assert total == pytest.approx((400 + 300) * 200 * 20)
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((320, 200, 400))

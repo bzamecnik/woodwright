@@ -118,6 +118,44 @@ def test_rabbets() -> None:
         ww.EndRabbet(b.top_face, at=b.back_edge, width=10, depth=10)
 
 
+def test_stopped_groove_dado_and_rabbet() -> None:
+    b = board()
+    groove = ww.Groove(b.top_face, width=10, depth=20, distance=50, stopped={b.right_end: 40})
+    assert groove.ranges() == ((-ww.cuts.INF, 560), (50, 60), (-20, ww.cuts.INF))
+    assert groove.describe() == (
+        "stopped groove 10 mm, 20 deep, in b.top_face, 40 mm short of b.right_end"
+    )
+    dado = ww.Dado(
+        b.top_face,
+        width=30,
+        depth=10,
+        distance=100,
+        stopped={b.front_edge: 15, b.back_edge: 20},
+    )
+    assert dado.ranges()[1] == (15, 280)
+    assert dado.describe() == (
+        "stopped dado 30 mm, 10 deep, in b.top_face, "
+        "15 mm short of b.front_edge and 20 mm short of b.back_edge"
+    )
+    rabbet = ww.Rabbet(b.top_face, at=b.back_edge, width=10, depth=20, stopped={b.left_end: 40})
+    assert rabbet.describe() == (
+        "stopped rabbet 10 mm, 20 deep, in b.top_face at b.back_edge, 40 mm short of b.left_end"
+    )
+    crossing = 30 * 10 * 10  # where the dado crosses the groove
+    volume = 600 * 300 * 40 - 560 * 10 * 20 - 30 * 265 * 10 - 560 * 10 * 20 + crossing
+    assert cut_part(b, groove, dado, rabbet).volume == pytest.approx(volume)
+
+
+def test_stops_only_where_the_cut_runs() -> None:
+    b = board()
+    with pytest.raises(ValueError, match="runs to"):
+        ww.Groove(b.top_face, width=10, depth=20, stopped={b.front_edge: 10})
+    with pytest.raises(ValueError, match="runs to"):
+        ww.Dado(b.top_face, width=10, depth=10, stopped={b.left_end: 10})
+    with pytest.raises(ValueError, match="within the part"):
+        ww.Groove(b.top_face, width=10, depth=20, stopped={b.left_end: 600})
+
+
 def test_slot_mortise() -> None:
     b = board(width=60)
     slot = ww.SlotMortise(b.left_end, width=14, depth=60)

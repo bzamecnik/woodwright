@@ -102,6 +102,34 @@ def dado_shelf(
     return asm
 
 
+def stopped_dado_shelf(
+    side_height: float = 400,
+    shelf_length: float = 300,
+    depth: float = 200,
+    shelf_height: float = 150,
+    stop: float = 15,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A shelf in a stopped dado, as in a bookshelf: the dado stops `stop`
+    short of the side's front edge, so it doesn't show at the front.
+
+    The shelf's front corner is notched to the stop, its front edge flush
+    with the side's; at the back the dado runs out (under a back panel).
+    """
+    asm = Assembly("stopped_dado_shelf", root_location=CASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height, width=depth))
+    shelf = asm.add(Board("shelf", stock, length=shelf_length, width=depth))
+    asm.join(
+        DadoJoint(
+            dado=side.bottom_face,
+            end=shelf.left_end,
+            position=offset(shelf_height, side.right_end),
+            stopped={side.front_edge: stop},
+        )
+    )
+    return asm
+
+
 def rabbet_corner(
     side_height: float = 400, top_length: float = 500, depth: float = 200, stock: Stock = OAK
 ) -> Assembly:

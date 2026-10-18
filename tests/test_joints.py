@@ -55,6 +55,83 @@ def test_dado_joint() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+def test_stopped_dado_joint_notches_the_shelf() -> None:
+    asm = ww.Assembly("test")
+    side = asm.add(ww.Board("side", OAK, length=400, width=200))
+    shelf = asm.add(ww.Board("shelf", OAK, length=300, width=200))
+    asm.join(
+        ww.DadoJoint(
+            dado=side.bottom_face,
+            end=shelf.left_end,
+            position=ww.offset(150, side.right_end),
+            stopped={side.front_edge: 15},
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, side) == [
+        "stopped dado 20 mm, 6.5 deep, in side.bottom_face, 15 mm short of side.front_edge"
+    ]
+    assert cuts(model, shelf) == ["notch 15 x 6.5 mm in shelf.left_end at shelf.front_edge"]
+    assert model[side].shape.volume == pytest.approx(400 * 200 * 20 - 20 * 185 * 6.5)
+    assert model[shelf].shape.volume == pytest.approx(306.5 * 200 * 20 - 15 * 6.5 * 20)
+    # The shelf's front edge stays flush with the side's.
+    assert bbox(model[shelf].placed_shape) == (230, 0, -320, 250, 200, -13.5)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_stopped_tongue_and_groove_cuts_back_the_tongue() -> None:
+    asm, a, b = stile_and_rail()
+    asm.join(
+        ww.TongueAndGroove(
+            tongue=b.front_edge,
+            groove=a.back_edge,
+            position=ww.flush_with(a.left_end),
+            stopped={a.left_end: 20},
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, a) == [
+        "stopped groove 8 mm, 10 deep, in stile.back_edge, 20 mm short of stile.left_end"
+    ]
+    assert cuts(model, b) == [
+        "tongue 8 mm thick, 10 long, on rail.front_edge",
+        "notch 20 x 10 mm in rail.front_edge at rail.left_end",
+    ]
+    assert model[b].shape.volume == pytest.approx(200 * 40 * 20 + 180 * 10 * 8)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_a_stop_away_from_the_inserted_part_leaves_it_whole() -> None:
+    asm, a, b = stile_and_rail()
+    asm.join(ww.TongueAndGroove(tongue=b.front_edge, groove=a.back_edge, stopped={a.left_end: 20}))
+    model = asm.resolve()
+    assert cuts(model, b) == ["tongue 8 mm thick, 10 long, on rail.front_edge"]
+    with pytest.raises(ValueError, match="next to it"):
+        asm = ww.Assembly("test")
+        a, b = asm.add(a), asm.add(b)
+        asm.join(ww.DadoJoint(dado=a.top_face, end=b.left_end, stopped={a.bottom_face: 5}))
+        asm.resolve()
+
+
+def test_stopped_rabbet_joint() -> None:
+    asm, side, top = stile_and_rail()
+    asm.join(
+        ww.RabbetJoint(
+            rabbet=side.bottom_face,
+            end=top.left_end,
+            at=side.right_end,
+            stopped={side.front_edge: 10},
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, side) == [
+        "stopped end rabbet 20 mm, 10 deep, in stile.bottom_face at stile.right_end, "
+        "10 mm short of stile.front_edge"
+    ]
+    assert cuts(model, top) == ["notch 10 x 10 mm in rail.left_end at rail.front_edge"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 def test_rabbet_joint() -> None:
     asm, side, top = stile_and_rail()
     asm.join(ww.RabbetJoint(rabbet=side.bottom_face, end=top.left_end, at=side.right_end))

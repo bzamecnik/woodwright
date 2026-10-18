@@ -47,10 +47,49 @@ def groove(
     return asm
 
 
+def stopped_groove(
+    distance: float = 50,
+    width: float = 10,
+    depth: float = 20,
+    stop: float = 40,
+    stock: Stock = THICK_OAK,
+) -> Assembly:
+    """A groove stopped `stop` short of both ends, so it shows at neither."""
+    asm, board = _board("stopped_groove", stock)
+    board.cut(
+        Groove(
+            board.top_face,
+            width=width,
+            depth=depth,
+            distance=distance,
+            stopped={board.left_end: stop, board.right_end: stop},
+        )
+    )
+    return asm
+
+
 def rabbet(width: float = 10, depth: float = 20, stock: Stock = THICK_OAK) -> Assembly:
     """A rabbet along an edge: a groove open to the edge."""
     asm, board = _board("rabbet", stock)
     board.cut(Rabbet(board.top_face, at=board.front_edge, width=width, depth=depth))
+    return asm
+
+
+def stopped_rabbet(
+    width: float = 10, depth: float = 20, stop: float = 40, stock: Stock = THICK_OAK
+) -> Assembly:
+    """A rabbet along the back edge stopped short of the right end, e.g. in the
+    side of a case for a back that stops below the top."""
+    asm, board = _board("stopped_rabbet", stock)
+    board.cut(
+        Rabbet(
+            board.top_face,
+            at=board.back_edge,
+            width=width,
+            depth=depth,
+            stopped={board.right_end: stop},
+        )
+    )
     return asm
 
 

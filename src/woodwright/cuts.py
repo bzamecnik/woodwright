@@ -57,31 +57,49 @@ class Cut:
 
 
 class BoxCut(Cut):
-    """A cut removing an axis-aligned box, given by ranges in the part frame."""
+    """A cut removing an axis-aligned box, given by ranges in the part frame.
+
+    Some can be stopped short of sides of the part (`stopped`, by default
+    not): they are then described as the cut running through, stopped.
+    """
+
+    stopped: dict[SideRef, float] | None = None
 
     def ranges(self) -> tuple[Range, Range, Range]:
+        return _stop(self.unstopped_ranges(), self.stopped)
+
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
+        """The ranges as if the cut weren't stopped."""
         raise NotImplementedError
 
     def removal(self) -> bd.Part:
         return _box(self.part, self.ranges())
 
     def describe(self) -> str:
-        return _describe_box(self.side, self.ranges())
+        return _describe_stops(_describe_box(self.side, self.unstopped_ranges()), self.stopped)
 
 
 @dataclass
 class Pocket(BoxCut):
-    """A box cut given directly by its ranges, e.g. a socket derived by a joint."""
+    """A box cut given directly by its ranges, e.g. a socket derived by a joint.
+
+    With `stopped`, it stops that far short of each of the given sides of
+    the part (see `Groove`).
+    """
 
     side: SideRef
     box: tuple[Range, Range, Range]
     kind: str | None = None  # the name in the cut list, instead of one from its shape
+    stopped: dict[SideRef, float] | None = None
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def __post_init__(self) -> None:
+        _check_stops(self.side, self.stopped)
+
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         return self.box
 
     def describe(self) -> str:
-        return _describe_box(self.side, self.box, self.kind)
+        return _describe_stops(_describe_box(self.side, self.box, self.kind), self.stopped)
 
 
 @dataclass
@@ -91,6 +109,10 @@ class Groove(BoxCut):
     It lies `distance` from `ref`, an adjacent side along the grain (by
     default the reference edge for faces and the reference face for edges),
     or in the middle when `distance` is None.
+
+    With `stopped`, a stopped groove: it stops that far short of each of
+    the given ends, e.g. `{board.right_end: 20}`, so it doesn't show there
+    (as cut with a router, its end left square).
     """
 
     side: SideRef
@@ -98,6 +120,7 @@ class Groove(BoxCut):
     depth: float
     distance: float | None = None
     ref: SideRef | None = None
+    stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
         if self.side.axis == 0:
@@ -108,8 +131,9 @@ class Groove(BoxCut):
         _check_adjacent(self.side, self.ref)
         if self.ref.axis == 0:
             raise ValueError(f"a groove is positioned from a side along the grain, not {self.ref}")
+        _check_stops(self.side, self.stopped, along=0)
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
 
 
@@ -119,6 +143,10 @@ class Dado(BoxCut):
 
     It lies `distance` from `ref`, an end (by default the left end), or in the
     middle when `distance` is None.
+
+    With `stopped`, a stopped dado: it stops that far short of each of the
+    given sides it runs to (edges, for a dado in a face), e.g.
+    `{board.front_edge: 15}`, so it doesn't show at the front of a case.
     """
 
     side: SideRef
@@ -126,6 +154,7 @@ class Dado(BoxCut):
     depth: float
     distance: float | None = None
     ref: SideRef | None = None
+    stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
         if self.side.axis == 0:
@@ -134,8 +163,9 @@ class Dado(BoxCut):
             self.ref = self.side.part.left_end
         if self.ref.part is not self.side.part or self.ref.axis != 0:
             raise ValueError(f"a dado is positioned from an end of {self.side.part.name}")
+        _check_stops(self.side, self.stopped, along=3 - self.side.axis)
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
 
 
@@ -144,18 +174,22 @@ class Rabbet(BoxCut):
     """A rabbet into `side`, open to the adjacent side `at`, along their arris.
 
     `width` is measured on `side` from `at`, `depth` into `side`. With `at`
-    an end it is an end rabbet.
+    an end it is an end rabbet. With `stopped`, a stopped rabbet: it stops
+    that far short of each of the given sides at the ends of the arris, e.g.
+    a rabbet for the back of a case stopped short of the top end.
     """
 
     side: SideRef
     at: SideRef
     width: float
     depth: float
+    stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
         _check_adjacent(self.side, self.at)
+        _check_stops(self.side, self.stopped, along=3 - self.side.axis - self.at.axis)
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         return _ranges(_into(self.side, self.depth), _into(self.at, self.width))
 
 
@@ -190,7 +224,7 @@ class SlotMortise(BoxCut):
             self.ref = self.side.part.ref_face
         _check_adjacent(self.side, self.ref)
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         return _ranges(_into(self.side, self.depth), _across(self.ref, self.width, self.distance))
 
 
@@ -208,7 +242,7 @@ class Mortise(BoxCut):
     width: float
     depth: float
 
-    def ranges(self) -> tuple[Range, Range, Range]:
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         box = side_box(
             self.side, self.start, self.offset, -self.depth, self.length, self.width, self.depth
         ).bounding_box()
@@ -1091,6 +1125,40 @@ def side_box(
 def _check_adjacent(side: SideRef, other: SideRef) -> None:
     if other.part is not side.part or other.axis == side.axis:
         raise ValueError(f"{other} is not adjacent to {side}")
+
+
+def _check_stops(
+    side: SideRef, stopped: dict[SideRef, float] | None, along: int | None = None
+) -> None:
+    """Check that a cut into `side` stops short of sides of its part next to it
+    (along the axis the cut runs, if given)."""
+    for stop, distance in (stopped or {}).items():
+        if stop.part is not side.part or stop.axis == side.axis:
+            raise ValueError(f"a cut into {side} stops short of a side next to it, not {stop}")
+        if along is not None and stop.axis != along:
+            raise ValueError(f"a cut into {side} stops short of a side it runs to, not {stop}")
+        if not 0 < distance < stop.depth:
+            raise ValueError(f"a cut stops short of {stop} within the part")
+
+
+def _stop(
+    ranges: tuple[Range, Range, Range], stopped: dict[SideRef, float] | None
+) -> tuple[Range, Range, Range]:
+    """The ranges stopped `distance` short of each of the sides."""
+    stopped_ranges = list(ranges)
+    for stop, distance in (stopped or {}).items():
+        a, b = stopped_ranges[stop.axis]
+        c = stop.coordinate - stop.side.sign * distance
+        stopped_ranges[stop.axis] = (a, min(b, c)) if stop.side.sign > 0 else (max(a, c), b)
+    return stopped_ranges[0], stopped_ranges[1], stopped_ranges[2]
+
+
+def _describe_stops(text: str, stopped: dict[SideRef, float] | None) -> str:
+    """A cut's description as stopped, e.g. 'stopped groove ..., 20 mm short of b.right_end'."""
+    if not stopped:
+        return text
+    stops = " and ".join(f"{distance:g} mm short of {stop}" for stop, distance in stopped.items())
+    return f"stopped {text}, {stops}"
 
 
 def _into(side: SideRef, depth: float) -> tuple[int, Range]:
