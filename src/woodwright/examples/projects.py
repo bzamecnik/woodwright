@@ -632,6 +632,130 @@ def _table_frame(
     return legs, aprons
 
 
+def _glued_top(
+    asm: Assembly,
+    apron: Board,
+    name: str,
+    width: float,
+    depth: float,
+    overhang: float,
+    back_overhang: float,
+    boards: int,
+    leg_stock: Stock,
+    setback: float,
+    stock: Stock,
+) -> list[Board]:
+    """A top (or a seat) glued up from `boards` boards edge to edge, from the
+    front to the back, its grain from side to side.
+
+    It lies on the aprons of a frame of outside size `width` x `depth`
+    (`apron` is the front one, its back edge up), overhanging it by
+    `overhang` at the front and the sides and by `back_overhang` at the back.
+    """
+    board_width = (depth + overhang + back_overhang) / boards
+    top = [
+        asm.add(Board(f"{name}_{i + 1}", stock, length=width + 2 * overhang, width=board_width))
+        for i in range(boards)
+    ]
+    for a, b in itertools.pairwise(top):
+        asm.join(Butt(a.back_edge, b.front_edge))
+    asm.join(
+        Butt(
+            apron.back_edge,
+            top[0].bottom_face,
+            position=offset(-(leg_stock.thickness + overhang), ref=apron.left_end),
+            flush=(apron.ref_face, top[0].front_edge),
+            across=offset(-(setback + overhang)),
+        )
+    )
+    return top
+
+
+def _buttons(
+    asm: Assembly, aprons: list[Board], buttons: tuple[int, int], stock: Stock
+) -> list[Board]:
+    """Buttons holding the top down, in short mortises in the inside of the aprons.
+
+    `buttons` along the front and back, and along the sides, spread between
+    the legs. The top moves across its grain: in and out of the mortises at
+    the front and back, along them at the sides, where they are longer.
+    """
+    button_width = 40.0
+    placed = []
+    for i, apron in enumerate(aprons):
+        count, play = (buttons[0], 1.0) if i % 2 == 0 else (buttons[1], 5.0)
+        for j in range(count):
+            name = f"button_{apron.name.removeprefix('apron_')}_{j + 1}"
+            button = asm.add(Board(name, stock, length=30, width=button_width))
+            placed.append(button)
+            # Spread along the apron, between the legs.
+            distance = apron.length * (j + 0.5) / count - button_width / 2
+            asm.join(
+                Button(
+                    mortise=apron.bottom_face,
+                    tongue=button.right_end,
+                    level=apron.back_edge,
+                    position=offset(distance, ref=apron.left_end),
+                    play=play,
+                )
+            )
+    return placed
+
+
+Span = tuple[str, int, float, float]  # name, leg it starts at, level of its top edge, width
+
+
+def _stretchers(heights: tuple[float, float], stretcher_width: float) -> list[Span]:
+    """Stretchers all round, their top edges at `heights` (front and back, sides)."""
+    front_back, sides = heights
+    names = ["front", "right", "back", "left"]
+    levels = [front_back, sides, front_back, sides]
+    return [
+        (f"stretcher_{name}", i, level, stretcher_width)
+        for i, (name, level) in enumerate(zip(names, levels, strict=True))
+    ]
+
+
+def _leg_rails(
+    asm: Assembly,
+    legs: list[Board],
+    width: float,
+    depth: float,
+    spans: list[Span],
+    stock: Stock,
+    **tenon: float,
+) -> dict[str, Board]:
+    """Rails (e.g. stretchers) between adjacent legs of a frame from `_table_frame`.
+
+    Like the aprons, each goes from the back edge of one leg (`legs[i]`) to
+    the top face of the next one, but centered on them, its top edge at its
+    level above the floor; `tenon` are options of its tenons (`MortiseTenon`).
+    """
+    leg_width = legs[0].width
+    rails = {}
+    for name, i, level, rail_width in spans:
+        length = width if i % 2 == 0 else depth
+        rail = rails[name] = asm.add(
+            Board(name, stock, length=length - 2 * leg_width, width=rail_width)
+        )
+        this_leg, next_leg = legs[i], legs[(i + 1) % 4]
+        for end, leg, mortise, outside in [
+            (rail.left_end, this_leg, this_leg.back_edge, this_leg.bottom_face),
+            (rail.right_end, next_leg, next_leg.top_face, next_leg.front_edge),
+        ]:
+            asm.join(
+                MortiseTenon(
+                    tenon=end,
+                    mortise=mortise,
+                    position=offset(leg.length - level, ref=leg.right_end),
+                    flush=(outside, rail.ref_face),
+                    across=CENTERED,
+                    **tenon,
+                )
+            )
+    return rails
+
+
 def table_frame(
     width: float = 800,
     depth: float = 500,
@@ -692,42 +816,20 @@ def table(
         shoulder=(10, 30),
         haunch_length=10,
     )
-    # The top lies on the aprons (their back edges are up), overhanging the legs.
-    top_width = (depth + 2 * overhang) / top_boards
-    boards = [
-        asm.add(Board(f"top_{i + 1}", top_stock, length=width + 2 * overhang, width=top_width))
-        for i in range(top_boards)
-    ]
-    for a, b in itertools.pairwise(boards):
-        asm.join(Butt(a.back_edge, b.front_edge))
-    apron_front, front_board = aprons[0], boards[0]
-    asm.join(
-        Butt(
-            apron_front.back_edge,
-            front_board.bottom_face,
-            position=offset(-(leg_stock.thickness + overhang), ref=apron_front.left_end),
-            flush=(apron_front.ref_face, front_board.front_edge),
-            across=offset(-(setback + overhang)),
-        )
+    _glued_top(
+        asm,
+        aprons[0],
+        "top",
+        width,
+        depth,
+        overhang,
+        overhang,
+        top_boards,
+        leg_stock,
+        setback,
+        top_stock,
     )
-
-    button_width = 40.0
-    for i, apron in enumerate(aprons):
-        count, play = (buttons[0], 1.0) if i % 2 == 0 else (buttons[1], 5.0)
-        for j in range(count):
-            name = f"button_{apron.name.removeprefix('apron_')}_{j + 1}"
-            button = asm.add(Board(name, stock, length=30, width=button_width))
-            # Spread along the apron, between the legs.
-            distance = apron.length * (j + 0.5) / count - button_width / 2
-            asm.join(
-                Button(
-                    mortise=apron.bottom_face,
-                    tongue=button.right_end,
-                    level=apron.back_edge,
-                    position=offset(distance, ref=apron.left_end),
-                    play=play,
-                )
-            )
+    _buttons(asm, aprons, buttons, stock)
     return asm
 
 
@@ -791,46 +893,20 @@ def chair(
         leg_lengths=(seat, seat, height, height),
         apron_name="seat_rail",
     )
-    leg_width = leg_stock.thickness
-    front_back, sides = stretcher_heights
-    spans = [
-        (f"stretcher_{name}", i, length, level, stretcher_width)
-        for i, (name, length, level) in enumerate(
-            [
-                ("front", width, front_back),
-                ("right", depth, sides),
-                ("back", width, front_back),
-                ("left", depth, sides),
-            ]
-        )
-    ]
-    spans += [
-        (f"back_rail_{name}", 2, width, level, back_rail_width)
+    back_rail_spans = [
+        (f"back_rail_{name}", 2, level, back_rail_width)
         for name, level in zip(["lower", "upper"], back_rails, strict=True)
     ]
-    # Like the seat rails, each goes from the back edge of one leg to the top
-    # face of the next one, but centered on them.
-    members = {}
-    for name, i, length, level, member_width in spans:
-        member = members[name] = asm.add(
-            Board(name, stock, length=length - 2 * leg_width, width=member_width)
-        )
-        this_leg, next_leg = legs[i], legs[(i + 1) % 4]
-        for end, leg, mortise, outside in [
-            (member.left_end, this_leg, this_leg.back_edge, this_leg.bottom_face),
-            (member.right_end, next_leg, next_leg.top_face, next_leg.front_edge),
-        ]:
-            asm.join(
-                MortiseTenon(
-                    tenon=end,
-                    mortise=mortise,
-                    position=offset(leg.length - level, ref=leg.right_end),
-                    flush=(outside, member.ref_face),
-                    across=CENTERED,
-                    tenon_length=leg_width + protrusion,
-                    tenon_chamfer=tenon_chamfer,
-                )
-            )
+    members = _leg_rails(
+        asm,
+        legs,
+        width,
+        depth,
+        _stretchers(stretcher_heights, stretcher_width) + back_rail_spans,
+        stock,
+        tenon_length=leg_stock.thickness + protrusion,
+        tenon_chamfer=tenon_chamfer,
+    )
     for leg in legs[2:]:
         for side in (leg.top_face, leg.bottom_face, leg.front_edge, leg.back_edge):
             leg.cut(Chamfer(leg.arris(leg.right_end, side), size=top_chamfer))
@@ -861,25 +937,22 @@ def chair(
                 )
             )
 
-    # The seat boards go from the front to the back, glued edge to edge.
-    board_width = (depth + overhang) / seat_boards
-    boards = [
-        asm.add(Board(f"seat_{i + 1}", seat_stock, length=width + 2 * overhang, width=board_width))
-        for i in range(seat_boards)
-    ]
-    for a, b in itertools.pairwise(boards):
-        asm.join(Butt(a.back_edge, b.front_edge))
-    rail_front, front, back = rails[0], boards[0], boards[-1]
-    asm.join(
-        Butt(
-            rail_front.back_edge,
-            front.bottom_face,
-            position=offset(-(leg_width + overhang), ref=rail_front.left_end),
-            flush=(rail_front.ref_face, front.front_edge),
-            across=offset(-(setback + overhang)),
-        )
+    boards = _glued_top(
+        asm,
+        rails[0],
+        "seat",
+        width,
+        depth,
+        overhang,
+        0,
+        seat_boards,
+        leg_stock,
+        setback,
+        seat_stock,
     )
+    front, back = boards[0], boards[-1]
     # The notches reach from the back edge (y = back.width) and the ends.
+    leg_width = leg_stock.thickness
     notch_x, notch_y = overhang + leg_width, (back.width - leg_width, INF)
     for x in [(-INF, notch_x), (back.length - notch_x, INF)]:
         back.cut(Pocket(back.back_edge, (x, notch_y, (-INF, INF)), kind="notch"))
