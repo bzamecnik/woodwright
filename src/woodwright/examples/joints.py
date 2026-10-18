@@ -21,6 +21,7 @@ from woodwright.joints import (
     LooseTongue,
     MitreCorner,
     MitredCornerDovetail,
+    MitredFaceTenon,
     MitredHalfLap,
     MitredShoulderTenon,
     MitreSplice,
@@ -1067,6 +1068,29 @@ def mitred_half_lap(
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(
         MitredHalfLap(
+            stile.right_end, rail.left_end, stile.back_edge, rail.back_edge, face=stile.bottom_face
+        )
+    )
+    return asm
+
+
+def mitred_face_tenon_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 45, stock: Stock = THICK_OAK
+) -> Assembly:
+    """A frame corner mitred on the face, with a hidden mortise and tenon behind.
+
+    The front third of both parts is mitred, so the face towards the viewer
+    looks like a mitre corner, e.g. on a frame with a chamfered or moulded
+    front. Behind it the stile runs on to the corner and the rail butts
+    against its inside edge, with a 22.5 x 8 mm tenon, 30 mm long, centered
+    in the layer behind the mitre and across the rail's width, in a blind
+    mortise; it shows neither at the end of the stile nor at its outer edge.
+    """
+    asm = Assembly("mitred_face_tenon_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(
+        MitredFaceTenon(
             stile.right_end, rail.left_end, stile.back_edge, rail.back_edge, face=stile.bottom_face
         )
     )

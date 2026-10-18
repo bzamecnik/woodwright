@@ -171,7 +171,9 @@ Done items name their example in `woodwright.examples`
     face layer is kept on the branch `joint/sword-hilt`)
     - [ ] T-joint, pointed on both faces, inner tenon or twin tenon ("nimai-hozo")
     - [ ] pointed on one face only, the inner tenon off-center (the rest in thirds)
-    - [ ] L-joint (mitred face tenon)
+    - [x] L-joint (mitred face tenon) – `MitredFaceTenon`, `joints.mitred_face_tenon_corner`
+      (the front third mitred; behind it the rail butts square against the stile, with a
+      hidden tenon centered in the layer behind the mitre, in a blind mortise)
     - [ ] 3-way joint: two outer tenons, the outer one pointed, the inner one mitred at its edge
       so the two perpendicular rails don't clash
   - round tenon

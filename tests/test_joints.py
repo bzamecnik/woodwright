@@ -320,6 +320,56 @@ def test_mitred_half_lap(face: str) -> None:
     assert model[b].shape.volume == pytest.approx(200 * 40 * 20 - triangle - 40 * 40 * 10)
 
 
+@pytest.mark.parametrize("face", ["top_face", "bottom_face"])
+def test_mitred_face_tenon(face: str) -> None:
+    stock = ww.Stock.board(30, "oak")
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", stock, length=300, width=48))
+    b = asm.add(ww.Board("b", stock, length=200, width=48))
+    joint = ww.MitredFaceTenon(
+        a.right_end, b.left_end, a.back_edge, b.back_edge, face=getattr(a, face), clearance=0
+    )
+    asm.join(joint)
+    model = asm.resolve()
+    back = "bottom_face" if face == "top_face" else "top_face"
+    assert cuts(model, a) == [
+        f"mitre 45 deg on a.right_end, a.back_edge inside, 10 deep from a.{face}",
+        "mortise 24 x 8 mm, 32 deep, in a.back_edge",
+    ]
+    assert cuts(model, b) == [
+        f"mitre 45 deg on b.left_end, b.back_edge inside, 10 deep from b.{face}",
+        f"end rabbet 48 mm, 20 deep, in b.{back} at b.left_end, leaving a tenon 24 x 8 mm, 32 long",
+    ]
+    # The tenon: a quarter of the width in from both edges, centered in the
+    # layer behind the mitre (6 mm cheeks), 32 mm into part a from its inside edge.
+    z = (-24, -16) if face == "top_face" else (-14, -6)
+    behind = bd.Box(48, 48, 20, align=(bd.Align.MIN,) * 3).moved(
+        bd.Location((252, 0, -30 if face == "top_face" else -20))
+    )
+    assert bbox(behind & model[b].placed_shape) == (264, 16, z[0], 288, 48, z[1])
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # Without clearance the parts fill their design boxes, less the corner they share.
+    triangle = 48 * 48 / 2 * 10
+    tenon_volume = 32 * 24 * 8
+    assert model[a].shape.volume == pytest.approx(300 * 48 * 30 - triangle - tenon_volume)
+    rabbet = 48 * 48 * 20
+    assert model[b].shape.volume == pytest.approx(200 * 48 * 30 - triangle - rabbet + tenon_volume)
+    total = model[a].shape.volume + model[b].shape.volume
+    assert total == pytest.approx((300 + 200 - 48) * 48 * 30)
+
+
+def test_mitred_face_tenon_has_shoulders_behind_the_mitre() -> None:
+    _, a, b = stile_and_rail()
+    with pytest.raises(ValueError, match="shoulders at both edges"):
+        ww.MitredFaceTenon(
+            a.right_end, b.left_end, a.back_edge, b.back_edge, shoulder=(0, 10)
+        ).with_defaults()
+    with pytest.raises(ValueError, match="behind the mitre"):
+        ww.MitredFaceTenon(
+            a.right_end, b.left_end, a.back_edge, b.back_edge, tenon_offset=2
+        ).with_defaults()
+
+
 def test_mitre_corner_along_the_edges() -> None:
     asm = ww.Assembly("test")
     a = asm.add(ww.Board("a", OAK, length=300, width=60))

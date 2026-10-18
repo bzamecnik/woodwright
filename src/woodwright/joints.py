@@ -55,6 +55,7 @@ __all__ = [
     "MitreCorner",
     "MitreSplice",
     "MitredCornerDovetail",
+    "MitredFaceTenon",
     "MitredHalfLap",
     "MitredShoulderTenon",
     "MortiseTenon",
@@ -1825,6 +1826,97 @@ class MitredHalfLap(MitreCorner):
         )
         lap = EndRabbet(b_back, at=self.b, width=self.a_inside.depth, depth=b.thickness - depth)
         return [mitre_a, mitre_b, lap]
+
+
+@dataclass
+class MitredFaceTenon(MitredHalfLap):
+    """A frame corner mitred on the show face, with a hidden mortise and tenon
+    behind the mitre (a mitred face tenon, as on a frame with a moulded or
+    chamfered front).
+
+    Placed as `MitreCorner` (ends to the outside of the corner, design
+    lengths to the outside), with edges inside the corner. On `face` of part
+    a (by default its reference face) and the face of part b flush with it,
+    both parts are mitred `depth` deep (by default a third of their
+    thickness), so the face shows a mitre. Behind it, part a (the stile)
+    runs on square to the corner and part b (the rail) butts square against
+    its inside edge, as in a plain mortise and tenon: b is cut back to that
+    shoulder by an end rabbet, but for a tenon, which goes into a mortise in
+    a's inside edge. The tenon lies in the layer behind the mitre, by
+    default centered across it, `tenon_thickness` thick (by default a third
+    or so of the layer) and `tenon_offset` below `face` if given. Across
+    part b's width it keeps a `shoulder` at both edges (or a pair of them,
+    at the front edge and at the back edge), by default a quarter of its
+    width, so the mortise stays closed both towards the end of part a and
+    at its inside edge. It is `tenon_length` long (by default two thirds of
+    part a's width), so it doesn't show at the outer edge, and the mortise
+    `clearance` deeper.
+    """
+
+    tenon_thickness: float | None = None
+    tenon_length: float | None = None
+    tenon_offset: float | None = None
+    shoulder: float | tuple[float, float] | None = None
+    clearance: float = 2.0
+
+    def with_defaults(self) -> Self:
+        a, b = self.parts()
+        depth = self.depth or a.thickness / 3
+        joint = super(MitredFaceTenon, replace(self, depth=depth)).with_defaults()
+        layer = b.thickness - depth
+        thickness = self.tenon_thickness or rules.tenon_thickness(layer)
+        offset = depth + (layer - thickness) / 2 if self.tenon_offset is None else self.tenon_offset
+        if not depth - _EPS <= offset <= b.thickness - thickness + _EPS:
+            raise ValueError("the tenon lies in the layer behind the mitre")
+        shoulder = self.shoulder
+        if shoulder is None:
+            shoulder = b.width / 4
+        shoulders = (shoulder, shoulder) if isinstance(shoulder, int | float) else shoulder
+        if min(shoulders) < _EPS or sum(shoulders) > b.width - _EPS:
+            raise ValueError("a mitred face tenon has shoulders at both edges")
+        length = self.tenon_length or rules.tenon_length(self.a_inside.depth)
+        if not 0 < length <= self.a_inside.depth:
+            raise ValueError(f"the tenon must not be longer than {a.name} is wide")
+        return replace(
+            joint,
+            tenon_thickness=thickness,
+            tenon_length=length,
+            tenon_offset=offset,
+            shoulder=shoulders,
+        )
+
+    def tenon_box(self, placement: bd.Location) -> tuple[Range, Range, Range]:
+        """Ranges of the tenon in the frame of part b."""
+        b = self.b.part
+        shoulder = _require(self.shoulder)
+        front, back = (shoulder, shoulder) if isinstance(shoulder, int | float) else shoulder
+        sign = self.b.side.sign
+        start = self.b.coordinate - sign * self.a_inside.depth  # at the shoulder
+        x0, x1 = sorted((start, start + sign * _require(self.tenon_length)))
+        thickness, offset = _require(self.tenon_thickness), _require(self.tenon_offset)
+        # Below the face of b flush with `face`.
+        normal = _direction(placement.inverse(), _require(self.face).normal)
+        if normal.Z > 0:
+            z = (-offset - thickness, -offset)
+        else:
+            z = (-b.thickness + offset, -b.thickness + offset + thickness)
+        return (x0, x1), (front, b.width - back), z
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        mitre_a, mitre_b, lap = super().cuts(placement)
+        assert isinstance(lap, EndRabbet)
+        box = self.tenon_box(placement)
+        b = self.b.part
+        tenon = bd.Pos(*(r[0] for r in box)) * bd.Box(
+            *(r[1] - r[0] for r in box), align=(bd.Align.MIN,) * 3
+        )
+        (x0, x1), (y0, y1), (z0, z1) = box
+        description = (
+            f"{lap.describe()}, leaving a tenon {y1 - y0:g} x {z1 - z0:g} mm, {x1 - x0:g} long"
+        )
+        rabbet = ShapeCut(b, lap.removal() - tenon, description)
+        mortise = Pocket(self.a_inside, _socket(self.a_inside, placement, box, self.clearance))
+        return [mitre_a, mortise, mitre_b, rabbet]
 
 
 @dataclass
