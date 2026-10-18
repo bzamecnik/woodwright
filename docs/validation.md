@@ -143,10 +143,14 @@ Done items name their example in `woodwright.examples`
       tenon, the wedges as parts, in `joints.wedged_through_tenon` (the drilled hole not yet)
   - drawbore mortise and tenon
     - [ ] mortise and tenon plus each has a drill hole which is slightly offset + dowel
-  - [ ] tusk mortise and tenon
+  - [x] tusk mortise and tenon – `TuskTenon`
     - tenon extends out of the through mortise
     - there's another smaller mortise going through the tenon
     - a wedge goes through the second mortise
+    - [x] the wedge parallel to the stile (upright, through the tenon's width) –
+      `joints.tusk_tenon`
+    - [x] the wedge perpendicular to the stile (level, through the tenon's thickness) –
+      `joints.tusk_tenon_flat`
     - the second mortise can go through the face or through the edge
   - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
     `joints.stub_tenon_corner` (no inner shoulder, a plain outer one, no haunch)

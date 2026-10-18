@@ -69,6 +69,8 @@ ALL: list[Example] = [
     joints.protruding_through_mortise_tenon,
     joints.chamfered_through_mortise_tenon,
     joints.wedged_through_tenon,
+    joints.tusk_tenon,
+    joints.tusk_tenon_flat,
     joints.mortise_tenon_thin_rail,
     joints.mitred_shoulder_tenon,
     joints.mitred_shoulder_corner,

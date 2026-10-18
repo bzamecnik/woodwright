@@ -30,6 +30,7 @@ from woodwright.joints import (
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
+    TuskTenon,
     WedgedMortiseTenon,
 )
 from woodwright.part import Board
@@ -748,6 +749,102 @@ def wedged_through_tenon(
         )
     )
     return asm
+
+
+def _tusk_tenon(
+    name: str,
+    leg_length: float,
+    stretcher_length: float,
+    width: float,
+    protrusion: float,
+    tenon_thickness: float,
+    wedge_head: str,
+    wedge_size: tuple[float, float, float],
+    wedge_slope: float,
+) -> Assembly:
+    """A stretcher through a standing leg, 100 mm below its top, held by a
+    wedge through its tenon; `wedge_size` is its length, width and thickness.
+    The leg stands with its reference face towards the viewer, the tenon
+    sticking out of it to the right."""
+    asm = Assembly(name, root_location=orient(right_end=UP, back_edge=LEFT))
+    leg = asm.add(Board("leg", POST_STOCK, length=leg_length, width=POST_STOCK.thickness))
+    stretcher = asm.add(Board("stretcher", LEG_STOCK, length=stretcher_length, width=width))
+    length, wedge_width, thickness = wedge_size
+    wedge_stock = Stock.board(thickness=thickness, species="oak")
+    wedge = asm.add(Board("wedge", wedge_stock, length=length, width=wedge_width))
+    asm.join(
+        TuskTenon(
+            tenon=stretcher.left_end,
+            mortise=leg.back_edge,
+            position=offset(100, ref=leg.right_end),
+            across=CENTERED,
+            shoulder=15,
+            tenon_thickness=tenon_thickness,
+            tenon_chamfer=2,
+            wedge=wedge,
+            wedge_head=getattr(leg, wedge_head),
+            wedge_slope=wedge_slope,
+            protrusion=protrusion,
+        )
+    )
+    return asm
+
+
+def tusk_tenon(
+    leg_length: float = 500,
+    stretcher_length: float = 400,
+    width: float = 120,
+    protrusion: float = 60,
+) -> Assembly:
+    """A tusk tenon with the wedge parallel to the stile: a knock-down joint
+    of a workbench stretcher through a leg, the wedge upright.
+
+    A 45 x 120 mm stretcher goes through a 70 mm square leg with a 90 x 25
+    mm tenon (15 mm shoulders at the edges, 10 at the faces), its end
+    chamfered, standing 60 mm proud. A 10 mm thick wedge, 150 mm long and
+    25 wide at its head, tapered 1:10 at its back edge, is driven down
+    through a mortise from the top edge of the tenon to its bottom edge,
+    bearing on the outer face of the leg and pulling the shoulders tight;
+    knocked up, it frees the stretcher.
+    """
+    return _tusk_tenon(
+        "tusk_tenon",
+        leg_length,
+        stretcher_length,
+        width,
+        protrusion,
+        tenon_thickness=25,
+        wedge_head="right_end",
+        wedge_size=(150, 25, 10),
+        wedge_slope=10,
+    )
+
+
+def tusk_tenon_flat(
+    leg_length: float = 500,
+    stretcher_length: float = 400,
+    width: float = 120,
+    protrusion: float = 60,
+) -> Assembly:
+    """A tusk tenon with the wedge perpendicular to the stile: the wedge lies
+    level, through the tenon's thickness, its head towards the viewer.
+
+    As `tusk_tenon`, but the tenon is a usual third of the stretcher thick
+    (16 mm), and the wedge, 20 mm thick, 80 long and 25 wide at its head,
+    tapered 1:8, goes through a mortise from one cheek of the tenon to the
+    other, in the middle of its width.
+    """
+    return _tusk_tenon(
+        "tusk_tenon_flat",
+        leg_length,
+        stretcher_length,
+        width,
+        protrusion,
+        tenon_thickness=16,
+        wedge_head="top_face",
+        wedge_size=(80, 25, 20),
+        wedge_slope=8,
+    )
 
 
 def mortise_tenon_thin_rail(

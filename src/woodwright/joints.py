@@ -63,6 +63,7 @@ __all__ = [
     "TeeBridle",
     "ThroughDovetail",
     "TongueAndGroove",
+    "TuskTenon",
     "WedgedMortiseTenon",
 ]
 
@@ -753,6 +754,130 @@ class WedgedMortiseTenon(MortiseTenon):
                 for edge in edges
             ]
         return [*super().cuts(placement), flare, *tapers]
+
+
+@dataclass
+class TuskTenon(MortiseTenon):
+    """A tusk tenon: a long through tenon held by a wedge (a tusk, a key)
+    through a mortise in its end, a knock-down joint, e.g. for the stretchers
+    of a workbench or a trestle table.
+
+    The tenon goes through the mortised part (the leg) and stands
+    `protrusion` proud of its outer side (by default two and a half times
+    the wedge's width). The `wedge` is a separate part, given as made: a
+    straight blank as long, wide (at its head) and thick as the wedge; the
+    joint tapers its back edge by 1:`wedge_slope` towards its right end, the
+    tip. It goes through a mortise in the protruding part of the tenon, its
+    straight front edge bearing on the outer side of the leg, its tapered
+    edge on the outer end of the mortise, which is sloped to match. The
+    mortise starts `draw` inside the outer side of the leg, so the wedge
+    bears on the leg, not on the inner end of the mortise: driven in, it
+    pulls the tenon out of the leg and the shoulders tight against it. The
+    wedge is centered on the tenon both ways, so its head and its tip stick
+    out on either side. The model is of the joint assembled, the wedge
+    driven home.
+
+    `wedge_head` is the side of the mortised part the head of the wedge
+    points to (by default its right end). With an end, the wedge is
+    parallel to the stile (the leg's length): with the usual placement it
+    goes through the tenon's width, from one edge to the other, e.g. upright
+    through the tenon of a horizontal stretcher in a standing leg, and is as
+    thick as a third or so of the tenon. With a face (or an edge), the wedge
+    is perpendicular to the stile: it goes through the tenon's thickness,
+    from one cheek to the other, e.g. lying level through an upright tenon,
+    and may be thicker, its thickness across the tenon's width.
+    """
+
+    wedge: Board | None = None
+    wedge_head: SideRef | None = None
+    wedge_slope: float = 8.0
+    protrusion: float | None = None
+    draw: float = 3.0
+
+    def __post_init__(self) -> None:
+        if self.wedge is None:
+            raise ValueError("a tusk tenon needs a wedge")
+        if self.tenons != 1 or self.thickness_tenons != 1:
+            raise ValueError("a tusk tenon is a single tenon")
+        if self.mitre is not None:
+            raise ValueError("a tusk tenon has a square end")
+        if self.wedge_head is not None and (
+            self.wedge_head.part is not self.mortise.part
+            or self.wedge_head.axis == self.mortise.axis
+        ):
+            raise ValueError(f"the wedge's head points to a side next to {self.mortise}")
+
+    def with_defaults(self) -> Self:
+        if self.tenon_length is not None:
+            raise ValueError("a tusk tenon is as long as given by its protrusion")
+        wedge = self._wedge()
+        protrusion = 2.5 * wedge.width if self.protrusion is None else self.protrusion
+        joint = replace(
+            self,
+            protrusion=protrusion,
+            tenon_length=self.mortise.depth + protrusion,
+            wedge_head=self.wedge_head or self.mortise.part.right_end,
+        )
+        return super(TuskTenon, joint).with_defaults()
+
+    def _wedge(self) -> Board:
+        assert self.wedge is not None
+        return self.wedge
+
+    def taper(self) -> float:
+        """How much narrower the wedge is at its tip than at its head."""
+        return self._wedge().length / self.wedge_slope
+
+    def _wedge_frame(self, placement: bd.Location) -> tuple[bd.Location, int, int]:
+        """The location of the wedge in the frame of the tenoned part, the axis
+        of that frame it runs along and the one its thickness runs along."""
+        wedge, tenon = self._wedge(), self.tenon
+        head = _direction(placement.inverse(), _require(self.wedge_head).normal)
+        along = _axis(head)
+        across = 3 - tenon.axis - along
+        box = self.tenon_cut().tenon_box()
+        # At the outer side of the mortised part, in the middle of the tenon.
+        center = [0.0, 0.0, 0.0]
+        center[tenon.axis] = tenon.coordinate + tenon.side.sign * self.mortise.depth
+        for axis in (along, across):
+            center[axis] = sum(box[axis]) / 2
+        x_dir = -head  # from the head to the tip
+        z_dir = x_dir.cross(tenon.normal)  # the wedge's back edge faces outwards
+        origin = bd.Vector(*center) + head * (wedge.length / 2) + z_dir * (wedge.thickness / 2)
+        return bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=z_dir)), along, across
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+        return [(self._wedge(), placement * self._wedge_frame(placement)[0])]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        wedge, tenon = self._wedge(), self.tenon
+        location, along, across = self._wedge_frame(placement)
+        box = self.tenon_cut().tenon_box()
+        lo, hi = box[along]
+        if wedge.length < hi - lo + _EPS:
+            raise ValueError("the wedge must be longer than the tenon it goes through")
+        if wedge.thickness > box[across][1] - box[across][0] - _EPS:
+            raise ValueError("the wedge must be thinner than the tenon it goes through")
+        # The mortise in the wedge's frame: from `draw` inside its front edge
+        # to its tapered back edge, as thick as the wedge.
+        k, w, length = self.taper() / wedge.length, wedge.width, wedge.length
+        points = [(0, -self.draw), (length, -self.draw), (length, w - length * k), (0, w)]
+        mortise = location * (
+            bd.Pos(0, 0, -wedge.thickness) * bd.extrude(bd.Polygon(*points), amount=wedge.thickness)
+        )
+        # Where the mortise meets the edges of the tenon, from the head.
+        widths = [w - k * (length - (hi - lo)) / 2, w - k * (length + (hi - lo)) / 2]
+        if widths[0] > _require(self.protrusion) - _EPS:
+            raise ValueError("the wedge's mortise runs out of the end of the tenon")
+        opposite = next(s for s in Side if s.axis == self.mortise.axis and s != self.mortise.side)
+        outer = SideRef(self.mortise.part, opposite)
+        sizes = " to ".join(f"{round(self.draw + width, 1):g}" for width in widths)
+        description = (
+            f"wedge mortise {wedge.thickness:g} x {sizes} mm through the tenon on {tenon}, "
+            f"its outer end sloped 1:{self.wedge_slope:g}, from {self.draw:g} inside {outer}"
+        )
+        taper = Taper(wedge.back_edge, end=wedge.right_end, amount=self.taper())
+        return [*super().cuts(placement), ShapeCut(tenon.part, mortise, description), taper]
 
 
 @dataclass

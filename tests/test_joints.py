@@ -1208,6 +1208,73 @@ def test_twin_wedged_tenons_proud_with_a_wedge_each() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+def _tusk_tenon(wedge_size: tuple[float, float, float], wedge_head: str = "right_end") -> tuple:
+    stock = ww.Stock.board(40, "oak")
+    asm = ww.Assembly("test")
+    stile = asm.add(ww.Board("stile", stock, length=300, width=60))
+    rail = asm.add(ww.Board("rail", stock, length=200, width=60))
+    length, width, thickness = wedge_size
+    wedge_stock = ww.Stock.board(thickness, "oak")
+    wedge = asm.add(ww.Board("wedge", wedge_stock, length=length, width=width))
+    joint = ww.TuskTenon(
+        tenon=rail.left_end,
+        mortise=stile.back_edge,
+        shoulder=10,
+        tenon_thickness=20,
+        wedge=wedge,
+        protrusion=40,
+        wedge_head=getattr(stile, wedge_head),
+    )
+    asm.join(joint)
+    return asm, stile, rail, wedge
+
+
+def test_tusk_tenon_with_the_wedge_parallel_to_the_stile() -> None:
+    asm, stile, rail, wedge = _tusk_tenon((80, 20, 8))
+    model = asm.resolve()
+    assert model.joints[0].tenon_length == 100  # through and 40 proud
+    assert cuts(model, stile) == ["through mortise 40 x 20 mm in stile.back_edge"]
+    assert cuts(model, rail) == [
+        "tenon 40 x 20 mm, 100 long, on rail.left_end",
+        "wedge mortise 8 x 20.5 to 15.5 mm through the tenon on rail.left_end, "
+        "its outer end sloped 1:8, from 3 inside stile.front_edge",
+    ]
+    assert cuts(model, wedge) == ["taper 10 mm on wedge.back_edge towards wedge.right_end"]
+    # Upright along the stile, centered on the tenon, against the stile's front edge.
+    assert bbox(model[wedge].placed_shape) == (110, -20, -24, 190, 0, -16)
+    assert model[wedge].shape.volume == pytest.approx((20 + 10) / 2 * 80 * 8)
+    assert model[stile].shape.volume == pytest.approx(300 * 60 * 40 - 40 * 20 * 60)
+    # The mortise reaches 3 mm into the stile and out to the wedge's back edge.
+    mortise = 8 * 40 * (20.5 + 15.5) / 2
+    assert model[rail].shape.volume == pytest.approx(200 * 60 * 40 + 40 * 20 * 100 - mortise)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_tusk_tenon_with_the_wedge_perpendicular_to_the_stile() -> None:
+    asm, _, rail, wedge = _tusk_tenon((50, 20, 16), wedge_head="top_face")
+    model = asm.resolve()
+    assert cuts(model, rail)[1] == (
+        "wedge mortise 16 x 21.1 to 18.6 mm through the tenon on rail.left_end, "
+        "its outer end sloped 1:8, from 3 inside stile.front_edge"
+    )
+    # Through the tenon's thickness, its head up out of the stile's top face.
+    assert bbox(model[wedge].placed_shape) == (142, -20, -45, 158, 0, 5)
+    mortise = 16 * 20 * (21.125 + 18.625) / 2
+    assert model[rail].shape.volume == pytest.approx(200 * 60 * 40 + 40 * 20 * 100 - mortise)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_tusk_tenon_wedge_must_fit() -> None:
+    with pytest.raises(ValueError, match="longer than the tenon"):
+        _tusk_tenon((30, 20, 8))[0].resolve()
+    with pytest.raises(ValueError, match="thinner than the tenon"):
+        _tusk_tenon((80, 20, 20))[0].resolve()
+    with pytest.raises(ValueError, match="runs out of the end"):
+        _tusk_tenon((80, 45, 8))[0].resolve()
+    with pytest.raises(ValueError, match="next to"):
+        _tusk_tenon((80, 20, 8), wedge_head="front_edge")
+
+
 def test_wedges_must_fit_the_tenon() -> None:
     asm, stile, rail = stile_and_rail(rail_width=60)
     wedge = asm.add(ww.Board("wedge", ww.Stock.board(6, "oak"), length=40, width=5))

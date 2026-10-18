@@ -453,3 +453,20 @@ def test_loose_tongue_panel_tongues_fill_the_grooves() -> None:
     tongues = 2 * 460 * 20 * 6
     total = sum(part.shape.volume for part in model.parts)
     assert total == pytest.approx(3 * 500 * 150 * 20 - grooves + tongues)
+
+
+@pytest.mark.parametrize("flat", [False, True])
+def test_tusk_tenon_wedge_bears_on_the_leg(flat: bool) -> None:
+    from woodwright.examples import joints
+
+    model = (joints.tusk_tenon_flat if flat else joints.tusk_tenon)().resolve()
+    parts = {part.part.name: part.placed_shape.bounding_box() for part in model.parts}
+    leg, stretcher, wedge = parts["leg"], parts["stretcher"], parts["wedge"]
+    # The tenon stands 60 mm proud of the leg, the wedge against its outer face.
+    assert pytest.approx(leg.max.X + 60) == stretcher.max.X
+    assert pytest.approx(leg.max.X) == wedge.min.X
+    assert pytest.approx(25) == wedge.size.X  # its head
+    if flat:  # level, through the tenon's thickness, its head towards the viewer
+        assert pytest.approx((-5, 75, 20)) == (wedge.min.Y, wedge.max.Y, wedge.size.Z)
+    else:  # upright, through the tenon's width
+        assert pytest.approx((265, 415, 10)) == (wedge.min.Z, wedge.max.Z, wedge.size.Y)

@@ -49,6 +49,7 @@ from woodwright.joints import (
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
+    TuskTenon,
     WedgedMortiseTenon,
 )
 from woodwright.part import ArrisRef, Board, Side, SideRef
@@ -138,6 +139,7 @@ __all__ = [
     "ThroughDovetail",
     "Tongue",
     "TongueAndGroove",
+    "TuskTenon",
     "WedgedMortiseTenon",
     "WedgedTenon",
     "centered",
