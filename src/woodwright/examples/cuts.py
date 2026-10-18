@@ -125,6 +125,25 @@ def rabbeted_panel(
     return asm
 
 
+def tapered_panel(
+    length: float = 400,
+    width: float = 300,
+    taper_width: float = 30,
+    edge_thickness: float = 6,
+) -> Assembly:
+    """A drawer bottom with three edges tapered on the underside to fit grooves.
+
+    The underside is planed at a slope `taper_width` wide, leaving the edge
+    as thick as the groove is wide. The back edge stays square: it goes
+    under the back of the drawer.
+    """
+    asm, board = _board("tapered_panel", THIN_OAK, length=length, width=width)
+    amount = board.thickness - edge_thickness
+    for at in (board.front_edge, board.left_end, board.right_end):
+        board.cut(Chamfer(board.arris(board.bottom_face, at), size=taper_width, size_b=amount))
+    return asm
+
+
 def wedge(
     length: float = 100, width: float = 20, tip: float = 2, stock: Stock = THIN_OAK
 ) -> Assembly:

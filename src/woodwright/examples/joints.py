@@ -20,6 +20,7 @@ from woodwright.joints import (
     MortiseTenon,
     RabbetJoint,
     SlidingDovetail,
+    TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
 )
@@ -228,6 +229,24 @@ def bridle_corner(
     return asm
 
 
+def bridle_t(
+    stile_length: float = 400,
+    rail_length: float = 300,
+    width: float = 50,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A T-shaped bridle: a slot in the end of the rail straddles the stile,
+    which is cut down to a tongue by a dado across each face.
+
+    The rail's length is overall, to the far edge of the stile.
+    """
+    asm = Assembly("bridle_t", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(TeeBridle(slot=rail.left_end, edge=stile.back_edge))
+    return asm
+
+
 def mortise_tenon(
     stile_length: float = 600,
     rail_length: float = 300,
@@ -239,6 +258,35 @@ def mortise_tenon(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge))
+    return asm
+
+
+def stub_tenon_corner(
+    stile_length: float = 300,
+    rail_length: float = 200,
+    width: float = 60,
+    tenon_length: float | None = None,
+    outer_shoulder: float = 15,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A frame corner with a stub tenon and three shoulders.
+
+    The tenon has shoulders on both faces and on the outer edge, so the
+    mortise is set back from the end of the stile; on the inner edge it is
+    flush with the rail. It is blind, by default two thirds of the stile wide.
+    """
+    asm = Assembly("stub_tenon_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(
+        MortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=flush_with(stile.right_end),
+            tenon_length=tenon_length,
+            shoulder=(outer_shoulder, 0),  # the front edge is outer, at the end of the stile
+        )
+    )
     return asm
 
 
@@ -339,15 +387,36 @@ def through_mortise_tenon(
     return asm
 
 
+def protruding_through_mortise_tenon(
+    stile_length: float = 600,
+    rail_length: float = 300,
+    width: float = 60,
+    protrusion: float = 10,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A through tenon standing `protrusion` proud of the stile, its end square."""
+    asm = Assembly("protruding_through_mortise_tenon", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(
+        MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge, tenon_length=width + protrusion)
+    )
+    return asm
+
+
 def chamfered_through_mortise_tenon(
     stile_length: float = 600,
     rail_length: float = 300,
     width: float = 60,
-    protrusion: float = 2,
     chamfer: float = 2,
     stock: Stock = OAK,
 ) -> Assembly:
-    """A through tenon standing `protrusion` proud of the stile, its end chamfered."""
+    """A through tenon whose chamfered end alone stands proud of the stile,
+    like a low pyramid on the stile's edge.
+
+    The tenon is longer than the stile is wide by the chamfer, so the
+    chamfers start where it leaves the stile.
+    """
     asm = Assembly("chamfered_through_mortise_tenon", root_location=STANDING)
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
@@ -355,7 +424,7 @@ def chamfered_through_mortise_tenon(
         MortiseTenon(
             tenon=rail.left_end,
             mortise=stile.back_edge,
-            tenon_length=width + protrusion,
+            tenon_length=width + chamfer,
             tenon_chamfer=chamfer,
         )
     )

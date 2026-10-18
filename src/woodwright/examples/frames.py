@@ -1,13 +1,16 @@
-"""Frames of two stiles and two rails, and a frame with a panel."""
+"""Frames of two stiles and two rails, a frame with a panel, a shoji lattice."""
 
 from collections.abc import Callable
 
 from woodwright.assembly import Assembly
 from woodwright.examples._common import OAK, STANDING, THIN_OAK
-from woodwright.joints import Bridle, GrooveJoint, HalfLap, Joint, MortiseTenon
+from woodwright.joints import Bridle, CrossLap, GrooveJoint, HalfLap, Joint, MortiseTenon
 from woodwright.part import Board, SideRef
-from woodwright.placement import Position, flush_with
+from woodwright.placement import Position, flush_with, offset
 from woodwright.stock import Stock
+
+# Kumiko: thin bars, much deeper (across the lattice) than wide.
+KUMIKO = Stock.board(thickness=20, species="oak")
 
 # Makes the joint of a rail end with a stile edge, at a position along the
 # stile; the last side is the rail's outer edge.
@@ -130,4 +133,42 @@ def frame_and_panel(
         (rail_bottom.front_edge, panel.left_end),
     ]:
         asm.join(GrooveJoint(groove=groove, edge=edge))
+    return asm
+
+
+def shoji_frame(
+    width: float = 200,
+    height: float = 300,
+    bar_width: float = 5,
+    overhang: float = 20,
+    stock: Stock = KUMIKO,
+) -> Assembly:
+    """A small shoji lattice of three vertical and three horizontal bars,
+    crossing in nine cross laps; outside sizes.
+
+    The bars reach `overhang` beyond the outer ones. They are `bar_width`
+    wide in the lattice and the stock thick across it; each lap takes half
+    of that. Where they cross, the vertical bars keep their front halves and
+    the horizontal ones their back halves (the reference faces are at the back).
+    """
+    asm = Assembly("shoji_frame", root_location=STANDING)
+    verticals = [asm.add(Board(f"vertical_{i + 1}", stock, height, bar_width)) for i in range(3)]
+    horizontals = [asm.add(Board(f"horizontal_{i + 1}", stock, width, bar_width)) for i in range(3)]
+
+    def starts(length: float) -> list[float]:
+        """Where the three bars crossing a bar of this length start along it."""
+        return [overhang, (length - bar_width) / 2, length - overhang - bar_width]
+
+    # The horizontal bars run to the right, so their left ends cross each
+    # vertical bar from its back edge.
+    for vertical, x in zip(verticals, starts(width), strict=True):
+        for horizontal, y in zip(horizontals, starts(height), strict=True):
+            asm.join(
+                CrossLap(
+                    vertical.back_edge,
+                    horizontal.left_end,
+                    position=offset(y, vertical.left_end),
+                    overhang=x,
+                )
+            )
     return asm

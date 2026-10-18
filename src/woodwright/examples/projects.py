@@ -19,7 +19,7 @@ from woodwright.joints import (
     TongueAndGroove,
 )
 from woodwright.part import Board, SideRef
-from woodwright.placement import CENTERED, Position, flush_with, offset
+from woodwright.placement import BACK, CENTERED, UP, Position, flush_with, offset, orient
 from woodwright.stock import Stock
 
 SQUARE_STOCK = Stock.board(thickness=24, species="oak")
@@ -28,6 +28,7 @@ ASH = Stock.board(thickness=24, species="ash")
 THICK_OAK = Stock.board(thickness=30, species="oak")
 
 LEG_STOCK = Stock.board(thickness=45, species="oak")
+BOW_SAW_STOCK = Stock.board(thickness=22, species="oak")
 TABLE_LEG_STOCK = Stock.board(thickness=60, species="oak")
 
 
@@ -108,6 +109,39 @@ def shooting_board(
     return asm
 
 
+def bench_hook(
+    length: float = 250,
+    width: float = 180,
+    fence_length: float = 150,
+    fence_width: float = 40,
+    stock: Stock = OAK,
+    fence_stock: Stock = THICK_OAK,
+) -> Assembly:
+    """A bench hook: a base with a fence on top at the back and a hook below
+    at the front, glued face to face across the grain.
+
+    The base's grain runs away from the woodworker. The fence stops short of
+    the right side, so the saw cuts into the base, not the fence; the hook
+    spans the whole width.
+    """
+    # The base lies flat, its length away from the viewer: its back edge is
+    # to the left.
+    asm = Assembly("bench_hook", root_location=orient(right_end=BACK, ref_face=UP))
+    base = asm.add(Board("base", stock, length=length, width=width))
+    fence = asm.add(Board("fence", fence_stock, length=fence_length, width=fence_width))
+    hook = asm.add(Board("hook", fence_stock, length=width, width=fence_width))
+    asm.join(
+        Butt(
+            base.top_face,
+            fence.bottom_face,
+            flush=(base.right_end, fence.back_edge),
+            position=flush_with(base.back_edge),
+        )
+    )
+    asm.join(Butt(base.bottom_face, hook.top_face, flush=(base.left_end, hook.front_edge)))
+    return asm
+
+
 def butt_box(
     length: float = 300,
     depth: float = 200,
@@ -177,6 +211,145 @@ def bookshelf(
                 dado=side.bottom_face, end=shelf_end, position=offset(height / 2, side.right_end)
             )
         )
+    return asm
+
+
+def butt_shelf(
+    height: float = 600,
+    width: float = 500,
+    depth: float = 200,
+    stock: Stock = OAK,
+) -> Assembly:
+    """Two sides with a top, a bottom and a middle shelf butted between them,
+    e.g. to be screwed through the sides (the screws aren't modelled).
+
+    Outside sizes; the shelves' design length is between the sides.
+    """
+    t = stock.thickness
+    asm = Assembly("butt_shelf", root_location=CASE_SIDE)
+    left = asm.add(Board("left", stock, length=height, width=depth))
+    right = asm.add(Board("right", stock, length=height, width=depth, mirror=True))
+    top = asm.add(Board("top", stock, length=width - 2 * t, width=depth))
+    bottom = asm.add(Board("bottom", stock, length=width - 2 * t, width=depth))
+    shelf = asm.add(Board("shelf", stock, length=width - 2 * t, width=depth))
+    for side, top_end, bottom_end, shelf_end in [
+        (left, top.left_end, bottom.left_end, shelf.left_end),
+        (right, top.right_end, bottom.right_end, shelf.right_end),
+    ]:
+        asm.join(Butt(side.bottom_face, top_end, position=flush_with(side.right_end)))
+        asm.join(Butt(side.bottom_face, bottom_end, position=flush_with(side.left_end)))
+        asm.join(Butt(side.bottom_face, shelf_end, position=offset(height / 2, side.right_end)))
+    return asm
+
+
+def dovetail_shelf(
+    height: float = 500,
+    width: float = 400,
+    depth: float = 200,
+    tail_count: int = 3,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A shelf of two stories: a case through-dovetailed at its four corners
+    and a middle shelf in dados; outside sizes.
+
+    The sides have pins at both ends, the top and the bottom tails, so the
+    tails show on the sides. The sides' and the top's design lengths are
+    shorter by the boards they reach through.
+    """
+    t = stock.thickness
+    asm = Assembly("dovetail_shelf", root_location=CASE_SIDE)
+    left = asm.add(Board("left", stock, length=height - 2 * t, width=depth))
+    right = asm.add(Board("right", stock, length=height - 2 * t, width=depth, mirror=True))
+    top = asm.add(Board("top", stock, length=width - 2 * t, width=depth))
+    bottom = asm.add(Board("bottom", stock, length=width - 2 * t, width=depth, mirror=True))
+    shelf = asm.add(Board("shelf", stock, length=width - 2 * t, width=depth))
+    for side, top_end, bottom_end, shelf_end in [
+        (left, top.left_end, bottom.left_end, shelf.left_end),
+        (right, top.right_end, bottom.right_end, shelf.right_end),
+    ]:
+        asm.join(ThroughDovetail(tails=top_end, pins=side.right_end, tail_count=tail_count))
+        asm.join(ThroughDovetail(tails=bottom_end, pins=side.left_end, tail_count=tail_count))
+        asm.join(
+            DadoJoint(
+                dado=side.bottom_face,
+                end=shelf_end,
+                position=offset((height - 2 * t) / 2, side.right_end),
+            )
+        )
+    return asm
+
+
+def rabbeted_box(
+    length: float = 300,
+    depth: float = 200,
+    height: float = 100,
+    stock: Stock = SIDE_OAK,
+    bottom_stock: Stock = THIN_OAK,
+) -> Assembly:
+    """An open box: the sides' ends in rabbets at the ends of the front and
+    the back, the bottom in rabbets along the inside of the walls' bottom
+    edges, flush with them; outside sizes.
+
+    The sides and the bottom are as long (and wide) as the inside of the
+    box; the rabbets add to them. The back and the right side are mirror
+    images of the front and the left side, all with their reference faces
+    outside.
+    """
+    t = stock.thickness
+    asm = Assembly("rabbeted_box", root_location=BOX_FRONT)
+    front = asm.add(Board("front", stock, length=length, width=height))
+    back = asm.add(Board("back", stock, length=length, width=height, mirror=True))
+    left = asm.add(Board("left", stock, length=depth - 2 * t, width=height))
+    right = asm.add(Board("right", stock, length=depth - 2 * t, width=height, mirror=True))
+    # The bottom lies with its reference face down; mirrored, so that its
+    # left end is still at the left.
+    bottom = asm.add(
+        Board("bottom", bottom_stock, length=length - 2 * t, width=depth - 2 * t, mirror=True)
+    )
+    # The sides' right ends are at the front, so that their front edges are
+    # at the bottom, as the other walls' are.
+    for side, front_end, back_end in [
+        (left, front.left_end, back.left_end),
+        (right, front.right_end, back.right_end),
+    ]:
+        asm.join(RabbetJoint(rabbet=front.bottom_face, end=side.right_end, at=front_end))
+        asm.join(RabbetJoint(rabbet=back.bottom_face, end=side.left_end, at=back_end))
+    for wall, edge in [
+        (front, bottom.front_edge),
+        (back, bottom.back_edge),
+        (left, bottom.left_end),
+        (right, bottom.right_end),
+    ]:
+        # Along the front and the back, the rabbet runs into those at the corners.
+        through = wall in (front, back)
+        asm.join(
+            RabbetJoint(rabbet=wall.bottom_face, end=edge, at=wall.front_edge, through=through)
+        )
+    return asm
+
+
+def bow_saw_frame(
+    arm_length: float = 350,
+    arm_width: float = 40,
+    stretcher_length: float = 500,
+    stretcher_width: float = 30,
+    stock: Stock = BOW_SAW_STOCK,
+) -> Assembly:
+    """The frame of a bow saw: two arms and a stretcher between their middles,
+    tenoned into their inner edges.
+
+    The blade (at the bottom) and the string (at the top) aren't modelled.
+    """
+    asm = Assembly("bow_saw_frame", root_location=STANDING)
+    left = asm.add(Board("left_arm", stock, length=arm_length, width=arm_width))
+    right = asm.add(Board("right_arm", stock, length=arm_length, width=arm_width))
+    stretcher = asm.add(Board("stretcher", stock, length=stretcher_length, width=stretcher_width))
+    # The arms face each other with their back and front edges.
+    for tenon, mortise in [
+        (stretcher.left_end, left.back_edge),
+        (stretcher.right_end, right.front_edge),
+    ]:
+        asm.join(MortiseTenon(tenon=tenon, mortise=mortise, tenon_length=25))
     return asm
 
 
