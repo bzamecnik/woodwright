@@ -1437,6 +1437,10 @@ class MitreCorner(Joint):
     the edge). Design lengths are outside lengths, to the long points. The
     mitres meet on the diagonal of the corner: at 45 degrees for parts of
     equal width (or thickness, for a carcase).
+
+    Two edges can meet the same way, mitred along the grain, the faces
+    inside the corner: e.g. the boards of a hollow leg, a long L-shaped
+    corner. Design widths are then outside widths; the left ends are flush.
     """
 
     a: SideRef
@@ -1450,9 +1454,17 @@ class MitreCorner(Joint):
 
     def placement(self) -> bd.Location:
         a, b = self.parts()
-        flush = self.flush or (
-            (a.ref_face, b.ref_face) if self.a_inside.axis == 1 else (a.ref_edge, b.ref_edge)
-        )
+        if self.a.axis == 2 or self.a.axis != self.b.axis:
+            raise ValueError(
+                f"a mitre corner joins two ends or two edges, not {self.a} and {self.b}"
+            )
+        if self.a.axis == 1:
+            default = (a.left_end, b.left_end)
+        elif self.a_inside.axis == 1:
+            default = (a.ref_face, b.ref_face)
+        else:
+            default = (a.ref_edge, b.ref_edge)
+        flush = self.flush or default
         # The end of b lies against the inside of a, moved out to a's outside.
         loc = mate(
             self.a_inside,

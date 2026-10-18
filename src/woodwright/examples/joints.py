@@ -32,12 +32,13 @@ from woodwright.joints import (
     WedgedMortiseTenon,
 )
 from woodwright.part import Board
-from woodwright.placement import CENTERED, LEFT, UP, flush_with, offset, orient
+from woodwright.placement import CENTERED, FRONT, LEFT, UP, flush_with, offset, orient
 from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) frame stock
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 POST_STOCK = Stock.board(thickness=70, species="oak")
+HOLLOW_LEG_OAK = Stock.board(thickness=15, species="oak")
 
 
 # --- Butt joints ------------------------------------------------------------
@@ -933,6 +934,25 @@ def edge_mitre_corner(
     side = asm.add(Board("side", stock, length=side_height, width=depth))
     top = asm.add(Board("top", stock, length=top_length, width=depth))
     asm.join(MitreCorner(side.right_end, top.left_end, side.bottom_face, top.bottom_face))
+    return asm
+
+
+def hollow_leg(length: float = 700, width: float = 60, stock: Stock = HOLLOW_LEG_OAK) -> Assembly:
+    """A square hollow leg: four boards glued along their edges, each edge
+    mitred at 45 degrees along the grain, so they meet on the diagonals of
+    the corners and no edge grain shows; outside sizes.
+
+    Lighter than a solid leg and showing face grain on all four sides, with
+    a square hole through its length (here 30 mm for 15 mm boards). The
+    reference faces are outside; the boards stand with their left ends at
+    the bottom.
+    """
+    asm = Assembly("hollow_leg", root_location=orient(right_end=UP, ref_face=FRONT))
+    names = ("front", "left", "back", "right")
+    boards = [asm.add(Board(name, stock, length=length, width=width)) for name in names]
+    # Going round, each board's back edge meets the next one's front edge.
+    for a, b in zip(boards, boards[1:] + boards[:1], strict=True):
+        asm.join(MitreCorner(a.back_edge, b.front_edge, a.bottom_face, b.bottom_face))
     return asm
 
 

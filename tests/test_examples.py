@@ -316,3 +316,25 @@ def test_mitred_frame_and_panel_fills_the_grooves() -> None:
     panel = sum(_volume(ring & parts[f"panel_{i}"]) for i in (1, 2, 3))
     assert panel == pytest.approx(6 * (500 * 350 - 480 * 330))
     assert ring.volume - panel == pytest.approx(6 * (504 * 354 - 500 * 350))
+
+
+def test_hollow_leg() -> None:
+    import build123d as bd
+
+    from woodwright.examples import joints
+
+    model = joints.hollow_leg().resolve()
+    assert {part.size for part in model.parts} == {(700, 60, 15)}
+    leg = model.compound()
+    box = leg.bounding_box()
+    assert pytest.approx((60, 60, 700)) == (box.size.X, box.size.Y, box.size.Z)
+    # Each board is a trapezoid, 60 mm outside and 30 inside; together they
+    # make a 60 mm square tube with a 30 mm square hole.
+    for part in model.parts:
+        assert part.shape.volume == pytest.approx((60 + 30) / 2 * 15 * 700)
+    union = bd.Part(model.parts[0].placed_shape)
+    for part in model.parts[1:]:
+        union = union + part.placed_shape
+    assert union.volume == pytest.approx((60 * 60 - 30 * 30) * 700)
+    hole = bd.Pos(15, 15, 0) * bd.Box(30, 30, 700, align=(bd.Align.MIN,) * 3)
+    assert _volume(leg.intersect(hole)) == pytest.approx(0, abs=1e-6)

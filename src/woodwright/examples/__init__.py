@@ -78,6 +78,7 @@ ALL: list[Example] = [
     joints.mitre_corner,
     joints.mitred_half_lap,
     joints.edge_mitre_corner,
+    joints.hollow_leg,
     joints.mitre_splice,
     joints.cross_lap,
     frames.mortise_tenon_frame,

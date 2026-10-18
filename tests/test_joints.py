@@ -243,6 +243,23 @@ def test_mitred_half_lap(face: str) -> None:
     assert model[b].shape.volume == pytest.approx(200 * 40 * 20 - triangle - 40 * 40 * 10)
 
 
+def test_mitre_corner_along_the_edges() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=60))
+    b = asm.add(ww.Board("b", OAK, length=300, width=40))
+    asm.join(ww.MitreCorner(a.back_edge, b.front_edge, a.bottom_face, b.bottom_face))
+    model = asm.resolve()
+    assert cuts(model, a) == ["mitre 45 deg on a.back_edge, a.bottom_face inside"]
+    assert cuts(model, b) == ["mitre 45 deg on b.front_edge, b.bottom_face inside"]
+    # A long L: outside widths, the left ends flush, b below a's back edge.
+    assert bbox(model[b].placed_shape) == (0, 40, -40, 300, 60, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    volume = 300 * (60 * 20 + 40 * 20 - 20 * 20)  # the corner block is shared
+    assert model[a].shape.volume + model[b].shape.volume == pytest.approx(volume)
+    with pytest.raises(ValueError, match="two ends or two edges"):
+        ww.MitreCorner(a.right_end, b.front_edge, a.bottom_face, b.bottom_face).placement()
+
+
 def test_mitre_corner_needs_the_inside_sides() -> None:
     asm = ww.Assembly("test")
     a = asm.add(ww.Board("a", OAK, length=300, width=40))

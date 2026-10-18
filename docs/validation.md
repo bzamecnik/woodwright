@@ -110,7 +110,8 @@ Done items name their example in `woodwright.examples`
   - chamfer joint
     - full 45˚ chamfer
       - [x] two pieces - long L-shaped piece – `joints.edge_mitre_corner`
-      - [ ] four pieces - hollow leg
+      - [x] four pieces - hollow leg – `joints.hollow_leg` (edges mitred along the grain,
+        `MitreCorner` of two edges)
   - dowel joint
     - [ ] two boards with blind drill holes + dowel
     - [ ] one board with a blind hole, one with open hole + dowel

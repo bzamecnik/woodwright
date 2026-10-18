@@ -206,6 +206,22 @@ def test_mitre_across_the_edge() -> None:
         ww.Mitre(b.left_end, inside=b.bottom_face, angle=90)
 
 
+def test_mitre_along_an_edge() -> None:
+    b = board(width=60)
+    mitre = ww.Mitre(b.back_edge, inside=b.bottom_face)
+    assert mitre.shortening == pytest.approx(40)
+    shape = cut_part(b, mitre)
+    assert shape.volume == pytest.approx(600 * 60 * 40 - 40 * 40 / 2 * 600)
+    # The top face keeps the full width, the bottom face is narrower.
+    bottom = shape.faces().sort_by(bd.Axis.Z)[0]
+    assert pytest.approx(20) == bottom.bounding_box().max.Y
+    assert mitre.describe() == "mitre 45 deg on b.back_edge, b.bottom_face inside"
+    with pytest.raises(ValueError, match=r"towards a face, not towards b\.left_end"):
+        ww.Mitre(b.back_edge, inside=b.left_end)
+    with pytest.raises(ValueError, match="on an end or an edge"):
+        ww.Mitre(b.top_face, inside=b.back_edge)
+
+
 def test_taper_over_the_whole_length() -> None:
     b = board(length=100, width=20)
     taper = ww.Taper(b.back_edge, end=b.right_end, amount=8)

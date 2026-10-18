@@ -952,6 +952,10 @@ class Mitre(Cut):
     `inside` an edge the mitre is across the face (picture frame), with
     `inside` a face it is across the edge (carcase corner).
 
+    An edge can be mitred too, along the grain, narrowing the `inside` face:
+    the opposite face keeps the full design width, e.g. for the boards of a
+    hollow leg meeting at its corners.
+
     With `face` and `depth`, a mitre across the face is cut only `depth`
     deep below that face, e.g. the front half of a mitred half-lap.
     """
@@ -963,9 +967,11 @@ class Mitre(Cut):
     depth: float | None = None
 
     def __post_init__(self) -> None:
-        if self.side.axis != 0:
-            raise ValueError(f"a mitre is cut on an end, not on {self.side}")
+        if self.side.axis == 2:
+            raise ValueError(f"a mitre is cut on an end or an edge, not on {self.side}")
         _check_adjacent(self.side, self.inside)
+        if self.side.axis == 1 and self.inside.axis != 2:
+            raise ValueError(f"an edge is mitred towards a face, not towards {self.inside}")
         if not 0 < self.angle < 90:
             raise ValueError(f"mitre angle must be between 0 and 90 degrees, got {self.angle}")
         if (self.face is None) != (self.depth is None):
@@ -978,7 +984,7 @@ class Mitre(Cut):
 
     @property
     def shortening(self) -> float:
-        """How much shorter the inside side is than the design length."""
+        """How much shorter (or narrower) the inside side is than the design size."""
         return self.inside.depth * math.tan(math.radians(self.angle))
 
     def removal(self) -> bd.Part:
