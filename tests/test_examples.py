@@ -229,6 +229,54 @@ def test_ledged_and_braced_door() -> None:
     assert parts["brace"].shape.volume == pytest.approx(100 * (length - 100 / math.tan(slope)) * 20)
 
 
+def test_frame_and_panel_door_fills_the_grooves() -> None:
+    import build123d as bd
+
+    from woodwright.examples import projects
+
+    model = projects.frame_and_panel_door().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((500, 22, 800))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["rail_middle"].size == (450, 65, 22)  # 370 plus the 40 mm tenons
+    assert parts["muntin_top"].size == (352.5, 65, 22)  # 302.5 plus the 25 mm tenons
+    # The opening, 152.5 x 302.5, plus the tongues: 8 into the edges, 9 into the ends.
+    assert parts["panel_top_left"].size == (320.5, 168.5, 14)
+
+    def filled(name: str) -> tuple[float, dict[str, float]]:
+        """Volume of the (first) groove in a member's design box and what fills it."""
+        member = parts[name]
+        groove = next(cut for cut in member.cuts if cut.describe().startswith("groove"))
+        lo, hi = member.part.box
+        size = (b - a for a, b in zip(lo, hi, strict=True))
+        design = bd.Pos(*lo) * bd.Box(*size, align=(bd.Align.MIN,) * 3)
+        region = member.location * (groove.removal() & design)
+        others = {other: _volume(region & part.placed_shape) for other, part in parts.items()}
+        return region.volume, {other: v for other, v in others.items() if v > 1e-6}
+
+    # In the stile, 8 x 10 mm: the tenons and haunches of the rails and the
+    # panels' tongues, 8 deep, leaving 2 mm across the grain to swell.
+    volume, fill = filled("stile_left")
+    assert volume == pytest.approx(8 * 10 * 800)
+    tenon, haunch, tongue = 45 * 8 * 10, 10 * 8 * 10, 8 * 8 * 320.5
+    assert fill == pytest.approx(
+        {
+            "rail_top": tenon + haunch,
+            "rail_bottom": tenon + haunch,
+            "rail_middle": tenon,
+            "panel_top_left": tongue,
+            "panel_bottom_left": tongue,
+        }
+    )
+    # In the top rail, the muntin's tenon and the panels' tongues, 9 deep.
+    volume, fill = filled("rail_top")
+    tongue = 9 * 8 * (152.5 + 8)  # the corner of the panel is in the stile's groove
+    assert volume == pytest.approx(8 * 10 * 370)
+    assert fill == pytest.approx(
+        {"muntin_top": tenon, "panel_top_left": tongue, "panel_top_right": tongue}
+    )
+
+
 def test_butt_frame_and_panel_tongues() -> None:
     model = frames.butt_frame_and_panel().resolve()
     box = model.compound().bounding_box()

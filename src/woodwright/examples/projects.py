@@ -7,12 +7,14 @@ from woodwright import rules
 from woodwright.assembly import Assembly
 from woodwright.cuts import INF, Chamfer, Mitre, Pocket, Taper
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
+from woodwright.examples.frames import _frame
 from woodwright.joints import (
     Bridle,
     Butt,
     Button,
     DadoJoint,
     HalfBlindDovetail,
+    Joint,
     MitreCorner,
     MortiseTenon,
     RabbetJoint,
@@ -28,6 +30,8 @@ SQUARE_STOCK = Stock.board(thickness=24, species="oak")
 BEECH = Stock.board(thickness=60, species="beech")
 ASH = Stock.board(thickness=24, species="ash")
 THICK_OAK = Stock.board(thickness=30, species="oak")
+DOOR_OAK = Stock.board(thickness=22, species="oak")  # for the frame of a door
+PANEL_OAK = Stock.board(thickness=14, species="oak")  # for raised panels
 
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 BOW_SAW_STOCK = Stock.board(thickness=22, species="oak")
@@ -309,6 +313,143 @@ def ledged_and_braced_door(
             angle=-math.degrees(slope),
         )
     )
+    return asm
+
+
+def frame_and_panel_door(
+    height: float = 800,
+    width: float = 500,
+    member_width: float = 65,
+    groove_width: float = 8,
+    groove_depth: float = 10,
+    tenon_length: float = 40,
+    muntin_tenon_length: float = 25,
+    bevel: float = 30,
+    clearance: float = 2,
+    stock: Stock = DOOR_OAK,
+    panel_stock: Stock = PANEL_OAK,
+) -> Assembly:
+    """A door of four raised panels in a mortise-and-tenon frame; outside sizes.
+
+    Two stiles, a top, a middle and a bottom rail, and between the rails
+    above and below the middle one a short muntin. A groove runs through
+    along the inside edges of all of them, centered in the thickness, as
+    cut on a table saw. The rails are tenoned into the stiles, the muntins
+    into the rails, the tenons as thick as the grooves are wide and with
+    shoulders as wide as they are deep, so that the grooves run out beside
+    them. At the ends of the stiles, the tenons of the top and the bottom
+    rails have haunches filling the grooves; the muntins' short tenons
+    leave room for each other in the middle rail.
+
+    The panels, the grain upright, are raised on the front: a bevel `bevel`
+    wide, planed down to a tongue as thick as the grooves are wide, flush
+    with the flat back of the panel; the field of a 14 mm panel lies 1 mm
+    behind the face of a 22 mm frame. They aren't glued, but
+    float in the grooves: the tongues are `clearance` short of the bottom
+    across the grain, so the panels can swell, and 1 mm along it.
+    """
+    rail_length = width - 2 * member_width
+
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
+        return MortiseTenon(
+            tenon=rail_end,
+            mortise=stile_edge,
+            position=position,
+            tenon_length=tenon_length,
+            haunch=outer,
+            haunch_length=groove_depth,
+            tenon_thickness=groove_width,
+            shoulder=groove_depth,
+        )
+
+    asm, (stile_left, stile_right, rail_top, rail_bottom) = _frame(
+        "frame_and_panel_door", corner, height, rail_length, member_width, stock
+    )
+    # The rails' front edges are at the top.
+    rail_middle = asm.add(Board("rail_middle", stock, length=rail_length, width=member_width))
+    middle = (height - member_width) / 2
+    for rail_end, stile_edge, stile_end in [
+        (rail_middle.left_end, stile_left.back_edge, stile_left.left_end),
+        (rail_middle.right_end, stile_right.front_edge, stile_right.left_end),
+    ]:
+        asm.join(
+            MortiseTenon(
+                tenon=rail_end,
+                mortise=stile_edge,
+                position=offset(middle, stile_end),
+                tenon_length=tenon_length,
+                tenon_thickness=groove_width,
+                shoulder=groove_depth,
+            )
+        )
+    # Standing like the stiles: their right ends up, back edges to the right.
+    opening_height = middle - member_width
+    muntins = []
+    for name, top, bottom in [
+        ("top", rail_top, rail_middle),
+        ("bottom", rail_middle, rail_bottom),
+    ]:
+        muntin = asm.add(Board(f"muntin_{name}", stock, length=opening_height, width=member_width))
+        for end, rail_edge in [
+            (muntin.right_end, top.back_edge),
+            (muntin.left_end, bottom.front_edge),
+        ]:
+            asm.join(
+                MortiseTenon(
+                    tenon=end,
+                    mortise=rail_edge,
+                    tenon_length=muntin_tenon_length,
+                    tenon_thickness=groove_width,
+                    shoulder=groove_depth,
+                )
+            )
+        muntins.append(muntin)
+
+    def tongue(edge: SideRef, groove: SideRef, position: Position, length: float) -> None:
+        asm.join(
+            TongueAndGroove(
+                tongue=edge,
+                groove=groove,
+                tongue_thickness=groove_width,
+                tongue_length=length,
+                tongue_offset=0,
+                position=position,
+                across=offset((stock.thickness - groove_width) / 2),
+                clearance=groove_depth - length,
+            )
+        )
+
+    # Standing like the stiles too, their reference faces at the back: the
+    # front edges to the left, the right ends up.
+    opening_width = (rail_length - member_width) / 2
+    edge_tongue, end_tongue = groove_depth - clearance, groove_depth - 1
+    for row, muntin, above, under, stile_end in [
+        ("top", muntins[0], rail_top.back_edge, rail_middle.front_edge, "right_end"),
+        ("bottom", muntins[1], rail_middle.back_edge, rail_bottom.front_edge, "left_end"),
+    ]:
+        for column, stile_groove, muntin_groove, rail_end in [
+            ("left", stile_left.back_edge, muntin.front_edge, "left_end"),
+            ("right", stile_right.front_edge, muntin.back_edge, "right_end"),
+        ]:
+            panel = asm.add(
+                Board(f"panel_{row}_{column}", panel_stock, opening_height, opening_width)
+            )
+            outer, inner = panel.front_edge, panel.back_edge
+            if column == "right":
+                outer, inner = inner, outer
+            stile_position = offset(member_width, getattr(stile_groove.part, stile_end))
+            tongue(outer, stile_groove, stile_position, edge_tongue)
+            tongue(inner, muntin_groove, CENTERED, edge_tongue)
+            for end, groove in [(panel.right_end, above), (panel.left_end, under)]:
+                tongue(end, groove, flush_with(getattr(groove.part, rail_end)), end_tongue)
+            for side in (panel.front_edge, panel.back_edge, panel.left_end, panel.right_end):
+                panel.cut(
+                    Chamfer(
+                        panel.arris(panel.bottom_face, side),
+                        size=bevel,
+                        size_b=panel_stock.thickness - groove_width,
+                    )
+                )
     return asm
 
 

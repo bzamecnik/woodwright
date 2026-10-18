@@ -60,6 +60,9 @@ Done items name their example in `woodwright.examples`
       `frames.butt_frame_and_panel` (the grooves through, showing at the stiles' ends;
       a mortise-and-tenon frame with a plain panel: `frames.frame_and_panel`,
       `joints.panel_in_groove`)
+    - [x] frame-and-panel door, 2 x 2 raised panels - stiles, three rails and two muntins,
+      haunched mortise and tenons, grooves through along the inside edges, panels bevelled on
+      the front down to a tongue floating in the grooves – `projects.frame_and_panel_door`
   - rabbet
     - [x] corner with rabbet and plain board – `joints.rabbet_corner`, `projects.bookshelf`
     - [x] corner with two interlocking rabbets – `joints.interlocking_rabbet_corner`
