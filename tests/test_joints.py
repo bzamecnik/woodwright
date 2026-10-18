@@ -404,31 +404,42 @@ def test_mitred_shoulder_tenon(corner: bool) -> None:
     asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, **kw))
     model = asm.resolve()
     joint = model.joints[0]
-    assert (joint.mitre_depth, joint.shoulder) == (15, 15)  # a third of the stile
-    notch = (45 * 15 - (1 if corner else 2) * 15 * 15 / 2) * 30
-    mortise = 15 * 10 * (30 if corner else 20 + 2)  # behind the notch, with clearance
-    tenon = 15 * 10 * (30 if corner else 20)
-    assert model[stile].shape.volume == pytest.approx(300 * 45 * 30 - notch - mortise)
-    assert model[rail].shape.volume == pytest.approx(200 * 45 * 30 + notch + tenon)
-    assert model[rail].size[0] == (245 if corner else 235)
+    # The mitres are a third of the stile deep; the tenon reaches half-way
+    # under them, at a corner it keeps a full shoulder at the end of the stile.
+    assert joint.mitre_depth == 15
+    assert joint.shoulder == ((15, 7.5) if corner else (7.5, 7.5))
+    mitres = 1 if corner else 2
+    width, length = (22.5, 30) if corner else (30, 20)
+    notch = (45 * 15 - mitres * 15 * 15 / 2) * 30
+    # Under each mitre the tenon fills a triangle 7.5 x 7.5 mm, 10 thick.
+    under = mitres * 7.5 * 7.5 / 2 * 10
+    clearance = 0 if corner else width * 10 * 2
+    assert model[rail].shape.volume == pytest.approx(
+        200 * 45 * 30 + notch + under + width * 10 * length
+    )
+    assert model[rail].size[0] == 200 + 15 + length
+    stile_volume = model[stile].shape.volume
+    assert stile_volume == pytest.approx(
+        300 * 45 * 30 - notch - under - width * 10 * length - clearance
+    )
     assert cuts(model, stile) == (
         [
-            "through mortise 15 x 10 mm in stile.back_edge",
+            "through mortise 22.5 x 10 mm in stile.back_edge",
             "notch 45 long, 15 deep, mitred at one end, in stile.back_edge",
         ]
         if corner
         else [
-            "mortise 15 x 10 mm, 37 deep, in stile.back_edge",
+            "mortise 30 x 10 mm, 37 deep, in stile.back_edge",
             "notch 45 long, 15 deep, mitred at both ends, in stile.back_edge",
         ]
     )
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
-def test_mitred_shoulder_tenon_stays_between_the_mitres() -> None:
+def test_mitred_shoulder_tenon_must_not_run_out_of_the_mitre() -> None:
     asm, stile, rail = stile_and_rail(rail_width=45)
-    asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, shoulder=5))
-    with pytest.raises(ValueError, match="under the mitre"):
+    asm.join(ww.MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge, shoulder=0))
+    with pytest.raises(ValueError, match="run out of the mitre"):
         asm.resolve()
 
 

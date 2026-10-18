@@ -509,13 +509,16 @@ class MitredShoulderTenon(MortiseTenon):
     as the material behind the notch. The design length of the tenoned part
     is to the side of the mortised part, as for a plain tenon.
 
-    The tenon stays between the mitres: its shoulders are by default as deep
-    as the mitres (on both edges), and at the mitred ones must not be shallower. Its
-    length is measured from the bottom of the notch; the mortise is cut
-    from the side of the mortised part, through the notch.
+    The tenon may reach under the mitres, which makes it wider and the joint
+    sturdier: its shoulders are by default half as deep as the mitres at the
+    mitred edges, as deep as them at the others (e.g. to keep material at
+    the end of the stile at a corner). Under a mitre the tenon starts at the
+    side of the mortised part, elsewhere at the bottom of the notch; its
+    length is measured from there. The mortise is cut from the side of the
+    mortised part, through the notch and the mitres.
     """
 
-    shoulder: float | tuple[float, float] | None = None  # by default the mitre depth
+    shoulder: float | tuple[float, float] | None = None  # by default from the mitre depth
     mitre_depth: float | None = None
     mitred: tuple[SideRef, ...] | None = None
 
@@ -527,7 +530,13 @@ class MitredShoulderTenon(MortiseTenon):
         mitred = self.mitred
         if mitred is None:
             mitred = (board.front_edge, board.back_edge) if self.tenon.axis == 0 else ()
-        shoulder = depth if self.shoulder is None else self.shoulder
+        shoulder = self.shoulder
+        if shoulder is None:
+            front, back = (
+                depth / 2 if edge in mitred else depth
+                for edge in (board.front_edge, board.back_edge)
+            )
+            shoulder = (front, back)
         tenon_length = self.tenon_length or rules.tenon_length(self.mortise.depth - depth)
         joint = replace(
             self,
@@ -548,8 +557,8 @@ class MitredShoulderTenon(MortiseTenon):
         part_lo, part_hi = self.tenon.part.box
         for edge in mitred:
             shoulder = lo - part_lo[edge.axis] if edge.side.sign < 0 else part_hi[edge.axis] - hi
-            if shoulder < depth - _EPS:
-                raise ValueError(f"the tenon must not reach under the mitre at {edge}")
+            if shoulder < _EPS:
+                raise ValueError(f"the tenon must not run out of the mitre at {edge}")
         return tenon
 
     def cuts(self, placement: bd.Location) -> list[Cut]:

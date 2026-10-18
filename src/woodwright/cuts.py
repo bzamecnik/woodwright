@@ -244,7 +244,9 @@ class Tenon(Cut):
     beyond the side with its whole cross-section, into a notch in the
     mortised part, and the tenon starts there, `length` long. At each of
     `mitred`, edges next to the side, the reach is mitred at 45 degrees back
-    to the side, so the parts meet on a short mitre at that edge.
+    to the side, so the parts meet on a short mitre at that edge. A tenon
+    wider than the space between the mitres reaches under them: there the
+    mitre is cut only down to its cheeks, the tenon starts at the side.
     """
 
     side: SideRef
@@ -343,9 +345,11 @@ class Tenon(Cut):
         removal = _box(self.part, beyond)
         # Open the tenon where it reaches the sides of the design box and the
         # end of the blank, so that no slivers are left between the boxes.
+        # It starts at the side even with mitred shoulders, so where it
+        # reaches under a mitre it isn't cut off by it.
         tenon = list(_open(self.part, self.tenon_box(), skip=self.side.axis))
-        a, b = tenon[self.side.axis]
-        tenon[self.side.axis] = (a, INF) if self.side.side.sign > 0 else (-INF, b)
+        c = self.side.coordinate
+        tenon[self.side.axis] = (c, INF) if self.side.side.sign > 0 else (-INF, c)
         removal -= _box(self.part, (tenon[0], tenon[1], tenon[2]))
         haunch = self.haunch_box()
         if haunch is not None:
