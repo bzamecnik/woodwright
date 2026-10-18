@@ -163,7 +163,10 @@ Done items name their example in `woodwright.examples`
   - [x] table with four legs, wide aprons with stub tenon joint, panel desk
     (so far `projects.table`: wide aprons with haunched, mitred tenons, a top glued up from
     boards held by buttons in short mortises in the aprons; `projects.table_frame` without a top)
-  - [ ] side table with aprons and stretchers, desk made as mitre frame with panel inside
+  - [x] side table with aprons and stretchers – `projects.side_table` (aprons as in
+    `projects.table`, stretchers with blind tenons at staggered heights, a top glued up from
+    boards held by buttons)
+  - [ ] side table desk made as mitre frame with panel inside
   - [x] simple square chair frame: seat rails as in a table, stretchers and back rails with
     chamfered through tenons, chamfered tops of the back legs – `projects.chair` (a seat glued up
     from two boards, notched around the back legs and chamfered, splats with blind tenons

@@ -101,6 +101,7 @@ ALL: list[Example] = [
     projects.picture_frame,
     projects.table_frame,
     projects.table,
+    projects.side_table,
     projects.chair,
 ]
 

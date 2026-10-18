@@ -239,3 +239,23 @@ def test_haunched_stub_tenon_fills_the_groove_at_the_end() -> None:
     groove_end = bd.Pos(280, 50, -14) * bd.Box(20, 10, 8, align=(bd.Align.MIN,) * 3)
     haunch = parts["rail"].placed_shape & (stile.location * groove_end)
     assert haunch.volume == pytest.approx(20 * 10 * 8)
+
+
+def test_side_table_sizes_and_stretchers() -> None:
+    from woodwright.examples import projects
+
+    model = projects.side_table().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.min) == pytest.approx((-25, -25, 0))  # the top overhangs the legs
+    assert tuple(box.size) == pytest.approx((450, 450, 550))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["leg_front_left"].size == (530, 40, 40)
+    # Blind tenons 25 mm into the legs, not through them.
+    assert parts["stretcher_front"].size == (370, 30, 20)
+    for side, top in [("front", 150), ("right", 110), ("back", 150), ("left", 110)]:
+        stretcher_box = parts[f"stretcher_{side}"].placed_shape.bounding_box()
+        assert pytest.approx((top - 30, top)) == (stretcher_box.min.Z, stretcher_box.max.Z)
+    for board in ("top_1", "top_2", "top_3"):
+        top_box = parts[board].placed_shape.bounding_box()
+        assert pytest.approx((530, 550)) == (top_box.min.Z, top_box.max.Z)
+    assert sum(key.startswith("button") for key in parts) == 8

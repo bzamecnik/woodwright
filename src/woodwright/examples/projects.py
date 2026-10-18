@@ -1,4 +1,4 @@
-"""Small practical projects: shop tools, boxes, a shelf, a drawer, a picture frame."""
+"""Small practical projects: shop tools, boxes, shelves, drawers, frames, tables and a chair."""
 
 import itertools
 import math
@@ -828,6 +828,64 @@ def table(
         leg_stock,
         setback,
         top_stock,
+    )
+    _buttons(asm, aprons, buttons, stock)
+    return asm
+
+
+def side_table(
+    width: float = 400,
+    depth: float = 400,
+    height: float = 550,
+    overhang: float = 25,
+    apron_width: float = 80,
+    stretcher_width: float = 30,
+    stretcher_heights: tuple[float, float] = (150, 110),
+    stretcher_tenon_length: float = 25,
+    setback: float = 3,
+    top_boards: int = 3,
+    buttons: tuple[int, int] = (2, 2),
+    leg_stock: Stock = CHAIR_LEG_STOCK,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A side table: legs, aprons and stretchers, a solid top held down by
+    buttons; outside sizes.
+
+    As in the table, the aprons' mitred tenons are set down from the tops
+    of the legs, with haunches; the top, glued up from `top_boards` boards,
+    overhangs the frame by `overhang` and is held by buttons in short
+    mortises in the aprons, so it can move. Stretchers near the floor
+    (their top edges at `stretcher_heights`, for the front and back and for
+    the sides) are centered on the legs, with blind tenons; the side ones
+    are lower, so that the tenons don't meet inside the legs.
+    """
+    asm = Assembly("side_table", root_location=STANDING)
+    legs, aprons = _table_frame(
+        asm,
+        width,
+        depth,
+        height - stock.thickness,
+        apron_width,
+        setback,
+        leg_stock,
+        stock,
+        shoulder=(10, 20),
+        haunch_length=10,
+    )
+    stretchers = _stretchers(stretcher_heights, stretcher_width)
+    _leg_rails(asm, legs, width, depth, stretchers, stock, tenon_length=stretcher_tenon_length)
+    _glued_top(
+        asm,
+        aprons[0],
+        "top",
+        width,
+        depth,
+        overhang,
+        overhang,
+        top_boards,
+        leg_stock,
+        setback,
+        stock,
     )
     _buttons(asm, aprons, buttons, stock)
     return asm
