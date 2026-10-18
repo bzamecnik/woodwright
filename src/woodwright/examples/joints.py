@@ -17,6 +17,7 @@ from woodwright.joints import (
     HalfLap,
     LooseTenon,
     MitreCorner,
+    MitredHalfLap,
     MitredShoulderTenon,
     MitreSplice,
     MortiseTenon,
@@ -671,6 +672,26 @@ def mitre_corner(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(MitreCorner(stile.right_end, rail.left_end, stile.back_edge, rail.back_edge))
+    return asm
+
+
+def mitred_half_lap(
+    stile_length: float = 300, rail_length: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """A frame corner mitred on the face and half-lapped behind: lengths to the outside.
+
+    The front half of both parts is mitred, so the face towards the viewer
+    looks like a mitre corner; at the back the stile keeps a lap across the
+    whole corner, under the rail cut back by an end rabbet.
+    """
+    asm = Assembly("mitred_half_lap", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(
+        MitredHalfLap(
+            stile.right_end, rail.left_end, stile.back_edge, rail.back_edge, face=stile.bottom_face
+        )
+    )
     return asm
 
 

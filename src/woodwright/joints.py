@@ -21,6 +21,7 @@ from woodwright.cuts import (
     Cut,
     DovetailLap,
     DovetailTongue,
+    EndRabbet,
     Mitre,
     Pocket,
     Range,
@@ -50,6 +51,7 @@ __all__ = [
     "LooseTenon",
     "MitreCorner",
     "MitreSplice",
+    "MitredHalfLap",
     "MitredShoulderTenon",
     "MortiseTenon",
     "RabbetJoint",
@@ -1175,6 +1177,52 @@ class MitreCorner(Joint):
             Mitre(self.a, inside=self.a_inside, angle=math.degrees(math.atan2(b_width, a_width))),
             Mitre(self.b, inside=self.b_inside, angle=math.degrees(math.atan2(a_width, b_width))),
         ]
+
+
+@dataclass
+class MitredHalfLap(MitreCorner):
+    """A corner half lap mitred on the show face, as on a frame: the front half
+    of both parts is mitred, the back half lapped.
+
+    Placed as `MitreCorner` (ends to the outside of the corner), with edges
+    inside the corner. On `face` of part a (by default its reference face)
+    and the face of part b flush with it, both parts are mitred `depth` deep
+    (by default half their thickness), so the face shows a mitre; behind it
+    part a keeps the whole corner, a lap, and part b is cut away there by an
+    end rabbet, so the back shows a plain half lap. The mitre hides the end
+    grain on the face, the lap gives the glue far more long-grain area than
+    a plain mitre.
+    """
+
+    face: SideRef | None = None
+    depth: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.a_inside.axis != 1 or self.b_inside.axis != 1:
+            raise ValueError("a mitred half lap has its edges inside the corner")
+
+    def with_defaults(self) -> Self:
+        a = self.a.part
+        face = self.face or a.ref_face
+        if face.part is not a or face.axis != 2:
+            raise ValueError(f"a mitred half lap shows its mitre on a face of {a.name}")
+        return replace(self, face=face, depth=self.depth or rules.lap_thickness(a.thickness))
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        face, depth = _require(self.face), _require(self.depth)
+        b = self.b.part
+        b_face = next(
+            side
+            for side in (b.top_face, b.bottom_face)
+            if (_direction(placement, side.normal) - face.normal).length < _EPS
+        )
+        b_back = b.bottom_face if b_face == b.top_face else b.top_face
+        mitre_a, mitre_b = (
+            replace(mitre, face=side, depth=depth)
+            for mitre, side in zip(super().cuts(placement), (face, b_face), strict=True)
+        )
+        lap = EndRabbet(b_back, at=self.b, width=self.a_inside.depth, depth=b.thickness - depth)
+        return [mitre_a, mitre_b, lap]
 
 
 @dataclass

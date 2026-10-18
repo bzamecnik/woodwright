@@ -216,6 +216,33 @@ def test_mitre_corner_with_unequal_widths() -> None:
     assert model[a].shape.volume + model[b].shape.volume == pytest.approx(volume)
 
 
+@pytest.mark.parametrize("face", ["top_face", "bottom_face"])
+def test_mitred_half_lap(face: str) -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    joint = ww.MitredHalfLap(
+        a.right_end, b.left_end, a.back_edge, b.back_edge, face=getattr(a, face)
+    )
+    asm.join(joint)
+    model = asm.resolve()
+    back = "bottom_face" if face == "top_face" else "top_face"
+    assert cuts(model, a) == [
+        f"mitre 45 deg on a.right_end, a.back_edge inside, 10 deep from a.{face}"
+    ]
+    assert cuts(model, b) == [
+        f"mitre 45 deg on b.left_end, b.back_edge inside, 10 deep from b.{face}",
+        f"end rabbet 40 mm, 10 deep, in b.{back} at b.left_end",
+    ]
+    # Outside lengths, as for a mitre corner.
+    assert bbox(model[b].placed_shape) == (260, 0, -20, 300, 200, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # Part a keeps the lap behind the mitre, part b only its half of the mitre.
+    triangle = 40 * 40 / 2 * 10
+    assert model[a].shape.volume == pytest.approx(300 * 40 * 20 - triangle)
+    assert model[b].shape.volume == pytest.approx(200 * 40 * 20 - triangle - 40 * 40 * 10)
+
+
 def test_mitre_corner_needs_the_inside_sides() -> None:
     asm = ww.Assembly("test")
     a = asm.add(ww.Board("a", OAK, length=300, width=40))

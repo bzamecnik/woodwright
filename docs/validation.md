@@ -107,7 +107,8 @@ Done items name their example in `woodwright.examples`
     - [ ] one board with a blind hole, one with open hole + dowel
     - [ ] board with a hole + bigger rod
   - mitred half-lap
-    - [ ] like a half-lap corner, but one side is mitred
+    - [x] like a half-lap corner, but one side is mitred – `MitredHalfLap`,
+      `joints.mitred_half_lap` (the front half mitred, the back half lapped)
   - dovetailed half-lap
     - [x] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight –
       `DovetailHalfLap`, `joints.dovetail_half_lap` (at a corner a half dovetail, sloped at

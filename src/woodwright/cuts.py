@@ -897,11 +897,16 @@ class Mitre(Cut):
     design length is the outside length, as for a picture frame. With
     `inside` an edge the mitre is across the face (picture frame), with
     `inside` a face it is across the edge (carcase corner).
+
+    With `face` and `depth`, a mitre across the face is cut only `depth`
+    deep below that face, e.g. the front half of a mitred half-lap.
     """
 
     side: SideRef
     inside: SideRef
     angle: float = 45.0
+    face: SideRef | None = None
+    depth: float | None = None
 
     def __post_init__(self) -> None:
         if self.side.axis != 0:
@@ -909,6 +914,13 @@ class Mitre(Cut):
         _check_adjacent(self.side, self.inside)
         if not 0 < self.angle < 90:
             raise ValueError(f"mitre angle must be between 0 and 90 degrees, got {self.angle}")
+        if (self.face is None) != (self.depth is None):
+            raise ValueError("a mitre part way through needs both a face and a depth")
+        if self.face is not None and self.depth is not None:
+            if self.face.part is not self.part or self.face.axis != 2 or self.inside.axis == 2:
+                raise ValueError("a mitre is cut part way through across the face, from a face")
+            if not 0 < self.depth < self.part.thickness:
+                raise ValueError("a mitre part way through must be thinner than the part")
 
     @property
     def shortening(self) -> float:
@@ -929,10 +941,16 @@ class Mitre(Cut):
         p2 = (short_point[0] + v[0], short_point[1] + v[1])
         out = se * (2 * self.shortening + _margin(self.part))
         points = [p1, p2, (p2[0] + out, p2[1]), (p1[0] + out, p1[1])]
-        return _prism(self.part, e, a, points)
+        removal = _prism(self.part, e, a, points)
+        if self.face is not None and self.depth is not None:
+            removal &= _box(self.part, _ranges(_into(self.face, self.depth)))
+        return removal
 
     def describe(self) -> str:
-        return f"mitre {self.angle:g} deg on {self.side}, {self.inside} inside"
+        text = f"mitre {self.angle:g} deg on {self.side}, {self.inside} inside"
+        if self.face is not None:
+            text += f", {self.depth:g} deep from {self.face}"
+        return text
 
 
 @dataclass
