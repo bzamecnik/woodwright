@@ -120,7 +120,8 @@ class Butt(Joint):
 
     `flush` are the sides kept facing the same way (by default the reference
     faces, or the reference edges for a face); see `mate` for `position` and
-    `across`.
+    `across`. With `angle`, part b is turned by that many degrees in the
+    plane of side `a` (see `mate`), e.g. a diagonal brace on a face.
     """
 
     a: SideRef
@@ -128,13 +129,21 @@ class Butt(Joint):
     position: Position = CENTERED
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
+    angle: float = 0.0
 
     def parts(self) -> tuple[Board, Board]:
         return self.a.part, self.b.part
 
     def placement(self) -> bd.Location:
         flush = self.flush or default_flush(self.a, self.b)
-        return mate(self.a, self.b, flush=flush, position=self.position, across=self.across)
+        return mate(
+            self.a,
+            self.b,
+            flush=flush,
+            position=self.position,
+            across=self.across,
+            angle=self.angle,
+        )
 
 
 class Housing(Joint):

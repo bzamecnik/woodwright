@@ -131,3 +131,16 @@ def test_orient_rejects_bad_sides() -> None:
         ww.orient(right_end=ww.UP, ref_face=ww.UP).location(stile)
     with pytest.raises(ValueError, match="name sides"):
         ww.orient(right_end=ww.UP, length=ww.LEFT).location(stile)
+
+
+def test_mate_turned_by_an_angle() -> None:
+    door = ww.Board("door", OAK, length=1000, width=600)
+    brace = ww.Board("brace", OAK, length=400, width=100)
+    flush = (door.front_edge, brace.left_end)
+    square = ww.mate(door.top_face, brace.bottom_face, flush=flush)
+    assert apply(square, (400, 0, -20)) == pytest.approx((550, 400, 0))  # across the door
+    turned = ww.mate(door.top_face, brace.bottom_face, flush=flush, angle=90)
+    # Counterclockwise on the face, around the middle of the brace's end.
+    assert apply(turned, (0, 50, -20)) == pytest.approx((500, 0, 0))
+    assert apply(turned, (400, 50, -20)) == pytest.approx((100, 0, 0))
+    assert direction(turned, brace.top_face.normal) == pytest.approx((0, 0, 1))

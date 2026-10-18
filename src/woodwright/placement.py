@@ -62,6 +62,7 @@ def mate(
     position: Position = CENTERED,
     across: Position = FLUSH,
     gap: float = 0.0,
+    angle: float = 0.0,
 ) -> bd.Location:
     """Location of `b.part` in the frame of `a.part`.
 
@@ -72,6 +73,10 @@ def mate(
     sets `flush[1]` back from `flush[0]` by a distance (coplanar by default),
     or centers the parts on each other. With `gap`, side `b` lies that far
     from side `a`; a negative gap makes the parts overlap (e.g. at a mitre).
+    With `angle`, part b is then turned by that many degrees about the normal
+    of side `a` (counterclockwise, looking at side `a`), around the point the
+    two frames share: the start of b's arris with `flush[1]` (or its middle,
+    if centered), e.g. a brace lying diagonally across the back of a door.
     """
     start_a, end_a, x_a, z_a = _arris(a, flush[0], inward=False)
     start_b, end_b, x_b, z_b = _arris(b, flush[1], inward=True)
@@ -103,7 +108,7 @@ def mate(
     origin_a += a.normal * gap
     frame_a = bd.Location(bd.Plane(origin_a, x_dir=x_a, z_dir=z_a))
     frame_b = bd.Location(bd.Plane(origin_b, x_dir=x_b, z_dir=z_b))
-    return frame_a * frame_b.inverse()
+    return frame_a * bd.Rotation(0, 0, angle) * frame_b.inverse()
 
 
 def _arris(
