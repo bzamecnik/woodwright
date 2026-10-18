@@ -206,3 +206,19 @@ def test_butt_frame_and_panel_tongues() -> None:
     for stile, edge in [("stile_left", "back_edge"), ("stile_right", "front_edge")]:
         cuts = [cut.describe() for cut in parts[stile].cuts]
         assert cuts == [f"groove 6 mm, 10 deep, in {stile}.{edge}"]  # through
+
+
+def test_shiplap_panel_laps_fill_the_rabbets() -> None:
+    from woodwright.examples import joints
+
+    model = joints.shiplap_panel().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((500, 450, 20))  # flat, the visible widths
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["board_2"].size == (500, 162, 20)  # with the lap
+    assert [cut.describe() for cut in parts["board_2"].cuts] == [
+        "rabbet 12 mm, 10 deep, in board_2.bottom_face at board_2.front_edge",
+        "rabbet 10 mm, 12 deep, in board_2.back_edge at board_2.top_face",
+    ]
+    total = sum(part.shape.volume for part in model.parts)
+    assert total == pytest.approx(3 * 500 * 150 * 20)

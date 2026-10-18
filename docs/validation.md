@@ -67,7 +67,7 @@ Done items name their example in `woodwright.examples`
       - [x] splice (mitre along the face, mitre along the edge) – `joints.mitre_splice`
     - [x] four pieces - picture frame – `projects.picture_frame`
   - lap joint
-    - [ ] two boards with overlapping rabbets to make panel
+    - [x] two boards with overlapping rabbets to make panel – `joints.shiplap_panel` (three boards)
     - [x] half-lap corner - two perpendicular boards with "endgrain rabbet" – `joints.half_lap_corner`
     - [x] half-lap T - one board with dado, other board with "endgrain rabbet" – `joints.half_lap_t`
     - [x] picture frame – `frames.half_lap_frame`

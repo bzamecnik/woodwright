@@ -188,6 +188,33 @@ def tongue_and_groove_panel(
     return asm
 
 
+def shiplap_panel(
+    length: float = 500, width: float = 150, lap: float = 12, count: int = 3, stock: Stock = OAK
+) -> Assembly:
+    """Boards edge to edge, lapped over each other in rabbets half their thickness.
+
+    Along each joint the next board's rabbet, cut from below, lies over the
+    previous one's, cut from above, `lap` wide: a "tongue" as thick as
+    half the board, flush with its top face. Not glued, the boards can move
+    and the lap covers the gap; the top shows a plain line at each joint.
+    """
+    asm = Assembly("shiplap_panel")
+    boards = [
+        asm.add(Board(f"board_{i + 1}", stock, length=length, width=width)) for i in range(count)
+    ]
+    for a, b in itertools.pairwise(boards):
+        asm.join(
+            TongueAndGroove(
+                tongue=b.front_edge,
+                groove=a.back_edge,
+                tongue_thickness=rules.lap_thickness(stock.thickness),
+                tongue_length=lap,
+                tongue_offset=0,
+            )
+        )
+    return asm
+
+
 # --- Laps, bridles, mortise and tenon -------------------------------------------
 
 
