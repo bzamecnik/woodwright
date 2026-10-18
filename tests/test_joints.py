@@ -820,6 +820,132 @@ def test_twin_tenons() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+THICK = ww.Stock.board(45, "oak")
+
+
+def post_and_thick_rail(rail_width: float = 45) -> tuple[ww.Assembly, ww.Board, ww.Board]:
+    asm = ww.Assembly("test")
+    post = asm.add(ww.Board("post", THICK, length=400, width=60))
+    rail = asm.add(ww.Board("rail", THICK, length=300, width=rail_width))
+    return asm, post, rail
+
+
+def test_tenons_across_the_thickness() -> None:
+    asm, post, rail = post_and_thick_rail()
+    asm.join(ww.MortiseTenon(tenon=rail.left_end, mortise=post.back_edge, thickness_tenons=2))
+    model = asm.resolve()
+    joint = model.joints[0]
+    # A fifth of the rail each, snapped to a chisel; the gap as thick.
+    assert (joint.tenon_thickness, joint.thickness_gap) == (10, 10)
+    assert cuts(model, post) == ["mortise 35 x 10 mm, 42 deep, in post.back_edge"] * 2
+    assert cuts(model, rail) == [
+        "2 tenons 35 x 10 mm, 40 long, 10 apart across the thickness, on rail.left_end"
+    ]
+    assert model[rail].shape.volume == pytest.approx(300 * 45 * 45 + 2 * 35 * 10 * 40)
+    assert model[post].shape.volume == pytest.approx(400 * 60 * 45 - 2 * 35 * 10 * 42)
+    # Each in its own mortise, 7.5 mm in from the faces.
+    mortises = sorted(cut.ranges()[2] for cut in model[post].cuts)
+    assert mortises == [(-37.5, -27.5), (-17.5, -7.5)]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_grid_of_chamfered_through_tenons() -> None:
+    asm, post, rail = post_and_thick_rail()
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end,
+            mortise=post.back_edge,
+            shoulder=7.5,
+            tenons=2,
+            thickness_tenons=2,
+            tenon_length=63,  # 3 mm proud
+            tenon_chamfer=2,
+        )
+    )
+    model = asm.resolve()
+    assert model.joints[0].tenon_gap == 10
+    assert cuts(model, post) == ["through mortise 10 x 10 mm in post.back_edge"] * 4
+    assert cuts(model, rail) == [
+        "4 tenons 10 x 10 mm, 63 long, 2 across the width 10 apart, "
+        "2 across the thickness 10 apart, end chamfered 2 mm, on rail.left_end"
+    ]
+    # Each tenon loses its own chamfers, not into the tenons beside it.
+    chamfers = 2 * (10 + 10) * 2 * 2 / 2 - 4 * 2**3 / 3
+    tenons = 4 * (10 * 10 * 63 - chamfers)
+    assert model[rail].shape.volume == pytest.approx(300 * 45 * 45 + tenons)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_haunched_and_mitred_tenons_across_the_thickness() -> None:
+    asm, post, rail = post_and_thick_rail(rail_width=90)
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end,
+            mortise=post.back_edge,
+            position=ww.offset(20, post.right_end),
+            shoulder=(20, 5),
+            thickness_tenons=2,
+            haunch=rail.front_edge,
+            haunch_length=10,
+        )
+    )
+    model = asm.resolve()
+    # A haunch beside each tenon, each in its own haunch mortise.
+    assert cuts(model, post)[2:] == ["haunch mortise 20 x 10 mm, 10 deep, in post.back_edge"] * 2
+    assert model[rail].shape.volume == pytest.approx(
+        300 * 90 * 45 + 2 * 65 * 10 * 40 + 2 * 20 * 10 * 10
+    )
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+    asm, post, rail = post_and_thick_rail(rail_width=90)
+    asm.join(
+        ww.MortiseTenon(
+            tenon=rail.left_end,
+            mortise=post.back_edge,
+            thickness_tenons=2,
+            tenon_length=30,
+            mitre=rail.top_face,
+        )
+    )
+    model = asm.resolve()
+    # One mitre across both, from 30 mm long at the bottom cheek to nothing
+    # at the top one: half of the tenons is left.
+    assert model[rail].shape.volume == pytest.approx(300 * 90 * 45 + 2 * 80 * 10 * 30 / 2)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_wedged_tenons_across_the_thickness() -> None:
+    asm, post, rail = post_and_thick_rail(rail_width=90)
+    stock = ww.Stock.board(10, "oak")
+    wedges = tuple(asm.add(ww.Board(f"wedge_{i}", stock, length=40, width=5)) for i in range(4))
+    asm.join(
+        ww.WedgedMortiseTenon(
+            tenon=rail.left_end,
+            mortise=post.back_edge,
+            shoulder=10,
+            thickness_tenons=2,
+            wedges=wedges,
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, rail) == [
+        "2 tenons 70 x 10 mm, 60 long, 10 apart across the thickness, "
+        "2 saw kerfs each 2 mm, 40 deep, for wedges, on rail.left_end"
+    ]
+    # Both tenons spread at their ends, only within their thickness.
+    flares = 2 * (2 * 3 * 40 / 2 * 10)
+    wedge = (2 + 5) / 2 * 40 * 10
+    assert model[post].shape.volume == pytest.approx(400 * 60 * 45 - 2 * 70 * 10 * 60 - flares)
+    tenons = 2 * 70 * 10 * 60 + flares - 4 * wedge
+    assert model[rail].shape.volume == pytest.approx(300 * 90 * 45 + tenons)
+    # The top tenon's wedges first.
+    heights = [model[w].placed_shape.bounding_box() for w in wedges]
+    assert [(box.min.Z, box.max.Z) for box in heights] == pytest.approx(
+        [(-17.5, -7.5), (-17.5, -7.5), (-37.5, -27.5), (-37.5, -27.5)]
+    )
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 def test_three_chamfered_through_tenons_with_a_haunch() -> None:
     asm = ww.Assembly("test")
     stile = asm.add(ww.Board("stile", OAK, length=300, width=60))

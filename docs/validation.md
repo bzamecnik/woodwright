@@ -86,7 +86,8 @@ Done items name their example in `woodwright.examples`
     - [x] tenon extending out of the through mortise – `joints.protruding_through_mortise_tenon`,
       only its chamfered end proud: `joints.chamfered_through_mortise_tenon`
     - [x] multiple tenon – `MortiseTenon(tenons=2)`, twin tenons on a wide rail:
-      `joints.twin_tenon_corner`
+      `joints.twin_tenon_corner`; across the thickness (`thickness_tenons=2`) on a thick,
+      square rail: `joints.thick_rail_tenons`, a 2 x 2 grid: `joints.square_rail_four_tenons`
     - [x] table leg accepting two perpendicular tenons with mitred ends –
       `joints.leg_and_aprons_mitred` (short tenons without mitres: `joints.leg_and_aprons`)
   - [x] box joint - both boards have a set of shallow regular slot mortises of equal widths –

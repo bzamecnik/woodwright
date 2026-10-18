@@ -287,7 +287,7 @@ def test_haunched_tenon() -> None:
         rail.left_end, length=40, thickness=8, width=40, haunch=rail.front_edge, haunch_length=10
     )
     # The haunch fills the shoulder towards the front edge, 10 mm long.
-    assert tenon.haunch_box() == ((-10, 0), (0, 10), (-14, -6))
+    assert tenon.haunch_boxes() == [((-10, 0), (0, 10), (-14, -6))]
     assert tenon.describe() == "haunched tenon 40 x 8 mm, 40 long, haunch 10 long, on rail.left_end"
     volume = 300 * 60 * 20 + 40 * 40 * 8 + 10 * 10 * 8
     assert cut_part(rail, tenon).volume == pytest.approx(volume)
@@ -389,3 +389,28 @@ def test_tenon_chamfer_must_fit() -> None:
         ww.Tenon(rail.left_end, length=65, thickness=8, width=6, chamfer=3)
     with pytest.raises(ValueError, match="either mitred or chamfered"):
         ww.Tenon(rail.left_end, length=65, thickness=8, chamfer=2, mitre=rail.top_face)
+
+
+def test_tenons_across_the_thickness() -> None:
+    rail = ww.Board("rail", ww.Stock.board(45, "oak"), length=300, width=45)
+    tenon = ww.Tenon(
+        rail.left_end, length=40, thickness=10, width=30, thickness_count=2, thickness_gap=10
+    )
+    # Centered across the thickness as a pair, the top one first.
+    assert [box[2] for box in tenon.tenon_boxes()] == [(-17.5, -7.5), (-37.5, -27.5)]
+    assert tenon.describe() == (
+        "2 tenons 30 x 10 mm, 40 long, 10 apart across the thickness, on rail.left_end"
+    )
+    assert cut_part(rail, tenon).volume == pytest.approx(300 * 45 * 45 + 2 * 30 * 10 * 40)
+
+
+def test_tenons_across_the_thickness_errors() -> None:
+    rail = ww.Board("rail", ww.Stock.board(45, "oak"), length=300, width=45)
+    with pytest.raises(ValueError, match="need a gap"):
+        ww.Tenon(rail.left_end, length=40, thickness=10, width=30, thickness_count=2)
+    with pytest.raises(ValueError, match="thicker than the part"):
+        ww.Tenon(
+            rail.left_end, length=40, thickness=20, width=30, thickness_count=2, thickness_gap=10
+        )
+    with pytest.raises(ValueError, match="a tongue is a single one"):
+        ww.Tongue(rail.back_edge, length=10, thickness=10, thickness_count=2, thickness_gap=10)

@@ -195,8 +195,7 @@ class Housing(Joint):
             pockets = [
                 Pocket(socket, self.socket_box(placement, box)) for box in tenon.tenon_boxes()
             ]
-            haunch = tenon.haunch_box()
-            if haunch is not None:
+            for haunch in tenon.haunch_boxes():
                 # Without clearance: as deep as the groove the haunch fills.
                 haunch_socket = self.socket_box(placement, haunch, clearance=0.0)
                 pockets.append(Pocket(socket, haunch_socket, kind="haunch mortise"))
@@ -497,6 +496,14 @@ class MortiseTenon(Housing):
     shoulders, e.g. twin tenons on a wide rail, `tenon_gap` apart (by
     default as wide as the tenons), each in its own mortise. The other
     options apply to each of them (the haunch to the outer one).
+
+    With `thickness_tenons`, there are that many tenons one beside the
+    other across the thickness, e.g. on a thick, square rail,
+    `thickness_gap` apart (by default as thick as the tenons). Each is
+    `tenon_thickness` thick, by default about as thick as the gaps and the
+    cheek shoulders; `tenon_offset` is then to the nearest of them. With
+    `tenons` too, they make a grid, each in its own mortise. A haunch is
+    beside each of them across the thickness; a mitre runs across all.
     """
 
     tenon: SideRef
@@ -513,6 +520,8 @@ class MortiseTenon(Housing):
     tenon_chamfer: float = 0.0
     tenons: int = 1
     tenon_gap: float | None = None
+    thickness_tenons: int = 1
+    thickness_gap: float | None = None
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
 
@@ -526,13 +535,19 @@ class MortiseTenon(Housing):
         gap = self.tenon_gap
         if self.tenons > 1 and gap is None:
             gap = self._shoulders_apart() / (2 * self.tenons - 1)
+        thickness = self.tenon_thickness or rules.tenon_thickness(
+            self.tenon.part.thickness, count=self.thickness_tenons
+        )
+        thickness_gap = self.thickness_gap
+        if self.thickness_tenons > 1 and thickness_gap is None:
+            thickness_gap = thickness
         return replace(
             self,
-            tenon_thickness=self.tenon_thickness
-            or rules.tenon_thickness(self.tenon.part.thickness),
+            tenon_thickness=thickness,
             tenon_length=self.tenon_length or rules.tenon_length(self.mortise.depth),
             haunch_length=haunch_length,
             tenon_gap=gap,
+            thickness_gap=thickness_gap,
         )
 
     def reach(self) -> float:
@@ -562,6 +577,8 @@ class MortiseTenon(Housing):
             chamfer=self.tenon_chamfer,
             count=self.tenons,
             gap=self.tenon_gap or 0.0,
+            thickness_count=self.thickness_tenons,
+            thickness_gap=self.thickness_gap or 0.0,
         )
 
 
@@ -571,7 +588,8 @@ class WedgedMortiseTenon(MortiseTenon):
     kerfs in its end, into a mortise flared towards the outside.
 
     The `wedges` are separate parts, one per kerf: one or two per tenon (see
-    `tenons`), in the order of the kerfs along the tenon. They are given as
+    `tenons` and `thickness_tenons`), in the order of the kerfs along the
+    tenon, the top tenons' first. They are given as
     made: as thick as the tenon (which by default they set), as long as the
     kerfs are deep, and as wide at their heads as the `kerf` plus the
     spread of the tenon (twice the spread for one kerf in the middle). The
@@ -597,7 +615,7 @@ class WedgedMortiseTenon(MortiseTenon):
         size = (first.length, first.width, first.thickness)
         if any((w.length, w.width, w.thickness) != size for w in self.wedges):
             raise ValueError("the wedges must be of the same size")
-        if len(self.wedges) not in (self.tenons, 2 * self.tenons):
+        if len(self.wedges) not in (self._count(), 2 * self._count()):
             raise ValueError("a wedged tenon has one or two wedges per tenon")
         if self.mitre is not None or self.tenon_chamfer:
             raise ValueError("a wedged tenon has a square end")
@@ -618,7 +636,11 @@ class WedgedMortiseTenon(MortiseTenon):
     @property
     def kerfs(self) -> int:
         """Per tenon."""
-        return len(self.wedges) // self.tenons
+        return len(self.wedges) // self._count()
+
+    def _count(self) -> int:
+        """Of all the tenons."""
+        return self.tenons * self.thickness_tenons
 
     def tenon_cut(self) -> WedgedTenon:
         tenon = super().tenon_cut()
@@ -639,7 +661,7 @@ class WedgedMortiseTenon(MortiseTenon):
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         tenon = self.tenon_cut()
-        mortises = "mortises" if self.tenons > 1 else "mortise"
+        mortises = "mortises" if self._count() > 1 else "mortise"
         flare = ShapeCut(
             self.mortise.part,
             placement * tenon.flare_solid(),
@@ -728,7 +750,7 @@ class MitredShoulderTenon(MortiseTenon):
         cuts = super().cuts(placement)
         tenon = self.tenon_cut()
         # The mortises are open to the notch, so cut them from the side.
-        for i in range(tenon.count):
+        for i in range(len(tenon.tenon_boxes())):
             mortise = cuts[i]
             assert isinstance(mortise, Pocket)
             box = list(mortise.box)

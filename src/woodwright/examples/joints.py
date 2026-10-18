@@ -37,6 +37,7 @@ from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) frame stock
 LEG_STOCK = Stock.board(thickness=45, species="oak")
+POST_STOCK = Stock.board(thickness=70, species="oak")
 
 
 # --- Butt joints ------------------------------------------------------------
@@ -470,6 +471,65 @@ def twin_tenon_corner(
         )
     )
     return asm
+
+
+def _post_and_thick_rail(
+    name: str,
+    tenons: int,
+    thickness_tenons: int,
+    shoulder: float,
+    tenon_thickness: float | None = None,
+    gap: float | None = None,
+) -> Assembly:
+    """A 45 x 45 mm rail tenoned into a 70 x 70 mm post, centered on it;
+    `gap` between the tenons both ways."""
+    asm = Assembly(name, root_location=STANDING)
+    post = asm.add(Board("post", POST_STOCK, length=500, width=POST_STOCK.thickness))
+    rail = asm.add(Board("rail", LEG_STOCK, length=300, width=LEG_STOCK.thickness))
+    asm.join(
+        MortiseTenon(
+            tenon=rail.left_end,
+            mortise=post.back_edge,
+            shoulder=shoulder,
+            tenons=tenons,
+            tenon_gap=gap,
+            thickness_tenons=thickness_tenons,
+            thickness_gap=gap,
+            tenon_thickness=tenon_thickness,
+            tenon_length=45,
+            across=CENTERED,
+        )
+    )
+    return asm
+
+
+def thick_rail_tenons() -> Assembly:
+    """A thick, square rail (e.g. a bench stretcher) tenoned into a post with
+    two tenons one beside the other across its thickness.
+
+    A single tenon a third of the rail thick would be weak in a square
+    rail, a thicker one would leave thin mortise walls; two thinner tenons,
+    each in its own mortise, give twice the glue area and keep the wood
+    between them. Each is as thick as the gap between them and the
+    shoulders, about a fifth of the rail; the shoulders at the edges are as
+    deep as those at the cheeks.
+    """
+    return _post_and_thick_rail("thick_rail_tenons", tenons=1, thickness_tenons=2, shoulder=7.5)
+
+
+def square_rail_four_tenons() -> Assembly:
+    """A square rail tenoned into a post with four tenons in a 2 x 2 grid:
+    two across the width as well as two across the thickness, each in its
+    own mortise. The tenons are square, 12 mm, 8 mm apart both ways, with
+    shoulders all round."""
+    return _post_and_thick_rail(
+        "square_rail_four_tenons",
+        tenons=2,
+        thickness_tenons=2,
+        shoulder=6.5,
+        tenon_thickness=12,
+        gap=8,
+    )
 
 
 def _leg_and_aprons(

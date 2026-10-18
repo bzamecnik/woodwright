@@ -57,6 +57,8 @@ ALL: list[Example] = [
     joints.haunched_mortise_tenon_corner,
     joints.haunched_stub_tenon_corner,
     joints.twin_tenon_corner,
+    joints.thick_rail_tenons,
+    joints.square_rail_four_tenons,
     joints.leg_and_aprons,
     joints.leg_and_aprons_mitred,
     joints.through_mortise_tenon,

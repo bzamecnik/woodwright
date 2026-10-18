@@ -257,7 +257,12 @@ class Tenon(Cut):
     With `count`, the tenon is split into that many tenons side by side
     along the side, `gap` apart, e.g. twin tenons on a wide rail; `width`
     and `width_offset` are then of all of them together. Between them the
-    part is cut back to the shoulder.
+    part is cut back to the shoulder. With `thickness_count`, there are that
+    many tenons one beside the other across the thickness, `thickness_gap`
+    apart, e.g. on a thick rail: `thickness` is then of each of them,
+    `thickness_offset` to the top one. The two combine into a grid. The
+    haunch is then as thick as each tenon, beside each of them; a mitre runs
+    across all of them.
     """
 
     side: SideRef
@@ -275,6 +280,8 @@ class Tenon(Cut):
     chamfer: float = 0.0
     count: int = 1
     gap: float = 0.0
+    thickness_count: int = 1
+    thickness_gap: float = 0.0
 
     def __post_init__(self) -> None:
         if self.side.axis == 2:
@@ -286,6 +293,12 @@ class Tenon(Cut):
                 raise ValueError("multiple tenons need a width and a gap between them")
             if self.single_width <= 0:
                 raise ValueError("the gaps between the tenons are wider than the tenons")
+        if self.thickness_count < 1:
+            raise ValueError("a tenon is cut at least once across the thickness")
+        if self.thickness_count > 1 and self.thickness_gap <= 0:
+            raise ValueError("tenons across the thickness need a gap between them")
+        if self.total_thickness > self.part.thickness + _EPS:
+            raise ValueError("the tenons are thicker than the part")
         if self.chamfer:
             if self.mitre is not None:
                 raise ValueError("a tenon is either mitred or chamfered at its end")
@@ -325,9 +338,7 @@ class Tenon(Cut):
         boxes: dict[int, Range] = {
             self.side.axis: _beyond(self.side, self.length, start=self.mitre_depth)
         }
-        t, offset = self.part.thickness, self.thickness_offset
-        offset = (t - self.thickness) / 2 if offset is None else offset
-        boxes[2] = (-offset - self.thickness, -offset)
+        boxes[2] = (-self._offset() - self.total_thickness, -self._offset())
         if self.width is None:
             boxes[width_axis] = (lo[width_axis], hi[width_axis])
         else:
@@ -339,6 +350,25 @@ class Tenon(Cut):
             boxes[width_axis] = (start, start + self.width)
         return boxes[0], boxes[1], boxes[2]
 
+    def _offset(self) -> float:
+        """Of the (top) tenon below the top face."""
+        t, offset = self.part.thickness, self.thickness_offset
+        return (t - self.total_thickness) / 2 if offset is None else offset
+
+    @property
+    def total_thickness(self) -> float:
+        """Of all the tenons across the thickness together, with the gaps."""
+        n = self.thickness_count
+        return n * self.thickness + (n - 1) * self.thickness_gap
+
+    def layers(self) -> list[Range]:
+        """The z ranges of the tenons across the thickness, from the top one."""
+        top = -self._offset()
+        step = self.thickness + self.thickness_gap
+        return [
+            (top - i * step - self.thickness, top - i * step) for i in range(self.thickness_count)
+        ]
+
     @property
     def single_width(self) -> float:
         """The width of each of multiple tenons (of the tenon, if there's one)."""
@@ -347,24 +377,26 @@ class Tenon(Cut):
         return (self.width - (self.count - 1) * self.gap) / self.count
 
     def tenon_boxes(self) -> list[tuple[Range, Range, Range]]:
-        """Ranges of each of the tenons, side by side, in the part frame."""
+        """Ranges of each of the tenons in the part frame: side by side along
+        the side, for each across the thickness, from the top one."""
         box = self.tenon_box()
-        if self.count == 1:
-            return [box]
         axis = 1 - self.side.axis
         start, w = box[axis][0], self.single_width
         boxes = []
-        for i in range(self.count):
-            ranges = list(box)
-            a = start + i * (w + self.gap)
-            ranges[axis] = (a, a + w)
-            boxes.append((ranges[0], ranges[1], ranges[2]))
+        for z in self.layers():
+            for i in range(self.count):
+                ranges = list(box)
+                a = start + i * (w + self.gap)
+                ranges[axis] = (a, a + w)
+                ranges[2] = z
+                boxes.append((ranges[0], ranges[1], ranges[2]))
         return boxes
 
-    def haunch_box(self) -> tuple[Range, Range, Range] | None:
-        """Ranges of the haunch in the part frame, from the tenon to the `haunch` side."""
+    def haunch_boxes(self) -> list[tuple[Range, Range, Range]]:
+        """Ranges of the haunch in the part frame, from the tenon to the
+        `haunch` side; one beside each tenon across the thickness."""
         if self.haunch is None or self.haunch_length is None:
-            return None
+            return []
         box = list(self.tenon_box())
         axis = self.haunch.axis
         a, b = box[axis]
@@ -377,12 +409,11 @@ class Tenon(Cut):
             )
         )
         box[self.side.axis] = _beyond(self.side, self.haunch_length, start=self.mitre_depth)
-        return box[0], box[1], box[2]
+        return [(box[0], box[1], z) for z in self.layers()]
 
     def boxes(self) -> list[tuple[Range, Range, Range]]:
         """The tenons and the haunch, if any."""
-        haunch = self.haunch_box()
-        return self.tenon_boxes() + ([] if haunch is None else [haunch])
+        return self.tenon_boxes() + self.haunch_boxes()
 
     def tenon(self) -> bd.Part:
         """The tenons themselves (with the haunch), in the part frame."""
@@ -400,8 +431,7 @@ class Tenon(Cut):
             tenon = list(_open(self.part, box, skip=self.side.axis))
             tenon[self.side.axis] = (c, INF) if self.side.side.sign > 0 else (-INF, c)
             removal -= _box(self.part, (tenon[0], tenon[1], tenon[2]))
-        haunch = self.haunch_box()
-        if haunch is not None:
+        for haunch in self.haunch_boxes():
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
         if self.mitre is not None:
             removal += self._mitre_removal() & _box(self.part, beyond)
@@ -429,9 +459,13 @@ class Tenon(Cut):
                         (end - s * k, c),
                     ]
                     corner = _prism(self.part, u, axis, points)
-                    if self.count > 1:  # not into the tenons beside it
-                        across = list(_ranges())
+                    # Not into the tenons beside it.
+                    across = list(_ranges())
+                    if self.count > 1:
                         across[1 - u] = box[1 - u]
+                    if self.thickness_count > 1:
+                        across[2] = box[2]
+                    if self.count > 1 or self.thickness_count > 1:
                         corner &= _box(self.part, (across[0], across[1], across[2]))
                     corners.append(corner)
         return functools.reduce(operator.add, corners)
@@ -461,7 +495,7 @@ class Tenon(Cut):
         (_, _), (_, _), (z0, z1) = self.tenon_box()
         inner, outer = (z1, z0) if self.mitre.side.sign > 0 else (z0, z1)
         c, s = self.side.coordinate + self.side.side.sign * self.mitre_depth, self.side.side.sign
-        shortening = self.thickness * math.tan(math.radians(self.mitre_angle))
+        shortening = self.total_thickness * math.tan(math.radians(self.mitre_angle))
         long_point = (c + s * self.length, outer)
         short_point = (c + s * (self.length - shortening), inner)
         v = (short_point[0] - long_point[0], short_point[1] - long_point[1])
@@ -476,10 +510,8 @@ class Tenon(Cut):
 
     def cheeks(self) -> int:
         """How many cheeks are cut: 0, 1 or 2."""
-        t = self.part.thickness
-        offset = self.thickness_offset
-        offset = (t - self.thickness) / 2 if offset is None else offset
-        return int(offset > _EPS) + int(offset + self.thickness < t - _EPS)
+        t, offset = self.part.thickness, self._offset()
+        return int(offset > _EPS) + int(offset + self.total_thickness < t - _EPS)
 
     @property
     def removes_material(self) -> bool:
@@ -501,9 +533,18 @@ class Tenon(Cut):
         size = f"{self.single_width:g} x {self.thickness:g} mm, {self.length:g} long"
         if self.haunch is not None:
             kind = f"haunched {kind}"
-        if self.count > 1:
+        if self.count > 1 and self.thickness_count > 1:
+            kind = f"{self.count * self.thickness_count} {kind}s"
+            size += (
+                f", {self.count} across the width {self.gap:g} apart, "
+                f"{self.thickness_count} across the thickness {self.thickness_gap:g} apart"
+            )
+        elif self.count > 1:
             kind = f"{self.count} {kind}s"
             size += f", {self.gap:g} apart"
+        elif self.thickness_count > 1:
+            kind = f"{self.thickness_count} {kind}s"
+            size += f", {self.thickness_gap:g} apart across the thickness"
         if self.haunch is not None:
             size += f", haunch {self.haunch_length:g} long"
         if self.mitre is not None:
@@ -523,8 +564,8 @@ class Tenon(Cut):
 class WedgedTenon(Tenon):
     """A through tenon with saw kerfs across its thickness, spread by wedges.
 
-    Each tenon (see `count`) has one kerf in its middle or two, `kerf_inset`
-    in from its edges (by default a fifth of its width), `kerf` wide and
+    Each tenon (see `count` and `thickness_count`) has one kerf in its
+    middle or two, `kerf_inset` in from its edges (by default a fifth of its width), `kerf` wide and
     `kerf_depth` deep from its end. It is modelled as glued up: the wedges
     driven into the kerfs have spread the tenon, so each end of it leans
     out by `flare` where it leaves the mortised part, `proud` before its
@@ -590,7 +631,7 @@ class WedgedTenon(Tenon):
             ]
 
         outlines = []
-        for box in self.tenon_boxes():
+        for box in self.tenon_boxes()[: self.count]:  # the same for each across the thickness
             lo, hi = box[1 - u]
             if not kerfs:
                 outlines.append(
@@ -617,11 +658,12 @@ class WedgedTenon(Tenon):
         return outlines
 
     def _solid(self, kerfs: bool) -> bd.Part:
-        """The flares or the kerfs through the tenon's thickness, in the part frame."""
-        z = self.tenon_box()[2]
+        """The flares or the kerfs through the tenons' thickness, in the part frame."""
         u = self.side.axis
         solids = [_prism(self.part, u, 1 - u, _dedup(points)) for points in self._outlines(kerfs)]
-        return functools.reduce(operator.add, solids) & _box(self.part, _ranges((2, z)))
+        solid = functools.reduce(operator.add, solids)
+        layers = [_box(self.part, _ranges((2, z))) for z in self.layers()]
+        return solid & functools.reduce(operator.add, layers)
 
     def flare_solid(self) -> bd.Part:
         """What the tenon spreads into beyond its straight cheeks (and the mortise is flared by)."""
@@ -637,22 +679,22 @@ class WedgedTenon(Tenon):
         the tenon, its front edge at the stationary side of the kerf (for
         one kerf, at the side towards the tenon's front edge or left end) and
         as thick as the tenon. With two kerfs it is tapered on its back edge,
-        with one on both edges.
+        with one on both edges. With tenons across the thickness, the kerfs
+        of the top one come first.
         """
         u, s = self.side.axis, self.side.side.sign
         v = 1 - u
-        z0, z1 = self.tenon_box()[2]
         end = self.side.coordinate + s * self.length
         k, f = self.kerf, self.flare
         starts: list[tuple[float, int]] = []  # the wedge's front edge and its direction
         for box in self.tenon_boxes():
             lo, hi = box[v]
             if self.kerfs == 2:
-                starts += [(lo + self.inset + k, -1), (hi - self.inset - k, +1)]
+                starts += [(lo + self.inset + k, -1, box[2]), (hi - self.inset - k, +1, box[2])]
             else:
-                starts.append(((lo + hi) / 2 - k / 2 - f, +1))
+                starts.append(((lo + hi) / 2 - k / 2 - f, +1, box[2]))
         locations = []
-        for start, sign in starts:
+        for start, sign, (z0, z1) in starts:
             x_dir = -s * _unit(u)
             y_dir = sign * _unit(v)
             z_dir = x_dir.cross(y_dir)
@@ -663,7 +705,7 @@ class WedgedTenon(Tenon):
         return locations
 
     def describe(self) -> str:
-        each = " each" if self.count > 1 else ""
+        each = " each" if self.count * self.thickness_count > 1 else ""
         kerfs = "a saw kerf" if self.kerfs == 1 else "2 saw kerfs"
         tenon = super().describe().removesuffix(f", on {self.side}")
         return (
@@ -687,6 +729,8 @@ class Tongue(Tenon):
             raise ValueError(f"a tongue is cut on an edge or an end, not on {self.side}")
         if self.width is not None:
             raise ValueError("a tongue runs along the whole side, it has no width")
+        if self.count * self.thickness_count > 1:
+            raise ValueError("a tongue is a single one")
 
     def kind(self) -> str:
         if self.cheeks() == 1:
@@ -789,7 +833,7 @@ class DovetailLap(Tenon):
         super().__post_init__()
         if self.side.axis != 0:
             raise ValueError(f"a dovetail lap is cut on an end, not on {self.side}")
-        if self.width is not None or self.count > 1 or self.cheeks() != 1:
+        if self.width is not None or self.count * self.thickness_count > 1 or self.cheeks() != 1:
             raise ValueError("a dovetail lap spans the whole end, with one cheek")
         if self.haunch is not None or self.mitre is not None or self.chamfer or self.mitre_depth:
             raise ValueError("a dovetail lap has a square end and square shoulders")

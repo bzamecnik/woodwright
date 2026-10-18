@@ -3,9 +3,15 @@
 CHISEL_WIDTHS = (3.0, 6.0, 8.0, 10.0, 12.0, 16.0, 20.0, 25.0)  # mm, a common metric set
 
 
-def tenon_thickness(stock_thickness: float, chisels: tuple[float, ...] = CHISEL_WIDTHS) -> float:
-    """About a third of the stock, snapped up to the nearest chisel width."""
-    fitting = [width for width in sorted(chisels) if width >= stock_thickness / 3]
+def tenon_thickness(
+    stock_thickness: float, chisels: tuple[float, ...] = CHISEL_WIDTHS, count: int = 1
+) -> float:
+    """About a third of the stock, snapped up to the nearest chisel width.
+
+    For `count` tenons across the thickness, each about as thick as the gaps
+    between them and the shoulders: a fifth of the stock for two.
+    """
+    fitting = [width for width in sorted(chisels) if width >= stock_thickness / (2 * count + 1)]
     return fitting[0] if fitting else max(chisels)
 
 
