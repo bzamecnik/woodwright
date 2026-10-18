@@ -18,6 +18,7 @@ from woodwright.joints import (
     HalfLap,
     LooseTenon,
     MitreCorner,
+    MitredCornerDovetail,
     MitredHalfLap,
     MitredShoulderTenon,
     MitreSplice,
@@ -671,6 +672,36 @@ def half_blind_dovetail_corner(
     front = asm.add(Board("front", stock, length=front_length - t, width=height))
     side = asm.add(Board("side", side_stock, length=side_length, width=height))
     asm.join(HalfBlindDovetail(tails=side.right_end, pins=front.left_end, tail_count=tail_count))
+    return asm
+
+
+def mitred_dovetail_corner(
+    front_length: float = 400,
+    side_length: float = 300,
+    height: float = 150,
+    groove_width: float = 6,
+    groove_depth: float = 8,
+    stock: Stock = OAK,
+) -> Assembly:
+    """The corner of a box made to be sawn open: through dovetails mitred at both edges.
+
+    The top and the bottom panel go into grooves along the inside of the
+    walls, `groove_width` from the edges; the mitres at the edges hide where
+    the grooves run out of the ends. Outside lengths, as `dovetail_corner`.
+    """
+    asm = Assembly("mitred_dovetail_corner", root_location=BOX_FRONT)
+    t = stock.thickness
+    front = asm.add(Board("front", stock, length=front_length - t, width=height))
+    side = asm.add(Board("side", stock, length=side_length - t, width=height))
+    asm.join(
+        MitredCornerDovetail(
+            tails=side.right_end, pins=front.left_end, tail_count=3, mitre_width=2.5 * groove_width
+        )
+    )
+    # Along the inside faces, through the ends, within the mitres.
+    for board in (front, side):
+        for edge in (board.front_edge, board.back_edge):
+            board.cut(Groove(board.bottom_face, groove_width, groove_depth, groove_width, edge))
     return asm
 
 

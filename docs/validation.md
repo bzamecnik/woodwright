@@ -98,7 +98,8 @@ Done items name their example in `woodwright.examples`
     - [x] drawer with dovetailed corners with a groove and rabbeted bottom – `projects.drawer`
       (half-blind at the front, through at the back; through at all four corners without a
       bottom: `projects.dovetail_drawer`)
-    - [ ] dovetail with mitred corner
+    - [x] dovetail with mitred corner – `MitredCornerDovetail`, `joints.mitred_dovetail_corner`
+      (mitred at both edges, hiding the grooves for the top and the bottom of a box)
   - chamfer joint
     - full 45˚ chamfer
       - [x] two pieces - long L-shaped piece – `joints.edge_mitre_corner`

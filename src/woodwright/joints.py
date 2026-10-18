@@ -52,6 +52,7 @@ __all__ = [
     "LooseTenon",
     "MitreCorner",
     "MitreSplice",
+    "MitredCornerDovetail",
     "MitredHalfLap",
     "MitredShoulderTenon",
     "MortiseTenon",
@@ -1182,6 +1183,38 @@ class ThroughDovetail(_CornerJoint):
         """Where the dovetails are laid out across the width of the pin board."""
         return 0.0, self.pins.part.width
 
+    def _pin_length(self) -> float:
+        """How far the pins reach along the pin board: through the tail board."""
+        return self.tails.part.thickness
+
+    def _is_mitred(self) -> bool:
+        """Whether the corner is mitred where it isn't dovetailed."""
+        return False
+
+    def _corner(self) -> bd.Part:
+        pins = self._pins(self._pin_length())
+        if not self._is_mitred():
+            return pins
+        return pins + (self._mitre() & (self._block() - self._dovetailed()))
+
+    def _dovetailed(self) -> bd.Part:
+        """The part of the block where the boards are dovetailed."""
+        x0, x1 = self._x_range(self._pin_length())
+        start, stop = self._span()
+        return bd.Pos(x0, start, -self.pins.part.thickness) * bd.Box(
+            x1 - x0, stop - start, self._tail_length(), align=(bd.Align.MIN,) * 3
+        )
+
+    def _mitre(self) -> bd.Part:
+        """The pin board's half of the block, mitred on its diagonal from the
+        inside corner of the joint to the outside one."""
+        pins, tails = self.parts()
+        c, sign = self.pins.coordinate, self.pins.side.sign
+        points = [(c, -pins.thickness), (c + sign * tails.thickness, 0), (c, 0)]
+        # Drawn along the length (x) and the thickness (y) of the pin board, extruded across it.
+        plane = bd.Plane((0, 0, 0), x_dir=(1, 0, 0), z_dir=(0, -1, 0))
+        return bd.extrude(plane * bd.Polygon(*points), amount=pins.width, dir=(0, 1, 0))
+
     def _pin_profiles(self) -> list[list[tuple[float, float]]]:
         """Outlines of the pins (incl. half pins) as (across the width, along the normal).
 
@@ -1209,6 +1242,59 @@ class ThroughDovetail(_CornerJoint):
         u0 = u + tail_wide
         profiles.append([(u0, top), (u0 - flare, bottom), (stop, bottom), (stop, top)])
         return profiles
+
+
+@dataclass
+class MitredCornerDovetail(ThroughDovetail):
+    """Through dovetails mitred at the edges of the corner, e.g. to hide a
+    groove or a rabbet running along the inside of a box.
+
+    At each of the pin board's edges in `mitred` (by default both), a strip
+    `mitre_width` wide across the width is mitred through the whole
+    thickness instead of dovetailed, so the edge of the corner shows a mitre
+    and a groove or a rabbet within the strip runs through both boards
+    unseen. The dovetails are laid out across the rest of the width, from a
+    half pin next to each mitre. The boards must be equally wide.
+    """
+
+    mitred: tuple[SideRef, ...] | None = None
+    mitre_width: float = 10.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.pins.part.width != self.tails.part.width:
+            raise ValueError("the boards of a mitred dovetail must be equally wide")
+
+    def with_defaults(self) -> Self:
+        pins = self.pins.part
+        mitred = self.mitred or (pins.front_edge, pins.back_edge)
+        for edge in mitred:
+            if edge.part is not pins or edge.axis != 1:
+                raise ValueError(f"a dovetail is mitred at an edge of {pins.name}, not {edge}")
+        return replace(self, mitred=mitred)
+
+    def _mitred_at(self, side: Side) -> bool:
+        return any(edge.side == side for edge in _require(self.mitred))
+
+    def _span(self) -> Range:
+        width, mitre = self.pins.part.width, self.mitre_width
+        start = mitre if self._mitred_at(Side.FRONT_EDGE) else 0.0
+        stop = width - mitre if self._mitred_at(Side.BACK_EDGE) else width
+        return start, stop
+
+    def _is_mitred(self) -> bool:
+        return True
+
+    def _descriptions(self) -> tuple[str, str]:
+        sockets, dovetails = super()._descriptions()
+        pins = self.pins.part
+        edges = [side for side in (Side.FRONT_EDGE, Side.BACK_EDGE) if self._mitred_at(side)]
+        tails = [_flush_side(self.tails.part, pins.side(side), self.placement()) for side in edges]
+        mitre = f", mitred {self.mitre_width:g} mm at "
+        return (
+            sockets + mitre + ", ".join(str(pins.side(side)) for side in edges),
+            dovetails + mitre + ", ".join(map(str, tails)),
+        )
 
 
 @dataclass
@@ -1492,6 +1578,16 @@ class Button(Joint):
         a, b = box[along]
         box[along] = (a - self.play, b + self.play)
         return [Pocket(self.mortise, (box[0], box[1], box[2])), tongue]
+
+
+def _flush_side(part: Board, side: SideRef, placement: bd.Location) -> SideRef:
+    """The side of `part` (placed by `placement` in the frame of side's part) facing
+    the same way as `side`."""
+    return next(
+        s
+        for s in map(part.side, Side)
+        if (_direction(placement, s.normal) - side.normal).length < _EPS
+    )
 
 
 def _direction(loc: bd.Location, vector: bd.Vector) -> bd.Vector:

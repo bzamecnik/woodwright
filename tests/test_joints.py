@@ -388,6 +388,36 @@ def test_through_dovetail_with_a_narrower_pin_board() -> None:
         ww.ThroughDovetail(tails=pins.left_end, pins=tails.left_end)
 
 
+@pytest.mark.parametrize("edges", [("front_edge",), ("front_edge", "back_edge")])
+def test_mitred_corner_dovetail(edges: tuple[str, ...]) -> None:
+    asm = ww.Assembly("test")
+    pins = asm.add(ww.Board("pins", OAK, length=300, width=100))
+    tails = asm.add(ww.Board("tails", OAK, length=200, width=100))
+    mitred = tuple(getattr(pins, edge) for edge in edges)
+    asm.join(
+        ww.MitredCornerDovetail(
+            tails=tails.left_end, pins=pins.right_end, tail_count=2, mitred=mitred, mitre_width=15
+        )
+    )
+    model = asm.resolve()
+    at = ", ".join(f"pins.{edge}" for edge in edges)
+    assert cuts(model, pins) == [f"sockets for 2 dovetails, mitred 15 mm at {at}"]
+    assert cuts(model, tails)[0].endswith(f"mitred 15 mm at {at.replace('pins', 'tails')}")
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    total = model[pins].shape.volume + model[tails].shape.volume
+    assert total == pytest.approx((320 + 220 - 20) * 100 * 20)
+    # In the mitred strips each board has half of the corner, on its side of the diagonal.
+    for y0 in [0, 85][: len(edges)]:
+        strip = bd.Pos(300, y0, -20) * bd.Box(20, 15, 20, align=(bd.Align.MIN,) * 3)
+        assert (model[pins].shape & strip).volume == pytest.approx(strip.volume / 2)
+    # The outside face of the pin board shows the mitre: its corner is whole at the edge.
+    edge = bd.Pos(300, 0, -0.1) * bd.Box(20, 15, 0.1, align=(bd.Align.MIN,) * 3)
+    assert (model[pins].shape & edge).volume == pytest.approx(edge.volume, rel=0.01)
+    narrow = asm.add(ww.Board("narrow", OAK, length=200, width=80))
+    with pytest.raises(ValueError, match="equally wide"):
+        ww.MitredCornerDovetail(tails=tails.right_end, pins=narrow.left_end)
+
+
 def test_half_blind_dovetail() -> None:
     asm = ww.Assembly("test")
     front = asm.add(ww.Board("front", OAK, length=300, width=100))
