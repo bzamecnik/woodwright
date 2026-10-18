@@ -26,8 +26,8 @@ Done items name their example in `woodwright.examples`
     `cuts.slot_mortise`
   - [x] tongue - rabbets at the edge from two opposite faces – `cuts.tongue`
   - mortise - a hole through the board across the grain
-    - [x] through mortice – `cuts.mortise(depth=60)`, `joints.through_mortise_tenon`
-    - [x] blind mortice - not all the way through the board – `cuts.mortise`
+    - [x] through mortise – `cuts.mortise(depth=60)`, `joints.through_mortise_tenon`
+    - [x] blind mortise - not all the way through the board – `cuts.mortise`
   - [x] tenon - "endgrain rabbet" from multiple sides at once – `cuts.tenon`
   - [x] dovetail dado - dado where the sides are not perpendicular, but angled inward –
     derived by `SlidingDovetail`, in `joints.sliding_dovetail_shelf`
@@ -80,16 +80,17 @@ Done items name their example in `woodwright.examples`
   - mortise and tenon - one board with a tenon mortise, another with tenon
     - [x] mallet – `projects.mallet`
     - [x] frame for a bow saw (two tenons) – `projects.bow_saw_frame`
-    - [x] blind mortice – `joints.mortise_tenon`, `frames.mortise_tenon_frame`
-    - [x] tenon extending out of the through mortice – `joints.protruding_through_mortise_tenon`,
+    - [x] blind mortise – `joints.mortise_tenon`, `frames.mortise_tenon_frame`
+    - [x] tenon extending out of the through mortise – `joints.protruding_through_mortise_tenon`,
       only its chamfered end proud: `joints.chamfered_through_mortise_tenon`
     - [ ] multiple tenon
     - [x] table leg accepting two perpendicular tenons with mitred ends –
       `joints.leg_and_aprons_mitred` (short tenons without mitres: `joints.leg_and_aprons`)
-  - [ ] box joint - both boards have a set of shallow regular slot motrices of equal widths
+  - [ ] box joint - both boards have a set of shallow regular slot mortises of equal widths
   - [x] sliding dovetail - one board with dovetail groove, another with dovetail tongue –
     `joints.sliding_dovetail_shelf`
-  - dovetail - similar to box joint, but the slot mortices are angled
+    - [ ] two butt-joined boards with a two sliding dovetail cross-pieces (seat of a stepstool)
+  - dovetail - similar to box joint, but the slot mortises are angled
     - [x] two boards (corner) – `joints.dovetail_corner`
     - [x] shelf with dovetailed corners – `projects.dovetail_shelf` (two stories)
     - [x] drawer with dovetailed corners with a groove and rabbeted bottom – `projects.drawer`
@@ -104,26 +105,26 @@ Done items name their example in `woodwright.examples`
     - [ ] two boards with blind drill holes + dowel
     - [ ] one board with a blind hole, one with open hole + dowel
     - [ ] board with a hole + bigger rod
-  - half-lap mitre
+  - mitred half-lap
     - [ ] like a half-lap corner, but one side is mitred
-  - half-lap dovetail
-    - [ ] like a half-lap T-joint, but the
-  - wedged mortice and tenon
-    - [ ] through half-dovetail mortice with edges angled outward
+  - dovetailed half-lap
+    - [ ] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight
+  - wedged mortise and tenon
+    - [ ] through half-dovetail mortise with edges angled outward
     - [ ] tenon with one or two slots ended with a drilled hole + wedge
-  - drawbore mortice and tenon
-    - [ ] mortice and tenon plus each has a drill hole which is slightly offset + dowel
-  - [ ] tusk mortice and tenon
-    - tenon extends out of the through mortice
-    - there's another smaller mortice going through the tenon
-    - a wedge goes through the second mortice
-    - the second mortice can go through the face or through the edge
-  - [x] stub tenon - L-joint, mortice offset from the endgrain, tenon has three shoulders –
+  - drawbore mortise and tenon
+    - [ ] mortise and tenon plus each has a drill hole which is slightly offset + dowel
+  - [ ] tusk mortise and tenon
+    - tenon extends out of the through mortise
+    - there's another smaller mortise going through the tenon
+    - a wedge goes through the second mortise
+    - the second mortise can go through the face or through the edge
+  - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
     `joints.stub_tenon_corner`
   - [x] haunched tenon - a stub filling a groove that runs out of the mortised part –
     `joints.haunched_mortise_tenon_corner`, `frames.frame_and_panel`
-  - [ ] haunched stub tenon - tenon
-  - [ ] loose tenon - two blind mortices, tenon is a separate piece
+  - [ ] haunched stub tenon - combination of stub tenon and haunched tenon
+  - [ ] loose tenon - two blind mortises, tenon is a separate piece
   - mitred shoulder tenon - the tenoned board reaches into a notch in the mortised one, mitred
     at 45° part way (e.g. a third) into it; for square-ish stock
     - [x] T-joint, mitred at both edges, stub tenon – `joints.mitred_shoulder_tenon`
@@ -138,7 +139,7 @@ Done items name their example in `woodwright.examples`
     - [ ] 3-way joint: two outer tenons, the outer one pointed, the inner one mitred at its edge
       so the two perpendicular rails don't clash
   - round tenon
-    - [ ] mortice is a drilled hole, tenon is round
+    - [ ] mortise is a drilled hole, tenon is round
     - [ ] can be wedged
   - [x] half-blind dovetail – `joints.half_blind_dovetail_corner`, `projects.drawer`
   - [ ] blind mitred dovetail
