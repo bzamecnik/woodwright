@@ -364,8 +364,9 @@ def mitred_shoulder_tenon(
     stile, mitred at both edges, and a stub tenon goes on from there.
 
     The rail meets the stile on two short 45-degree mitres (by default a
-    third of the stile wide) with a straight line between them, where the
-    tenon is.
+    third of the stile wide) with a straight line between them. The tenon
+    reaches half-way under the mitres both ways, for strength; there the
+    mitres are cut only down to its cheeks.
     """
     asm = Assembly("mitred_shoulder_tenon", root_location=STANDING)
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
@@ -383,7 +384,9 @@ def mitred_shoulder_corner(
     """An L-shaped frame corner of square-ish stock, mitred only at the inner edge.
 
     Like a mitre corner whose mitre stops a third into the stile; the rest
-    is butted, with a through tenon behind the notch.
+    is butted, with a through tenon behind the notch. The tenon reaches
+    half-way under the mitre, but keeps a full shoulder towards the end of
+    the stile, so that enough material is left there.
     """
     asm = Assembly("mitred_shoulder_corner", root_location=STANDING)
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
