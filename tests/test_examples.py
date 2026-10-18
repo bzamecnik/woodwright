@@ -230,6 +230,22 @@ def test_shiplap_panel_laps_fill_the_rabbets() -> None:
     assert total == pytest.approx(3 * 500 * 150 * 20)
 
 
+def test_haunched_tenon_has_a_small_inner_shoulder() -> None:
+    from woodwright.examples import joints
+
+    model = joints.haunched_mortise_tenon_corner().resolve()
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["rail"].size == (225, 60, 20)  # as long as the stub tenon
+    # 10 mm shoulders on both edges, the outer one filled by the haunch.
+    cuts = [cut.describe() for cut in parts["rail"].cuts]
+    assert cuts[-1] == "haunched tenon 40 x 8 mm, 25 long, haunch 10 long, on rail.left_end"
+    stile_cuts = [cut.describe() for cut in parts["stile"].cuts]
+    assert stile_cuts[1:] == [
+        "mortise 40 x 8 mm, 27 deep, in stile.back_edge",
+        "haunch mortise 10 x 8 mm, 10 deep, in stile.back_edge at stile.right_end",
+    ]
+
+
 def test_haunched_stub_tenon_fills_the_groove_at_the_end() -> None:
     import build123d as bd
 

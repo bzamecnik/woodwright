@@ -350,10 +350,11 @@ def _grooved_corner(
     groove_depth: float,
     stock: Stock,
     outer_shoulder: float,
-    tenon_length: float | None = None,
+    tenon_length: float,
 ) -> Assembly:
     """A frame corner with grooves along the inside edges and a haunched tenon,
-    as thick as the groove is wide, its inner shoulder as wide as the groove is deep."""
+    as thick as the groove is wide, its inner shoulder as wide as the groove is
+    deep; the haunch fills the outer shoulder as far as the groove is deep."""
     asm = Assembly(name, root_location=STANDING)
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
@@ -380,12 +381,18 @@ def haunched_mortise_tenon_corner(
     width: float = 60,
     groove_width: float = 8,
     groove_depth: float = 10,
+    tenon_length: float = 25,
     stock: Stock = OAK,
 ) -> Assembly:
     """A frame corner with grooves along the inside edges and a haunched tenon.
 
-    The groove runs out of the end of the stile; the haunch on the outer
-    side of the tenon fills it, the tenon being as thick as the groove is wide.
+    The tenon, as thick as the groove is wide, is nearly as wide as the
+    rail: on the inner edge it has only a small shoulder, as wide as the
+    groove is deep, so the groove along the rail doesn't cut into it; on
+    the outer edge it is cut down to a haunch, which fills the groove
+    running out of the end of the stile. The mortise is set back from the
+    end of the stile only by the haunch. Compare
+    `haunched_stub_tenon_corner`, with a wide outer shoulder.
     """
     return _grooved_corner(
         "haunched_mortise_tenon_corner",
@@ -396,6 +403,7 @@ def haunched_mortise_tenon_corner(
         groove_depth,
         stock,
         outer_shoulder=groove_depth,
+        tenon_length=tenon_length,
     )
 
 
@@ -413,9 +421,10 @@ def haunched_stub_tenon_corner(
 
     The tenon is short, blind well short of the stile's outer edge, and has
     shoulders all round: on the faces, on the inner edge as wide as the
-    groove is deep, and a wide one on the outer edge, so the mortise is set
-    back from the end of the stile and the short grain beyond it doesn't
-    split out. The haunch fills that shoulder as far as the groove is deep,
+    groove is deep, and, unlike in `haunched_mortise_tenon_corner`, a wide
+    one on the outer edge, so the mortise is set well back from the end of
+    the stile and the short grain beyond it doesn't split out; the tenon is
+    narrower. The haunch fills that shoulder as far as the groove is deep,
     so the groove running out of the end of the stile doesn't show there,
     and keeps the rail from twisting.
     """

@@ -134,7 +134,8 @@ Done items name their example in `woodwright.examples`
   - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
     `joints.stub_tenon_corner`
   - [x] haunched tenon - a stub filling a groove that runs out of the mortised part –
-    `joints.haunched_mortise_tenon_corner`, `frames.frame_and_panel`
+    `joints.haunched_mortise_tenon_corner` (a small inner shoulder, the haunch on the outer edge),
+    `frames.frame_and_panel`
   - [x] haunched stub tenon - combination of stub tenon and haunched tenon –
     `joints.haunched_stub_tenon_corner` (a short tenon, a wide haunched outer shoulder)
   - [x] loose tenon - two blind mortises, tenon is a separate piece – `LooseTenon`,
