@@ -86,6 +86,7 @@ ALL: list[Example] = [
     projects.shooting_board,
     projects.bench_hook,
     projects.stepstool_seat,
+    projects.ledged_door,
     projects.bow_saw_frame,
     projects.butt_box,
     projects.bookshelf,

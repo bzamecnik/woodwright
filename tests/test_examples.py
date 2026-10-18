@@ -176,3 +176,18 @@ def test_stepstool_seat_battens_housed_in_both_boards() -> None:
     # Each batten's one tongue fills the housings in both boards.
     total = sum(part.shape.volume for part in model.parts)
     assert total == pytest.approx(2 * 400 * 140 * 20 + 2 * 280 * 40 * 20)
+
+
+def test_ledged_door_tongues_fill_the_grooves() -> None:
+    from woodwright.examples import projects
+
+    model = projects.ledged_door().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((400, 40, 600))  # the ledges behind the boards
+    sizes = {part.part.name: part.size for part in model.parts}
+    assert sizes["board_1"] == (600, 100, 20)  # the first board has no tongue
+    assert sizes["board_2"] == (600, 110, 20)
+    assert sizes["ledge_top"] == (370, 80, 20)
+    # The tongues fill the grooves; only the V-chamfers along the joints are gone.
+    boards = sum(part.shape.volume for part in model.parts if part.part.name.startswith("board"))
+    assert boards == pytest.approx(400 * 600 * 20 - 6 * 3 * 3 / 2 * 600)

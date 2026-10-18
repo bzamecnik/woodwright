@@ -50,7 +50,8 @@ Done items name their example in `woodwright.examples`
     - [x] T-joint with a dado – `joints.dado_shelf`, `projects.shooting_board`
     - [x] shelf with dados – `projects.bookshelf`
   - groove
-    - [x] tongue and groove panel - tongue + groove – `joints.tongue_and_groove_panel`
+    - [x] tongue and groove panel - tongue + groove – `joints.tongue_and_groove_panel`,
+      V-chamfered boards on two ledges: `projects.ledged_door`
     - [ ] tongue and groove panel - two grooves + inserted tongue
     - [ ] frame panel - butt-joint frame with a groove inside, panel with a tongue on all edges
       (so far `frames.frame_and_panel`: a mortise-and-tenon frame, a plain panel;

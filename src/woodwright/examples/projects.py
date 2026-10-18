@@ -187,6 +187,53 @@ def stepstool_seat(
     return asm
 
 
+def ledged_door(
+    height: float = 600,
+    width: float = 400,
+    boards: int = 4,
+    ledge_width: float = 80,
+    ledge_from_ends: float = 80,
+    ledge_inset: float = 15,
+    chamfer: float = 3,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A ledged cupboard door: tongue-and-groove boards on two ledges across the back.
+
+    The boards stand side by side, each tongued into a groove along the
+    next, not glued, so they can move; the outer boards' outer edges are
+    plain. On the front the arrises along the joints are chamfered, so
+    that each joint shows as a V and a gap opening as the boards shrink
+    is hidden. The ledges, `ledge_from_ends` from the top and the bottom
+    and `ledge_inset` in from the sides, would be screwed to each board
+    from the back (the screws aren't modelled); no braces.
+    """
+    # The boards' reference faces are at the back, their back edges to the right.
+    asm = Assembly("ledged_door", root_location=STANDING)
+    door = [
+        asm.add(Board(f"board_{i + 1}", stock, length=height, width=width / boards))
+        for i in range(boards)
+    ]
+    for a, b in itertools.pairwise(door):
+        asm.join(TongueAndGroove(tongue=b.front_edge, groove=a.back_edge))
+        for edge in (a.back_edge, b.front_edge):
+            edge.part.cut(Chamfer(edge.part.arris(edge.part.bottom_face, edge), size=chamfer))
+    first = door[0]
+    for name, end in [("top", first.right_end), ("bottom", first.left_end)]:
+        ledge = asm.add(
+            Board(f"ledge_{name}", stock, length=width - 2 * ledge_inset, width=ledge_width)
+        )
+        asm.join(
+            Butt(
+                first.top_face,
+                ledge.bottom_face,
+                position=offset(ledge_from_ends, ref=end),
+                flush=(first.front_edge, ledge.left_end),
+                across=offset(ledge_inset),
+            )
+        )
+    return asm
+
+
 def butt_box(
     length: float = 300,
     depth: float = 200,
