@@ -658,6 +658,13 @@ tenons).
   virtual sides.
 - **Cut list.** "rung ø25 x 380 mm oak" instead of L x W x T; holes and
   tenons listed as usual.
+- **Planar cuts on rods.** A rod can be thought of as a square box with its
+  four long arrises "chamfered" round (one quick way to make one, on a
+  router table), so box-based cuts keep their meaning: a rip along the
+  length leaves a flat face (a half dowel) that can be butted or glued to a
+  board; an end cut or mitre across it; a straight planar taper along it
+  (`Taper` on a virtual side cuts a flat sloping plane, not a cone). A
+  turned leg may keep a square head for its mortises.
 - **Later.** Profiled (turned) rods as a revolved outline along the
   length: tapers, beads, shoulders. Square stock turned round in part
   (a leg square at the aprons, round below) is a board with a revolved cut.
@@ -709,6 +716,12 @@ tenons).
   hole in the tenon 1–2 mm towards the shoulder) is recorded for the cut
   list, while the geometry shows the assembled state with straight holes, as
   for the wedged tenons.
+- A dowel tusk wedge (from Rex Krueger's workbench; rare but cheap): half a
+  dowel, ripped along its length, glued flat side down on the mortised part
+  next to the hole in the protruding tenon, and a second dowel with a planar
+  taper driven through the hole, tightening where its taper bears on the
+  round of the glued half. A variant of `TuskTenon` whose wedge is a tapered
+  rod and whose bearing is a separate half-round piece. Low priority.
 - Screws as annotated holes (A8): a pilot hole, a clearance hole and a
   countersink or counterbore (buttons, battens, ledged doors). The screw
   itself as hardware later.
@@ -750,17 +763,23 @@ as flats or notches in the cut list.
 6. Later: turned (profiled) rods, tapered tenons and reamed holes for
    Windsor work, angled holes (F2), round-ended mortises, roundovers.
 
+Decided (with the user, 2026-10-18):
+
+- The rod's frame is the bounding box, origin at its corner as for a board,
+  not on the axis. A rod is a box with its long arrises rounded off; even a
+  turned leg is still thought of as a box, sometimes with a square head.
+- The long sides of the bounding box are kept as sides (for placement,
+  cross holes, flats, tapers, and the orientation of a wedge's kerf). Open:
+  whether they are `SideRef`s with a flag or a separate type.
+- Fits such as pegs and drawbores are noted in the cut list, not modelled:
+  the geometry shows the assembled state (the peg straight, deformed in
+  reality as it pulls the tenon in), as for the wedged tenons. The model
+  needn't be accurate about wood's elasticity.
+
 **[OPEN]**
 
-- Rod frame: box-aligned (proposed, everything else keeps working) or the
-  axis on x at the origin (cleaner for revolved profiles).
-- Whether virtual sides are `SideRef`s with a flag, or a separate type that
-  only placement and holes accept.
-- Fits: holes as large as the dowel (touching, as now for all joints) and
-  clearance or interference (pegs, drawbores) as a parameter that only
-  changes the cut list, or real clearance in the geometry. The interference
-  check needs a tolerance either way, since cylinders are tessellated for
-  STL and SVG and volumes are approximate.
+- The interference check needs a tolerance with cylinders, as they are
+  tessellated for STL and SVG and volumes are approximate.
 - Hidden-line SVG views of cylinders (silhouette edges) need a check.
 
 ### Next steps: backlog (to be prioritized)
