@@ -123,3 +123,18 @@ def test_drawer_groove_is_hidden_in_the_tails() -> None:
         for cut in sockets:
             pins -= cut.removal()
         assert (front.shape & end).volume == pytest.approx(pins.volume)
+
+
+def test_chair_sizes_and_through_tenons() -> None:
+    from woodwright.examples import projects
+
+    model = projects.chair().resolve()
+    box = model.compound().bounding_box()
+    # The through tenons stand 2 mm proud of the legs on all sides.
+    assert tuple(box.min) == pytest.approx((-2, -2, 0))
+    assert tuple(box.size) == pytest.approx((444, 424, 900))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["leg_front_left"].size == (450, 40, 40)
+    assert parts["leg_back_left"].size == (900, 40, 40)
+    assert pytest.approx(450) == parts["seat_rail_back"].placed_shape.bounding_box().max.Z
+    assert pytest.approx(870) == parts["back_rail_upper"].placed_shape.bounding_box().max.Z

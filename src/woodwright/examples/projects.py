@@ -5,6 +5,7 @@ import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
+from woodwright.cuts import Chamfer
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
@@ -30,6 +31,7 @@ THICK_OAK = Stock.board(thickness=30, species="oak")
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 BOW_SAW_STOCK = Stock.board(thickness=22, species="oak")
 TABLE_LEG_STOCK = Stock.board(thickness=60, species="oak")
+CHAIR_LEG_STOCK = Stock.board(thickness=40, species="oak")
 
 
 def try_square(
@@ -488,6 +490,8 @@ def _table_frame(
     stock: Stock,
     shoulder: float | tuple[float, float] = 10,
     haunch_length: float | None = None,
+    leg_lengths: tuple[float, float, float, float] | None = None,
+    apron_name: str = "apron",
 ) -> tuple[list[Board], list[Board]]:
     """Four legs and four aprons with mitred tenons; outside sizes.
 
@@ -495,16 +499,23 @@ def _table_frame(
     next one, so the legs are all the same, turned by 90 degrees around the
     table. The aprons have their reference faces outside and their back
     edges up; with `haunch_length` the tenons get haunches at the top.
+    The aprons are flush with the tops of the legs, `height` above the
+    floor; legs given longer in `leg_lengths` (front left, front right,
+    back right, back left) reach above them, e.g. into a chair's back.
     """
     leg_width = leg_stock.thickness
     tenon = rules.tenon_thickness(stock.thickness)
     tenon_length = leg_width - setback - (stock.thickness - tenon) / 2
     names = ["front_left", "front_right", "back_right", "back_left"]
+    lengths = leg_lengths or (height,) * 4
     legs = [
-        asm.add(Board(f"leg_{name}", leg_stock, length=height, width=leg_width)) for name in names
+        asm.add(Board(f"leg_{name}", leg_stock, length=length, width=leg_width))
+        for name, length in zip(names, lengths, strict=True)
     ]
     aprons = [
-        asm.add(Board(f"apron_{name}", stock, length=length - 2 * leg_width, width=apron_width))
+        asm.add(
+            Board(f"{apron_name}_{name}", stock, length=length - 2 * leg_width, width=apron_width)
+        )
         for name, length in [("front", width), ("right", depth), ("back", width), ("left", depth)]
     ]
     for i, apron in enumerate(aprons):
@@ -517,7 +528,7 @@ def _table_frame(
                 MortiseTenon(
                     tenon=end,
                     mortise=mortise,
-                    position=flush_with(leg.right_end),
+                    position=offset(leg.length - height, ref=leg.right_end),
                     flush=(outside, apron.ref_face),
                     across=offset(setback),
                     tenon_thickness=tenon,
@@ -627,4 +638,90 @@ def table(
                     play=play,
                 )
             )
+    return asm
+
+
+def chair(
+    width: float = 440,
+    depth: float = 420,
+    seat_height: float = 450,
+    height: float = 900,
+    rail_width: float = 80,
+    stretcher_width: float = 30,
+    stretcher_heights: tuple[float, float] = (230, 180),
+    back_rails: tuple[float, float] = (620, 870),
+    back_rail_width: float = 60,
+    setback: float = 3,
+    protrusion: float = 2,
+    tenon_chamfer: float = 2,
+    top_chamfer: float = 4,
+    leg_stock: Stock = CHAIR_LEG_STOCK,
+    stock: Stock = OAK,
+) -> Assembly:
+    """The frame of a simple chair, all square, without the seat; outside sizes.
+
+    The back legs run up into the back. Under the seat, rails `rail_width`
+    wide are tenoned into the legs as in a table frame, flush with the tops
+    of the front legs, `seat_height` above the floor. Stretchers near the
+    floor and two rails in the back (their top edges at `stretcher_heights`,
+    for the front and back and for the sides, and at `back_rails`) have
+    through tenons standing `protrusion` proud of the legs, their ends
+    chamfered. The side stretchers are lower than the front and back ones,
+    so that the tenons don't meet inside the legs. The tops of the back legs
+    are chamfered all round.
+    """
+    asm = Assembly("chair", root_location=STANDING)
+    seat = seat_height
+    legs, _ = _table_frame(
+        asm,
+        width,
+        depth,
+        seat,
+        rail_width,
+        setback,
+        leg_stock,
+        stock,
+        leg_lengths=(seat, seat, height, height),
+        apron_name="seat_rail",
+    )
+    leg_width = leg_stock.thickness
+    front_back, sides = stretcher_heights
+    spans = [
+        (f"stretcher_{name}", i, length, level, stretcher_width)
+        for i, (name, length, level) in enumerate(
+            [
+                ("front", width, front_back),
+                ("right", depth, sides),
+                ("back", width, front_back),
+                ("left", depth, sides),
+            ]
+        )
+    ]
+    spans += [
+        (f"back_rail_{name}", 2, width, level, back_rail_width)
+        for name, level in zip(["lower", "upper"], back_rails, strict=True)
+    ]
+    # Like the seat rails, each goes from the back edge of one leg to the top
+    # face of the next one, but centered on them.
+    for name, i, length, level, member_width in spans:
+        member = asm.add(Board(name, stock, length=length - 2 * leg_width, width=member_width))
+        this_leg, next_leg = legs[i], legs[(i + 1) % 4]
+        for end, leg, mortise, outside in [
+            (member.left_end, this_leg, this_leg.back_edge, this_leg.bottom_face),
+            (member.right_end, next_leg, next_leg.top_face, next_leg.front_edge),
+        ]:
+            asm.join(
+                MortiseTenon(
+                    tenon=end,
+                    mortise=mortise,
+                    position=offset(leg.length - level, ref=leg.right_end),
+                    flush=(outside, member.ref_face),
+                    across=CENTERED,
+                    tenon_length=leg_width + protrusion,
+                    tenon_chamfer=tenon_chamfer,
+                )
+            )
+    for leg in legs[2:]:
+        for side in (leg.top_face, leg.bottom_face, leg.front_edge, leg.back_edge):
+            leg.cut(Chamfer(leg.arris(leg.right_end, side), size=top_chamfer))
     return asm
