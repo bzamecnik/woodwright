@@ -222,3 +222,20 @@ def test_shiplap_panel_laps_fill_the_rabbets() -> None:
     ]
     total = sum(part.shape.volume for part in model.parts)
     assert total == pytest.approx(3 * 500 * 150 * 20)
+
+
+def test_haunched_stub_tenon_fills_the_groove_at_the_end() -> None:
+    import build123d as bd
+
+    from woodwright.examples import joints
+
+    model = joints.haunched_stub_tenon_corner().resolve()
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["rail"].size == (225, 60, 20)  # the stub tenon is 25 long
+    cuts = [cut.describe() for cut in parts["rail"].cuts]
+    assert cuts[-1] == "haunched tenon 30 x 8 mm, 25 long, haunch 10 long, on rail.left_end"
+    # Between the end of the stile and the tenon the haunch fills the groove.
+    stile = parts["stile"]
+    groove_end = bd.Pos(280, 50, -14) * bd.Box(20, 10, 8, align=(bd.Align.MIN,) * 3)
+    haunch = parts["rail"].placed_shape & (stile.location * groove_end)
+    assert haunch.volume == pytest.approx(20 * 10 * 8)
