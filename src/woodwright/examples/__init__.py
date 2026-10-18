@@ -54,6 +54,8 @@ ALL: list[Example] = [
     joints.leg_and_aprons_mitred,
     joints.through_mortise_tenon,
     joints.mortise_tenon_thin_rail,
+    joints.mitred_shoulder_tenon,
+    joints.mitred_shoulder_corner,
     joints.dovetail_corner,
     joints.half_blind_dovetail_corner,
     joints.butt_frame_corner,

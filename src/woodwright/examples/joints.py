@@ -15,6 +15,7 @@ from woodwright.joints import (
     HalfBlindDovetail,
     HalfLap,
     MitreCorner,
+    MitredShoulderTenon,
     MitreSplice,
     MortiseTenon,
     RabbetJoint,
@@ -26,7 +27,7 @@ from woodwright.part import Board
 from woodwright.placement import CENTERED, flush_with, offset
 from woodwright.stock import Stock
 
-THICK_OAK = Stock.board(thickness=30, species="oak")
+THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) frame stock
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 
 
@@ -350,6 +351,54 @@ def mortise_tenon_thin_rail(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", rail_stock, length=rail_length, width=width))
     asm.join(MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge, across=CENTERED))
+    return asm
+
+
+def mitred_shoulder_tenon(
+    stile_length: float = 600,
+    rail_length: float = 300,
+    width: float = 45,
+    stock: Stock = THICK_OAK,
+) -> Assembly:
+    """A T-joint of square-ish stock: the rail reaches into a notch in the
+    stile, mitred at both edges, and a stub tenon goes on from there.
+
+    The rail meets the stile on two short 45-degree mitres (by default a
+    third of the stile wide) with a straight line between them, where the
+    tenon is.
+    """
+    asm = Assembly("mitred_shoulder_tenon", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(MitredShoulderTenon(tenon=rail.left_end, mortise=stile.back_edge))
+    return asm
+
+
+def mitred_shoulder_corner(
+    stile_length: float = 300,
+    rail_length: float = 200,
+    width: float = 45,
+    stock: Stock = THICK_OAK,
+) -> Assembly:
+    """An L-shaped frame corner of square-ish stock, mitred only at the inner edge.
+
+    Like a mitre corner whose mitre stops a third into the stile; the rest
+    is butted, with a through tenon behind the notch.
+    """
+    asm = Assembly("mitred_shoulder_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    depth = width / 3
+    asm.join(
+        MitredShoulderTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            position=flush_with(stile.right_end),
+            mitre_depth=depth,
+            mitred=(rail.back_edge,),  # the inner edge
+            tenon_length=width - depth,  # through
+        )
+    )
     return asm
 
 

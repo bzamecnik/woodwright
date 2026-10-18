@@ -121,10 +121,19 @@ Done items name their example in `woodwright.examples`
     `joints.haunched_mortise_tenon_corner`, `frames.frame_and_panel`
   - [ ] haunched stub tenon - tenon
   - [ ] loose tenon - two blind mortices, tenon is a separate piece
-  - shouldered tenon
-    - [ ] T-joint, tenon board extends into the board with the mortice as variants of a triangle
-    - [ ] L-joint
-  - [ ] mitred face tenon
+  - mitred shoulder tenon - the tenoned board reaches into a notch in the mortised one, mitred
+    at 45° part way (e.g. a third) into it; for square-ish stock
+    - [x] T-joint, mitred at both edges, stub tenon – `joints.mitred_shoulder_tenon`
+    - [x] L-joint, mitred at the inner edge, through tenon – `joints.mitred_shoulder_corner`
+  - sword-hilt tenon ("ken-dome"; Western: mitred face tenon) - the outer cheeks of the tenoned
+    board pointed into the face of the mortised one, like a bridle with an inner (twin) tenon;
+    for square stock. Postponed until Japanese joinery is tackled (a first attempt with a pointed
+    face layer is kept on the branch `joint/sword-hilt`)
+    - [ ] T-joint, pointed on both faces, inner tenon or twin tenon ("nimai-hozo")
+    - [ ] pointed on one face only, the inner tenon off-center (the rest in thirds)
+    - [ ] L-joint (mitred face tenon)
+    - [ ] 3-way joint: two outer tenons, the outer one pointed, the inner one mitred at its edge
+      so the two perpendicular rails don't clash
   - round tenon
     - [ ] mortice is a drilled hole, tenon is round
     - [ ] can be wedged
