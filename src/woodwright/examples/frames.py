@@ -1,9 +1,10 @@
 """Frames of two stiles and two rails, frames with a panel, a shoji lattice."""
 
+import itertools
 from collections.abc import Callable
 
 from woodwright.assembly import Assembly
-from woodwright.examples._common import OAK, STANDING, THIN_OAK
+from woodwright.examples._common import OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
     Bridle,
     Butt,
@@ -11,6 +12,7 @@ from woodwright.joints import (
     GrooveJoint,
     HalfLap,
     Joint,
+    MitreCorner,
     MortiseTenon,
     TongueAndGroove,
 )
@@ -185,6 +187,70 @@ def butt_frame_and_panel(
                 across=CENTERED,
             )
         )
+    return asm
+
+
+def mitred_frame_and_panel(
+    width: float = 600,
+    height: float = 450,
+    member_width: float = 60,
+    boards: int = 3,
+    tongue_length: float = 10,
+    clearance: float = 2,
+    stock: Stock = OAK,
+    panel_stock: Stock = SIDE_OAK,
+) -> Assembly:
+    """A frame mitred at the corners, a panel glued up from `boards` boards
+    tongued into a groove along its inside edges; outside sizes.
+
+    The members are mitred as in a picture frame; the grooves run through
+    them and out at the mitres, where they meet and are hidden. The boards
+    run along the width, butt-joined edge to edge; the ends of all of them
+    and the outer edges of the outer ones are tongued into the grooves. The
+    panel's design size is the opening of the frame, the tongues add to it;
+    it is centered in the frame's thickness and not glued in, the grooves
+    `clearance` deeper than the tongues so that it can swell.
+    """
+    asm = Assembly("mitred_frame_and_panel", root_location=STANDING)
+    left = asm.add(Board("left", stock, length=height, width=member_width))
+    top = asm.add(Board("top", stock, length=width, width=member_width))
+    right = asm.add(Board("right", stock, length=height, width=member_width))
+    bottom = asm.add(Board("bottom", stock, length=width, width=member_width))
+    members = [left, top, right, bottom]
+    # Going round from the bottom of the left member, the back edges inside.
+    for a, b in zip(members, members[1:] + members[:1], strict=True):
+        asm.join(MitreCorner(a.right_end, b.left_end, a.back_edge, b.back_edge))
+    board_width = (height - 2 * member_width) / boards
+    panel = [
+        asm.add(
+            Board(f"panel_{i + 1}", panel_stock, length=width - 2 * member_width, width=board_width)
+        )
+        for i in range(boards)
+    ]
+    # The boards' front edges up (their reference faces are at the back).
+    for a, b in itertools.pairwise(panel):
+        asm.join(Butt(a.front_edge, b.back_edge))
+
+    def tongue(edge: SideRef, groove: SideRef, position: Position = CENTERED) -> None:
+        asm.join(
+            TongueAndGroove(
+                tongue=edge,
+                groove=groove,
+                tongue_length=tongue_length,
+                position=position,
+                across=CENTERED,
+                clearance=clearance,
+            )
+        )
+
+    # From the bottom up; the left member's left end is at the bottom, the
+    # right member's right end.
+    for i, board in enumerate(panel):
+        below = member_width + i * board_width
+        tongue(board.left_end, left.back_edge, offset(below, left.left_end))
+        tongue(board.right_end, right.back_edge, offset(below, right.right_end))
+    tongue(panel[0].back_edge, bottom.back_edge)
+    tongue(panel[-1].front_edge, top.back_edge)
     return asm
 
 

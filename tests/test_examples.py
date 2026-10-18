@@ -288,3 +288,31 @@ def test_side_table_sizes_and_stretchers() -> None:
         top_box = parts[board].placed_shape.bounding_box()
         assert pytest.approx((530, 550)) == (top_box.min.Z, top_box.max.Z)
     assert sum(key.startswith("button") for key in parts) == 8
+
+
+def test_mitred_frame_and_panel_fills_the_grooves() -> None:
+    import build123d as bd
+
+    model = frames.mitred_frame_and_panel().resolve()
+    sizes = {part.part.name: part.size for part in model.parts}
+    assert sizes["top"] == (600, 60, 20)  # outside sizes
+    assert sizes["panel_1"] == (500, 120, 12)  # the opening plus the tongues
+    assert sizes["panel_2"] == (500, 110, 12)
+    # The groove taking the ends of all three boards is cut once.
+    left = next(part for part in model.parts if part.part.name == "left")
+    assert [cut.describe() for cut in left.cuts][2:] == ["groove 6 mm, 12 deep, in left.back_edge"]
+    box = model.compound().bounding_box()
+    assert pytest.approx((600, 20, 450)) == (box.size.X, box.size.Y, box.size.Z)
+    # The grooves, 6 x 12 mm, make a ring around the opening (480 x 330),
+    # also at the corners, where they meet at the mitres.
+    corner = (bd.Align.MIN, bd.Align.MIN, bd.Align.MIN)
+    ring = bd.Pos(48, 7, 48) * bd.Box(504, 6, 354, align=corner) - bd.Pos(60, 7, 60) * bd.Box(
+        480, 6, 330, align=corner
+    )
+    parts = {part.part.name: part.placed_shape for part in model.parts}
+    frame = sum(_volume(ring & parts[name]) for name in ("left", "top", "right", "bottom"))
+    assert frame == pytest.approx(0, abs=1e-6)
+    # The tongues fill it, all but the 2 mm of clearance at the bottom.
+    panel = sum(_volume(ring & parts[f"panel_{i}"]) for i in (1, 2, 3))
+    assert panel == pytest.approx(6 * (500 * 350 - 480 * 330))
+    assert ring.volume - panel == pytest.approx(6 * (504 * 354 - 500 * 350))

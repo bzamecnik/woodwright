@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 import build123d as bd
 
-from woodwright.cuts import Cut
+from woodwright.cuts import BoxCut, Cut
 from woodwright.joints import Joint
 from woodwright.part import Board, Point
 from woodwright.placement import Orientation
@@ -69,7 +69,10 @@ class Assembly:
         cuts = {part: list(part.cuts) for part in self.parts}
         for joint, placement in zip(joints, placements, strict=True):
             for cut in joint.cuts(placement):
-                cuts[cut.part].append(cut)
+                # The same socket from several joints, e.g. a groove through
+                # a rail taking the ends of several boards, is cut once.
+                if not any(_same_box(cut, other) for other in cuts[cut.part]):
+                    cuts[cut.part].append(cut)
 
         parts = [
             ResolvedPart(part, (tuple(lo), tuple(hi)), cuts[part], locations[part])
@@ -113,6 +116,17 @@ class _Link(NamedTuple):
     a: Board
     b: Board
     placement: bd.Location
+
+
+def _same_box(a: Cut, b: Cut) -> bool:
+    """Whether two cuts remove the same box from the same part."""
+    if not isinstance(a, BoxCut) or not isinstance(b, BoxCut) or a.part is not b.part:
+        return False
+    return a.describe() == b.describe() and all(
+        x == y or abs(x - y) < 1e-6
+        for ra, rb in zip(a.ranges(), b.ranges(), strict=True)
+        for x, y in zip(ra, rb, strict=True)
+    )
 
 
 def _check_loop(

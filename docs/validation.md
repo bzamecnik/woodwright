@@ -66,6 +66,8 @@ Done items name their example in `woodwright.examples`
       - [x] perpendicular L corner – `joints.mitre_corner`
       - [x] splice (mitre along the face, mitre along the edge) – `joints.mitre_splice`
     - [x] four pieces - picture frame – `projects.picture_frame`
+    - [x] mitred frame with a panel glued up from boards, tongued into a groove along the
+      inside edges (the grooves run out at the mitres) – `frames.mitred_frame_and_panel`
   - lap joint
     - [x] two boards with overlapping rabbets to make panel – `joints.shiplap_panel` (three boards)
     - [x] half-lap corner - two perpendicular boards with "endgrain rabbet" – `joints.half_lap_corner`
