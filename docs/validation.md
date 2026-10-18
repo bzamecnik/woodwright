@@ -109,7 +109,9 @@ Done items name their example in `woodwright.examples`
   - mitred half-lap
     - [ ] like a half-lap corner, but one side is mitred
   - dovetailed half-lap
-    - [ ] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight
+    - [x] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight –
+      `DovetailHalfLap`, `joints.dovetail_half_lap` (at a corner a half dovetail, sloped at
+      the inner edge)
   - wedged mortise and tenon
     - [x] through half-dovetail mortise with edges angled outward – `WedgedMortiseTenon`,
       `joints.wedged_through_tenon`

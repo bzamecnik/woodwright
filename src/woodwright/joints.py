@@ -19,6 +19,7 @@ from woodwright.cuts import (
     INF,
     Allowance,
     Cut,
+    DovetailLap,
     DovetailTongue,
     Mitre,
     Pocket,
@@ -40,6 +41,7 @@ __all__ = [
     "Button",
     "CrossLap",
     "DadoJoint",
+    "DovetailHalfLap",
     "GrooveJoint",
     "HalfBlindDovetail",
     "HalfLap",
@@ -926,6 +928,69 @@ class HalfLap(Housing):
         thickness = _require(self.lap_thickness)
         offset = 0 if self.over else self.lap.part.thickness - thickness
         return Tenon(self.lap, length=self.reach(), thickness=thickness, thickness_offset=offset)
+
+
+@dataclass
+class DovetailHalfLap(HalfLap):
+    """A half lap whose lap is dovetailed across the face, in a dovetail-shaped
+    socket, so that part b can't be pulled out of part a along its length.
+
+    Placed and cut to half thickness as `HalfLap`. The lap is a tail as wide
+    as part b at its end, its edges sloping in by 1:`slope` to the shoulder,
+    where part b is cut back beside it; part a gets a socket of the tail's
+    shape. `sloped` are the edges of part b that slope: by default both,
+    except one flush with an end of part a, i.e. at an L-shaped corner it is
+    a half dovetail sloped at the inner edge.
+    """
+
+    slope: float = 7.0
+    sloped: tuple[SideRef, ...] | None = None
+
+    def with_defaults(self) -> Self:
+        joint = super().with_defaults()
+        if joint.sloped is None:
+            loc, a = joint.placement(), joint.socket.part
+            b = joint.lap.part
+            ends = [a.left_end, a.right_end]
+
+            def at_end(edge: SideRef) -> bool:
+                normal = _direction(loc, edge.normal)
+                point = (loc * bd.Location(edge.plane.origin)).position
+                return any(
+                    (normal - end.normal).length < _EPS and abs(point.X - end.coordinate) < _EPS
+                    for end in ends
+                )
+
+            sloped = tuple(edge for edge in (b.front_edge, b.back_edge) if not at_end(edge))
+            joint = replace(joint, sloped=sloped)
+        return joint
+
+    def tenon_cut(self) -> DovetailLap:
+        lap = super().tenon_cut()
+        return DovetailLap(
+            **{field.name: getattr(lap, field.name) for field in fields(lap)},
+            slope=self.slope,
+            sloped=self.sloped,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        lap = self.tenon_cut()
+        a = self.socket.part
+        box = self.socket_box(placement, lap.tenon_box())
+        socket = Pocket(self.socket, box).removal() & (placement * lap.tail())
+        # The face of part a the socket is cut from: the one part b's lap is flush with.
+        b = self.lap.part
+        lap_face = b.top_face if self.over else b.bottom_face
+        normal = _direction(placement, lap_face.normal)
+        face = next(s for s in map(a.side, Side) if (s.normal - normal).length < _EPS)
+        lo, hi = a.box
+        start, stop = box[face.axis]
+        depth = min(stop, hi[face.axis]) - max(start, lo[face.axis])
+        description = (
+            f"dovetail socket {round(lap.shoulder_width, 1):g} to {b.width:g} mm, {depth:g} deep, "
+            f"1:{self.slope:g}, in {face}"
+        )
+        return [ShapeCut(a, socket, description), lap]
 
 
 @dataclass

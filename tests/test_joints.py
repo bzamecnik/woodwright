@@ -119,6 +119,41 @@ def test_half_lap_over() -> None:
     assert cuts(model, stile) == ["dado 40 mm, 10 deep, in stile.top_face"]
 
 
+@pytest.mark.parametrize("corner", [False, True])
+def test_dovetail_half_lap(corner: bool) -> None:
+    asm, stile, rail = stile_and_rail()
+    kw = dict(position=ww.flush_with(stile.right_end)) if corner else {}
+    asm.join(ww.DovetailHalfLap(lap=rail.left_end, socket=stile.back_edge, **kw))
+    model = asm.resolve()
+    # At a corner only the inner edge slopes, 40 / 7 mm over the lap.
+    joint = model.joints[0]
+    assert joint.sloped == ((rail.back_edge,) if corner else (rail.front_edge, rail.back_edge))
+    shoulder = 40 - (1 if corner else 2) * 40 / 7
+    kind = "half-dovetail lap" if corner else "dovetail lap"
+    assert cuts(model, stile) == [
+        f"dovetail socket {round(shoulder, 1):g} to 40 mm, 10 deep, 1:7, in stile.bottom_face"
+    ]
+    assert cuts(model, rail) == [
+        f"{kind} 10 mm thick, 40 long, {round(shoulder, 1):g} wide at the shoulder, 1:7, "
+        "on rail.left_end"
+    ]
+    assert model[rail].size == (240, 40, 20)
+    # The tail fills the socket exactly.
+    tail = (shoulder + 40) / 2 * 40 * 10
+    assert model[stile].shape.volume == pytest.approx(300 * 40 * 20 - tail)
+    assert model[rail].shape.volume == pytest.approx(200 * 40 * 20 + tail)
+    x0 = 260 if corner else 130
+    assert bbox(model[rail].placed_shape) == (x0, 0, -20, x0 + 40, 240, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_dovetail_lap_too_long_for_its_slope() -> None:
+    asm, stile, rail = stile_and_rail()
+    asm.join(ww.DovetailHalfLap(lap=rail.left_end, socket=stile.back_edge, slope=1))
+    with pytest.raises(ValueError, match="too long for its slope"):
+        asm.resolve()
+
+
 def test_bridle_with_a_narrow_rail() -> None:
     asm, stile, rail = stile_and_rail(rail_width=25)
     asm.join(

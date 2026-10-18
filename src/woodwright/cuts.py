@@ -760,6 +760,96 @@ class DovetailTongue(Cut):
         )
 
 
+@dataclass
+class DovetailLap(Tenon):
+    """A lap over the whole width of an end, dovetailed across the face: a tail
+    narrower at the shoulder than at its end, for a dovetailed half-lap.
+
+    The lap is a `Tenon` with one cheek (see `thickness_offset`). Its edges
+    flare outwards by 1:`slope` towards its end, where it is as wide as the
+    part; `sloped` are the edges of the part that slope (by default both,
+    one for a half dovetail, e.g. at a corner). Beside the tail, the part is
+    cut back to the shoulder through its whole thickness.
+    """
+
+    slope: float = 7.0
+    sloped: tuple[SideRef, ...] | None = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.side.axis != 0:
+            raise ValueError(f"a dovetail lap is cut on an end, not on {self.side}")
+        if self.width is not None or self.count > 1 or self.cheeks() != 1:
+            raise ValueError("a dovetail lap spans the whole end, with one cheek")
+        if self.haunch is not None or self.mitre is not None or self.chamfer or self.mitre_depth:
+            raise ValueError("a dovetail lap has a square end and square shoulders")
+        if self.slope <= 0:
+            raise ValueError("a dovetail's slope must be positive")
+        if not self.edges:
+            raise ValueError("a dovetail lap is sloped at one edge at least")
+        for edge in self.edges:
+            _check_adjacent(self.side, edge)
+            if edge.axis != 1:
+                raise ValueError(f"a dovetail lap is sloped at its edges, not at {edge}")
+        if self.shoulder_width <= 0:
+            raise ValueError("the dovetail lap is too long for its slope")
+
+    @property
+    def edges(self) -> tuple[SideRef, ...]:
+        """The sloped edges."""
+        board = self.part
+        return (board.front_edge, board.back_edge) if self.sloped is None else self.sloped
+
+    @property
+    def flare(self) -> float:
+        """How far each sloped edge leans over the length of the lap."""
+        return self.length / self.slope
+
+    @property
+    def shoulder_width(self) -> float:
+        """The width of the tail at the shoulder (it is as wide as the part at its end)."""
+        return self.part.width - len(self.edges) * self.flare
+
+    def tail(self) -> bd.Part:
+        """The tail's outline across the face, through the part (in its frame).
+
+        Exact beyond the side, up to the lap's end; it reaches back behind the
+        shoulder, on beyond the end and out at the straight edges, so that a
+        socket cut by it runs out of the other part there.
+        """
+        c, s = self.side.coordinate, self.side.side.sign
+        lo, hi = self.part.box
+        m = _margin(self.part)
+        sloped = {edge.side.sign for edge in self.edges}
+
+        def edge(y: float, inwards: int) -> list[tuple[float, float]]:
+            """(beyond the shoulder, across) along the edge at y."""
+            if -inwards not in sloped:
+                return [(-m, y - inwards * m), (self.length + m, y - inwards * m)]
+            at_shoulder = y + inwards * self.flare
+            far = self.length + m
+            return [
+                (-m, at_shoulder),
+                (0, at_shoulder),
+                (far, y + inwards * (self.flare - far / self.slope)),
+            ]
+
+        outline = edge(lo[1], +1) + edge(hi[1], -1)[::-1]
+        return _prism(self.part, 0, 1, [(c + s * r, y) for r, y in outline])
+
+    def removal(self) -> bd.Part:
+        beside = _box(self.part, _ranges(_into(self.side, 0))) - self.tail()
+        return super().removal() + beside
+
+    def describe(self) -> str:
+        kind = "dovetail lap" if len(self.edges) == 2 else "half-dovetail lap"
+        shoulder = round(self.shoulder_width, 1)
+        return (
+            f"{kind} {self.thickness:g} mm thick, {self.length:g} long, "
+            f"{shoulder:g} wide at the shoulder, 1:{self.slope:g}, on {self.side}"
+        )
+
+
 # --- Angled cuts ------------------------------------------------------------
 
 

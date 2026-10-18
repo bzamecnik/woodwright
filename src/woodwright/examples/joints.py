@@ -11,6 +11,7 @@ from woodwright.joints import (
     Butt,
     CrossLap,
     DadoJoint,
+    DovetailHalfLap,
     GrooveJoint,
     HalfBlindDovetail,
     HalfLap,
@@ -207,6 +208,23 @@ def half_lap_t(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(HalfLap(lap=rail.left_end, socket=stile.back_edge))
+    return asm
+
+
+def dovetail_half_lap(
+    stile_length: float = 300, rail_length: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """A T-shaped dovetailed half lap: the lap on the rail cut to a tail, wider at
+    its end than at the shoulder, in a socket of its shape across the stile.
+
+    Unlike a plain half lap it holds even if the rail is pulled along its
+    length, e.g. a cross rail pulled by a sagging top. The tail shows on the
+    face towards the viewer.
+    """
+    asm = Assembly("dovetail_half_lap", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(DovetailHalfLap(lap=rail.left_end, socket=stile.back_edge))
     return asm
 
 
