@@ -69,6 +69,7 @@ ALL: list[Example] = [
     joints.dovetail_corner,
     joints.half_blind_dovetail_corner,
     joints.mitred_dovetail_corner,
+    joints.blind_mitred_dovetail_corner,
     joints.butt_frame_corner,
     joints.mitre_corner,
     joints.mitred_half_lap,

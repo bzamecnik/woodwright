@@ -418,6 +418,44 @@ def test_mitred_corner_dovetail(edges: tuple[str, ...]) -> None:
         ww.MitredCornerDovetail(tails=tails.right_end, pins=narrow.left_end)
 
 
+@pytest.mark.parametrize("tail_thickness", [20, 15])
+def test_blind_mitred_dovetail(tail_thickness: float) -> None:
+    asm = ww.Assembly("test")
+    pins = asm.add(ww.Board("pins", OAK, length=300, width=100))
+    tails = asm.add(ww.Board("tails", ww.Stock.board(tail_thickness, "oak"), length=200, width=100))
+    asm.join(ww.BlindMitredDovetail(tails=tails.left_end, pins=pins.right_end, tail_count=2))
+    model = asm.resolve()
+    joint = model.joints[0]
+    assert isinstance(joint, ww.BlindMitredDovetail)
+    assert (joint.lap, joint.tail_lip()) == (5, pytest.approx(5 * tail_thickness / 20))
+    assert cuts(model, pins) == [
+        "sockets for 2 blind mitred dovetails, 15 deep, lap 5, mitred 10 mm at the edges"
+    ]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    t = tail_thickness
+    # Both boards reach through each other and fill the corner: no gaps.
+    total = model[pins].shape.volume + model[tails].shape.volume
+    assert total == pytest.approx((300 + t) * 100 * 20 + 220 * 100 * t - t * 100 * 20)
+    assert bbox(model[tails].placed_shape) == (300, 0, -200 - 20, 300 + t, 100, 0)
+
+    def share(region: bd.Part) -> float:
+        """Part of a thin region of the corner held by the pin board."""
+        return (model[pins].shape & region).volume / region.volume
+
+    # On the outside faces only the mitre shows: the pin board's face runs out to
+    # the corner over the tail board's end, the tail board's face over the pins.
+    d = 0.01
+    assert share(bd.Pos(300, 0, -d) * bd.Box(t, 100, d, align=(bd.Align.MIN,) * 3)) > 0.99
+    assert share(bd.Pos(300 + t - d, 0, -20) * bd.Box(d, 100, 20, align=(bd.Align.MIN,) * 3)) < 0.01
+    # On the edges the corner is mitred through the whole thickness.
+    for y0 in (0, 100 - d):
+        edge = bd.Pos(300, y0, -20) * bd.Box(t, d, 20, align=(bd.Align.MIN,) * 3)
+        assert share(edge) == pytest.approx(0.5)
+    narrow = asm.add(ww.Board("narrow", OAK, length=200, width=80))
+    with pytest.raises(ValueError, match="equally wide"):
+        ww.BlindMitredDovetail(tails=tails.right_end, pins=narrow.left_end)
+
+
 def test_half_blind_dovetail() -> None:
     asm = ww.Assembly("test")
     front = asm.add(ww.Board("front", OAK, length=300, width=100))

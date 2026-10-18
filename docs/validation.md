@@ -151,7 +151,8 @@ Done items name their example in `woodwright.examples`
     - [ ] mortise is a drilled hole, tenon is round
     - [ ] can be wedged
   - [x] half-blind dovetail – `joints.half_blind_dovetail_corner`, `projects.drawer`
-  - [ ] blind mitred dovetail
+  - [x] blind mitred dovetail – `BlindMitredDovetail`, `joints.blind_mitred_dovetail_corner`
+    (secret mitre: mitred lips on both boards, the edges mitred through)
   - kumiko asanoha pattern
     - [ ] 3-way mitre joint
 - furniture (besides example above)

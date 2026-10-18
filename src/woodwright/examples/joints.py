@@ -7,6 +7,7 @@ from woodwright.assembly import Assembly
 from woodwright.cuts import Groove
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.joints import (
+    BlindMitredDovetail,
     BoxJoint,
     Bridle,
     Butt,
@@ -702,6 +703,25 @@ def mitred_dovetail_corner(
     for board in (front, side):
         for edge in (board.front_edge, board.back_edge):
             board.cut(Groove(board.bottom_face, groove_width, groove_depth, groove_width, edge))
+    return asm
+
+
+def blind_mitred_dovetail_corner(
+    side_height: float = 400,
+    top_length: float = 500,
+    depth: float = 200,
+    tail_count: int = 4,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A carcase corner with blind mitred (secret mitre) dovetails: tails on the
+    top, pins on the side, hidden behind mitred lips; outside dimensions.
+
+    From outside, on the faces and on the edges, the corner looks like a mitre.
+    """
+    asm = Assembly("blind_mitred_dovetail_corner", root_location=CASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height - stock.thickness, width=depth))
+    top = asm.add(Board("top", stock, length=top_length - stock.thickness, width=depth))
+    asm.join(BlindMitredDovetail(tails=top.left_end, pins=side.right_end, tail_count=tail_count))
     return asm
 
 

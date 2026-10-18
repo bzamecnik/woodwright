@@ -37,6 +37,7 @@ from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, of
 
 __all__ = [
     "Allowance",
+    "BlindMitredDovetail",
     "BoxJoint",
     "Bridle",
     "Butt",
@@ -1322,6 +1323,65 @@ class HalfBlindDovetail(ThroughDovetail):
         return (
             f"sockets for {n} half-blind dovetails, {depth:g} deep, lap {self.lap:g}",
             f"{n} half-blind dovetails, {depth:g} long, slope 1:{self.slope:g}",
+        )
+
+
+@dataclass
+class BlindMitredDovetail(ThroughDovetail):
+    """Blind mitred (secret mitre) dovetails, e.g. at the corners of a fine
+    carcase: from outside the corner looks like a plain mitre.
+
+    Both boards keep a lip at their outside face, mitred where they meet: the
+    pin board one `lap` thick (by default a quarter of its thickness), the
+    tail board one in proportion to its thickness, so that both lips meet the
+    mitre at their inside corner. Behind the lips the tails and the pins
+    interlock hidden, the tails as long as the pin board's sockets are deep
+    and the pins stopping at the tail board's lip. At both edges a strip
+    `mitre_width` wide is mitred through the whole thickness, so the edges
+    show a mitre too; the dovetails are laid out between these strips, from a
+    half pin next to each. The boards must be equally wide.
+    """
+
+    lap: float | None = None
+    mitre_width: float = 10.0
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.pins.part.width != self.tails.part.width:
+            raise ValueError("the boards of a mitred dovetail must be equally wide")
+
+    def with_defaults(self) -> Self:
+        return replace(self, lap=self.lap or rules.dovetail_lap(self.pins.part.thickness))
+
+    def tail_lip(self) -> float:
+        """The thickness of the tail board's lip, covering the ends of the pins."""
+        pins, tails = self.parts()
+        return _require(self.lap) * tails.thickness / pins.thickness
+
+    def _tail_length(self) -> float:
+        lap = _require(self.lap)
+        if not 0 < lap < self.pins.part.thickness:
+            raise ValueError("the lap must be thinner than the pin board")
+        return self.pins.part.thickness - lap
+
+    def _pin_length(self) -> float:
+        return self.tails.part.thickness - self.tail_lip()
+
+    def _span(self) -> Range:
+        return self.mitre_width, self.pins.part.width - self.mitre_width
+
+    def _is_mitred(self) -> bool:
+        return True
+
+    def _descriptions(self) -> tuple[str, str]:
+        n = self.tail_count
+        sockets, tails = round(self._tail_length(), 1), round(self._pin_length(), 1)
+        return (
+            f"sockets for {n} blind mitred dovetails, {sockets:g} deep, lap {self.lap:g}, "
+            f"mitred {self.mitre_width:g} mm at the edges",
+            f"{n} blind mitred dovetails, {sockets:g} long, slope 1:{self.slope:g}, "
+            f"pins {tails:g} deep, lap {round(self.tail_lip(), 1):g}, "
+            f"mitred {self.mitre_width:g} mm at the edges",
         )
 
 
