@@ -65,7 +65,7 @@ What's there so far:
 `woodwright.examples` holds over ninety examples, from single cuts through
 joints to projects: a try square, a mallet, a bookshelf, a dovetailed drawer
 with a bottom, a dining table, a side table, a chair, a step stool seat,
-ledged and frame-and-panel doors.
+ledged and frame-and-panel doors, a small glazed cabinet door.
 
 ```shell
 python -m woodwright.examples list

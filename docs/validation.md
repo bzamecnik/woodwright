@@ -71,6 +71,10 @@ Done items name their example in `woodwright.examples`
       haunched mortise and tenons, grooves through along the inside edges, panels bevelled on
       the front right out to the edges, as thick as the grooves are wide at their mouths,
       floating in the grooves – `projects.frame_and_panel_door`
+    - [x] small cabinet door, 2 x 3 cm stock - stiles and three rails with mitred shoulder
+      tenons (through at the corners, a stub in the middle), grooves through along the inside
+      edges meeting at the mitres and hidden in the notches, panels of plywood and glass as
+      thick as the grooves are wide – `projects.cabinet_door`
   - rabbet
     - [x] corner with rabbet and plain board – `joints.rabbet_corner`, `projects.bookshelf`
     - [x] corner with two interlocking rabbets – `joints.interlocking_rabbet_corner`

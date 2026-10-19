@@ -103,6 +103,7 @@ ALL: list[Example] = [
     projects.ledged_door,
     projects.ledged_and_braced_door,
     projects.frame_and_panel_door,
+    projects.cabinet_door,
     projects.bow_saw_frame,
     projects.butt_box,
     projects.bookshelf,

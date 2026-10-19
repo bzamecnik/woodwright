@@ -16,6 +16,7 @@ from woodwright.joints import (
     HalfBlindDovetail,
     Joint,
     MitreCorner,
+    MitredShoulderTenon,
     MortiseTenon,
     RabbetJoint,
     SlidingDovetail,
@@ -32,6 +33,9 @@ ASH = Stock.board(thickness=24, species="ash")
 THICK_OAK = Stock.board(thickness=30, species="oak")
 DOOR_OAK = Stock.board(thickness=22, species="oak")  # for the frame of a door
 PANEL_OAK = Stock.board(thickness=14, species="oak")  # for raised panels
+CABINET_DOOR_OAK = Stock.board(thickness=20, species="oak")  # for a small door's frame
+PLYWOOD = Stock.board(thickness=6, species="plywood")
+GLASS = Stock.board(thickness=6, species="glass")
 
 LEG_STOCK = Stock.board(thickness=45, species="oak")
 BOW_SAW_STOCK = Stock.board(thickness=22, species="oak")
@@ -457,6 +461,105 @@ def frame_and_panel_door(
                         run_out=True,
                     )
                 )
+    return asm
+
+
+def cabinet_door(
+    height: float = 600,
+    width: float = 400,
+    member_width: float = 30,
+    mitre_depth: float = 10,
+    groove_width: float = 6,
+    groove_depth: float = 8,
+    clearance: float = 2,
+    stock: Stock = CABINET_DOOR_OAK,
+    bottom_panel_stock: Stock = PLYWOOD,
+    top_panel_stock: Stock = GLASS,
+) -> Assembly:
+    """A small cabinet door of 2 x 3 cm stock with mitred shoulder tenons,
+    a plywood panel below the middle rail and a glass one above; outside sizes.
+
+    Two stiles, a top, a middle and a bottom rail. A groove runs through
+    along the inside edges of all of them, centered in the thickness, the
+    panels as thick as it is wide. Each rail reaches `mitre_depth` into a
+    notch in the stile, mitred at 45 degrees at its inside edges, where the
+    grooves meet like in a mitred frame; the notch is deeper than the
+    grooves, so they don't show at the ends of the stiles. The tenons are as
+    thick as the grooves are wide and keep out of them, reaching only a
+    little under the mitres. At the corners, mitred only inside, they go
+    through the stiles, with full shoulders towards the ends; the middle
+    rail, mitred at both edges, has a hidden stub tenon.
+
+    The panels don't move with moisture, but are set `clearance` short of
+    the bottoms of the grooves all round, e.g. for glazing putty at the glass.
+    The frame has to be glued up round them.
+    """
+    rail_length = width - 2 * member_width
+
+    def corner(rail_end: SideRef, stile_edge: SideRef, position: Position, outer: SideRef) -> Joint:
+        rail = rail_end.part
+        inner = rail.back_edge if outer == rail.front_edge else rail.front_edge
+        shoulders = (mitre_depth, groove_depth)
+        return MitredShoulderTenon(
+            tenon=rail_end,
+            mortise=stile_edge,
+            position=position,
+            mitre_depth=mitre_depth,
+            mitred=(inner,),
+            shoulder=shoulders if outer == rail.front_edge else shoulders[::-1],
+            tenon_thickness=groove_width,
+            tenon_length=member_width - mitre_depth,  # through
+        )
+
+    asm, (stile_left, stile_right, rail_top, rail_bottom) = _frame(
+        "cabinet_door", corner, height, rail_length, member_width, stock
+    )
+    # The rails' front edges are at the top.
+    rail_middle = asm.add(Board("rail_middle", stock, length=rail_length, width=member_width))
+    for rail_end, stile_edge, stile_end in [
+        (rail_middle.left_end, stile_left.back_edge, stile_left.left_end),
+        (rail_middle.right_end, stile_right.front_edge, stile_right.left_end),
+    ]:
+        asm.join(
+            MitredShoulderTenon(
+                tenon=rail_end,
+                mortise=stile_edge,
+                position=offset((height - member_width) / 2, stile_end),
+                mitre_depth=mitre_depth,
+                shoulder=groove_depth,
+                tenon_thickness=groove_width,
+                tenon_length=13,  # leaving 5 mm behind the mortise
+            )
+        )
+
+    opening_height = (height - 3 * member_width) / 2
+    reach = groove_depth - clearance
+    # Lying like the rails, the front edges up.
+    for name, panel_stock, above, below, stile_end in [
+        ("top", top_panel_stock, rail_top, rail_middle, "right_end"),
+        ("bottom", bottom_panel_stock, rail_middle, rail_bottom, "left_end"),
+    ]:
+        if panel_stock.thickness != groove_width:
+            raise ValueError(f"the {name} panel must be as thick as the groove is wide")
+        panel = asm.add(Board(f"panel_{name}", panel_stock, rail_length, opening_height))
+        for side, groove, position in [
+            (panel.left_end, stile_left.back_edge, getattr(stile_left, stile_end)),
+            (panel.right_end, stile_right.front_edge, getattr(stile_right, stile_end)),
+            (panel.front_edge, above.back_edge, None),
+            (panel.back_edge, below.front_edge, None),
+        ]:
+            asm.join(
+                TongueAndGroove(
+                    tongue=side,
+                    groove=groove,
+                    tongue_thickness=groove_width,
+                    tongue_length=reach,
+                    cut_tongue=False,
+                    position=CENTERED if position is None else offset(member_width, position),
+                    across=CENTERED,
+                    clearance=clearance,
+                )
+            )
     return asm
 
 

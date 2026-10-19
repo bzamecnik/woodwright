@@ -497,3 +497,32 @@ def test_tusk_tenon_wedge_bears_on_the_leg(flat: bool) -> None:
         assert pytest.approx((-5, 75, 20)) == (wedge.min.Y, wedge.max.Y, wedge.size.Z)
     else:  # upright, through the tenon's width
         assert pytest.approx((265, 415, 10)) == (wedge.min.Z, wedge.max.Z, wedge.size.Y)
+
+
+def test_cabinet_door_hides_the_grooves_in_the_mitred_notches() -> None:
+    import build123d as bd
+
+    from woodwright.examples import projects
+
+    model = projects.cabinet_door().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((400, 20, 600))
+    parts = {part.part.name: part for part in model.parts}
+    # The corner tenons go through the 30 mm stiles, the middle one 13 mm
+    # beyond the 10 mm notch.
+    assert parts["rail_top"].size == (400, 30, 20)
+    assert parts["rail_middle"].size == pytest.approx((340 + 2 * 23, 30, 20))
+    # The opening, 340 x 255, plus 6 mm in the grooves all round.
+    assert parts["panel_top"].size == (352, 267, 6)
+    assert parts["panel_bottom"].part.stock.species == "plywood"
+
+    def section(name: str, z: float) -> float:
+        cut = parts[name].placed_shape & bd.Pos(15, 10, z) * bd.Box(40, 30, 1e-3)
+        return cut.volume / 1e-3
+
+    # At the end of the stile, the notch takes the groove: 20 x 20 mm left.
+    assert section("stile_left", 599.5) == pytest.approx(20 * 20)
+    # Through the tenon, 6 x 12 mm, 10 mm in from the end.
+    assert section("stile_left", 585) == pytest.approx(20 * 20 - 6 * 20)
+    # Below the rail, the groove, 6 x 8 mm.
+    assert section("stile_left", 560) == pytest.approx(30 * 20 - 6 * 8)
