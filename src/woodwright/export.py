@@ -9,8 +9,17 @@ from woodwright.assembly import ResolvedModel
 VIEW_DIRECTION = (1, -1.6, 0.9)  # from the front right, a bit above
 
 
-def svg_view(shape: bd.Shape, path: Path, direction: tuple[float, float, float] = VIEW_DIRECTION):
-    """Hidden-line isometric-ish projection of a shape to SVG, Z up.
+def svg_view(
+    shape: bd.Shape,
+    path: Path,
+    direction: tuple[float, float, float] = VIEW_DIRECTION,
+    hidden_lines: bool = True,
+    line_weight: float = 0.5,
+):
+    """Hidden-line isometric-ish projection of a shape to SVG, Z up, 1 mm to a unit.
+
+    The hidden lines are dotted, or left out without `hidden_lines`; the
+    visible ones `line_weight` mm wide (thicker lines for a small picture).
 
     project_to_viewport() takes the camera *position* and looks at the shape's
     center, so the camera is placed far away from the center along `direction`.
@@ -19,9 +28,10 @@ def svg_view(shape: bd.Shape, path: Path, direction: tuple[float, float, float] 
     camera = center + bd.Vector(direction).normalized() * 5000
     visible, hidden = shape.project_to_viewport(camera, viewport_up=(0, 0, 1))
     svg = bd.ExportSVG(scale=1.0, margin=10)
-    svg.add_layer("hidden", line_color=bd.Color(0.6, 0.6, 0.6), line_type=bd.LineType.ISO_DOT)
-    svg.add_layer("visible", line_weight=0.5)
-    svg.add_shape(hidden, layer="hidden")
+    if hidden_lines:
+        svg.add_layer("hidden", line_color=bd.Color(0.6, 0.6, 0.6), line_type=bd.LineType.ISO_DOT)
+        svg.add_shape(hidden, layer="hidden")
+    svg.add_layer("visible", line_weight=line_weight)
     svg.add_shape(visible, layer="visible")
     svg.write(str(path))
 
