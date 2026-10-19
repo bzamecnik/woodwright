@@ -8,6 +8,19 @@ goes, and produces 3D models (STEP, STL), drawings (SVG) and cut lists.
 It is built on [build123d](https://github.com/gumyr/build123d). This is an
 early alpha: the API will still change.
 
+<table>
+  <tr>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/chair.svg"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/chair.svg" height="450" alt="A chair drawn by woodwright"></a></td>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/chair_exploded.svg"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/chair_exploded.svg" height="450" alt="The chair taken apart, showing its tenons and mortises"></a></td>
+  </tr>
+  <tr>
+    <td colspan="2">A chair with mortise-and-tenon joints, assembled and exploded:
+    <a href="https://github.com/bzamecnik/woodwright/blob/master/src/woodwright/examples/projects.py">projects.chair</a>
+    in the example library. Every tenon and mortise is derived from the
+    joints between the parts.</td>
+  </tr>
+</table>
+
 ## Getting started without programming
 
 You don't need to know Python to try woodwright: one small program, uv,
