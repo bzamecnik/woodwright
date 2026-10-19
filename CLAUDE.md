@@ -6,7 +6,7 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 
 - `uv sync` – install the environment (Python 3.14, uv project)
 - `uv sync --group notebook` – also install `jupyter` and `jupyter-cadquery` for interactive viewing
-- `uv run python -m woodwright.examples {list,export}` – the example library (`src/woodwright/examples/`), exports to `output/`
+- `uv run woodwright {list,export}` – the example library (`src/woodwright/examples/`) and design files (`woodwright export my_door.py`), exports to `output/`
 - `uv run pytest` – run tests
 - `uv run ruff format` / `uv run ruff check --fix` – format and lint (also run by the pre-commit hook: `pre-commit install`)
 

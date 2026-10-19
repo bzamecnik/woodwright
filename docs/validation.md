@@ -5,7 +5,7 @@ Not every item needs an example; see [plan.md](plan.md#6-roadmap) for the order
 in which they are tackled and [vision.md](vision.md#11-scope) for the current scope.
 
 Done items name their example in `woodwright.examples`
-(`python -m woodwright.examples list`).
+(`woodwright list`).
 
 - single piece in different dimensions
   - [x] rectangular board

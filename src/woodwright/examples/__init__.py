@@ -7,11 +7,11 @@ on. In a notebook:
     from woodwright.examples import frames
     frames.mortise_tenon_frame(rail_length=400).resolve().compound()
 
-From the command line (see `python -m woodwright.examples --help`):
+From the command line (see `woodwright --help`):
 
-    uv run python -m woodwright.examples list
-    uv run python -m woodwright.examples export frames.mortise_tenon_frame
-    uv run python -m woodwright.examples export --all
+    woodwright list
+    woodwright export frames.mortise_tenon_frame
+    woodwright export --all
 """
 
 from collections.abc import Callable
