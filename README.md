@@ -8,13 +8,72 @@ goes, and produces 3D models (STEP, STL), drawings (SVG) and cut lists.
 It is built on [build123d](https://github.com/gumyr/build123d). This is an
 early alpha: the API will still change.
 
+## Getting started without programming
+
+You don't need to know Python to try woodwright: one small program, uv,
+installs it with everything it needs, and you then type a few commands.
+
+1. **Open a terminal**: Terminal on macOS (in Applications / Utilities),
+   PowerShell on Windows (from the Start menu), any terminal on Linux.
+2. **Install [uv](https://docs.astral.sh/uv/getting-started/installation/)**
+   by pasting this line into it and pressing Enter.
+   - macOS and Linux:
+     ```shell
+     curl -LsSf https://astral.sh/uv/install.sh | sh
+     ```
+   - Windows:
+     ```shell
+     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+     ```
+
+   Then close the terminal and open a new one.
+3. **List the examples**, from single joints to whole projects (the first
+   run downloads Python and woodwright, which takes a minute):
+   ```shell
+   uvx --python 3.14 woodwright list
+   ```
+4. **Export one**, e.g. a small cabinet door:
+   ```shell
+   uvx --python 3.14 woodwright export projects.cabinet_door
+   ```
+   This makes a folder `output/projects/cabinet_door` in the folder the
+   terminal is in (your home folder, unless you moved with `cd`). In it:
+   - `cut_list.txt` – each part with its size and its cuts (tenons, mortises,
+     grooves...), a plain text file;
+   - `.svg` drawings of the whole thing, an exploded view and each part –
+     open them in a web browser;
+   - `.stl` 3D models of the whole thing and each part – open them in any
+     online STL viewer;
+   - `assembled.step` – the 3D model for CAD programs such as the free
+     [FreeCAD](https://www.freecad.org/), which opens the `.stl` files too.
+5. **Make your own**: in a plain text editor (TextEdit set to plain text,
+   Notepad, ...) write a file `my_door.py` with the sizes you want:
+   ```python
+   from woodwright.examples import projects
+
+   door = projects.cabinet_door(height=700, width=450)
+   ```
+   and export it, in the folder where you saved it:
+   ```shell
+   uvx --python 3.14 woodwright export my_door.py
+   ```
+   The results are in `output/my_door/door`. What each example can change
+   (sizes, stock thickness...) is listed at the top of its code in
+   [the example library](https://github.com/bzamecnik/woodwright/tree/HEAD/src/woodwright/examples);
+   copying an example's code into your file is the way on to your own designs.
+
+To update woodwright later, write `woodwright@latest` instead of `woodwright`
+once. If you use an AI coding assistant (e.g. Claude Code), you can also ask
+it to do all of this for you.
+
 ## Installation
 
 ```shell
 pip install woodwright  # or: uv add woodwright
 ```
 
-Requires Python 3.14. Source: <https://github.com/bzamecnik/woodwright>
+Requires Python 3.14. The `woodwright` command lists and exports the
+examples and your own design files (`woodwright --help`). Source: <https://github.com/bzamecnik/woodwright>
 
 ## Quickstart
 
@@ -68,8 +127,8 @@ with a bottom, a dining table, a side table, a chair, a step stool seat,
 ledged and frame-and-panel doors, a small glazed cabinet door.
 
 ```shell
-python -m woodwright.examples list
-python -m woodwright.examples export projects.chair --out output
+woodwright list
+woodwright export projects.chair --out output
 ```
 
 The design ideas are in [docs/vision.md](https://github.com/bzamecnik/woodwright/blob/HEAD/docs/vision.md)
