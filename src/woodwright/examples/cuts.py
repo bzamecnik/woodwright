@@ -13,6 +13,7 @@ from woodwright.cuts import (
     Mortise,
     Rabbet,
     RoundTaper,
+    RoundTenon,
     SlotMortise,
     Taper,
     Tenon,
@@ -392,4 +393,20 @@ def drilled_rod(length: float = 200, stock: Stock = ROD_OAK) -> Assembly:
     asm, rod = _rod("drilled_rod", stock, length)
     rod.cut(Hole(rod.top_face, 8, at={rod.left_end: 25}))
     rod.cut(Hole(rod.right_end, 10, depth=30, point=118))
+    return asm
+
+
+def round_tenon(diameter: float = 16, length: float = 30, stock: Stock = ROD_OAK) -> Assembly:
+    """A rod with a round tenon at each end (a rung), shouldered all round
+    and chamfered at the end; the rod grows by their length."""
+    asm, rod = _rod("round_tenon", stock, 380)
+    for end in (rod.left_end, rod.right_end):
+        rod.cut(RoundTenon(end, diameter, length, chamfer=1))
+    return asm
+
+
+def round_tenon_on_square(diameter: float = 25, length: float = 30) -> Assembly:
+    """A square leg with a round tenon at its top end, e.g. for a stool's seat."""
+    asm, board = _board("round_tenon_on_square", THICK_OAK, length=450, width=40)
+    board.cut(RoundTenon(board.right_end, diameter, length))
     return asm

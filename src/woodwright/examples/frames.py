@@ -14,10 +14,11 @@ from woodwright.joints import (
     Joint,
     MitreCorner,
     MortiseTenon,
+    RoundMortiseTenon,
     TongueAndGroove,
 )
-from woodwright.part import Board, SideRef
-from woodwright.placement import CENTERED, Position, flush_with, offset
+from woodwright.part import Board, Rod, SideRef
+from woodwright.placement import CENTERED, UP, Position, flush_with, offset, orient
 from woodwright.stock import Stock
 
 # Kumiko: thin bars, much deeper (across the lattice) than wide.
@@ -299,4 +300,34 @@ def shoji_frame(
                     overhang=x,
                 )
             )
+    return asm
+
+
+LADDER_OAK = Stock.board(thickness=30, species="oak")
+
+
+def ladder(
+    height: float = 800,
+    width: float = 450,
+    rungs: int = 4,
+    stile_width: float = 45,
+    stock: Stock = LADDER_OAK,
+) -> Assembly:
+    """A towel rail (a short ladder): rods in blind holes in the inside faces
+    of two stiles, from 120 above their feet, evenly up to 80 below their tops.
+
+    `width` is between the stiles; each rod goes 20 mm into either.
+    """
+    asm = Assembly("ladder", root_location=orient(right_end=UP, ref_face=(1, 0, 0)))
+    left = asm.add(Board("stile_left", stock, length=height, width=stile_width))
+    # The mirror image of the left one, its ref face inside too, its left end at the foot.
+    right = asm.add(Board("stile_right", stock, length=height, width=stile_width, mirror=True))
+    rod_stock = Stock.rod(diameter=25, species="oak")
+    pitch = (height - 120 - 80) / (rungs - 1)
+    for i in range(rungs):
+        rung = asm.add(Rod(f"rung_{i + 1}", rod_stock, length=width))
+        at = offset(120 - rod_stock.diameter / 2 + i * pitch, ref=left.left_end)
+        asm.join(RoundMortiseTenon(rung.left_end, left.top_face, length=20, position=at))
+        at = offset(120 - rod_stock.diameter / 2 + i * pitch, ref=right.left_end)
+        asm.join(RoundMortiseTenon(rung.right_end, right.top_face, length=20, position=at))
     return asm

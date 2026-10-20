@@ -801,10 +801,42 @@ Decided (with the user, 2026-10-18):
   exact B-rep solids (not the tessellation), so it needs no tolerance so
   far, and the hidden-line views draw the cylinders' silhouettes.
 
+Steps 3 and 4 done on 2026-10-20 (basic examples so far):
+
+- `RoundTenon(end, diameter, length, tip_diameter=None, chamfer=0)` on a
+  rod or a board's end, centered; a tenon as wide as a rod cuts nothing.
+  `RoundMortiseTenon(tenon, mortise)` drills the hole where the tenon
+  lands (blind with clearance, or through; tapered with the tenon), the
+  parts centered on each other both ways by default; the tenon by default
+  the whole rod, or about 0.6 of square stock (`rules.round_tenon_diameter`,
+  snapped to a drill bit). The hole may be across a rod (a round leg).
+- `WedgedRoundMortiseTenon`: a through tenon with one kerf across its end,
+  a wedge (a board) as a piece; the kerf runs across the grain of the
+  mortised part (`spread`, by default its left end). Modelled glued up: the
+  tenon spreads as a cone into the hole flared to match.
+- `Dowels(a, b, dowels)`: a butt joint (as `Butt`) with dowels (rods) as
+  pieces, spaced evenly along side b or at `offsets`, `depth` into a.
+- `PeggedMortiseTenon(..., peg, peg_distance, drawbore)`: a peg through the
+  mortised part and the tenon across its cheeks; the drawbore offset is
+  noted in the cut list, the geometry shown assembled.
+- `Screw(head, into, diameter, length, at)`: a clearance hole through part
+  b, countersunk (or counterbored with `counterbore_depth`), and a pilot
+  hole into part a as deep as the screw reaches. It is a joint that
+  doesn't place its parts (`Joint.places`): it cuts them where the other
+  joints put them. `Hole` got `kind` and `note` for its cut list names.
+- Examples: rods in holes (a ladder), round tenons on rods and square
+  stock, into a round leg, through, tapered, wedged; dowelled edge joint
+  and frame corner; pinned and drawbored mortise and tenon; screwed and
+  plugged battens. Board outputs stayed byte-identical.
+
 Open: identical cuts aren't grouped in the cut list (24 shelf-pin holes
 are 24 lines; with A3); a flat at one end is given as stopped short of the
-other end (a length from an end would read better); round tenons and the
-joints on them (steps 3–5).
+other end (a length from an end would read better); dowels through one
+part (an open hole); the wedged round tenon's spread is a cone, not the
+two halves bent apart; screws and pegs into the projects (buttons,
+battens, ledged doors, drawbored frames); step 5's larger examples (coat
+rack, stool with round legs, the step stool's legs); tapered and wedged
+round tenons together; shoulders scribed to a round leg.
 
 ### Next steps: backlog (to be prioritized)
 

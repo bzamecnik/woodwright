@@ -1,4 +1,4 @@
-"""Joints of two boards."""
+"""Joints of two parts: boards, rods, and the pieces joining them (wedges, dowels, pegs)."""
 
 import itertools
 
@@ -14,6 +14,7 @@ from woodwright.joints import (
     CrossLap,
     DadoJoint,
     DovetailHalfLap,
+    Dowels,
     GrooveJoint,
     HalfBlindDovetail,
     HalfLap,
@@ -26,15 +27,19 @@ from woodwright.joints import (
     MitredShoulderTenon,
     MitreSplice,
     MortiseTenon,
+    PeggedMortiseTenon,
     RabbetJoint,
+    RoundMortiseTenon,
+    Screw,
     SlidingDovetail,
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
     TuskTenon,
     WedgedMortiseTenon,
+    WedgedRoundMortiseTenon,
 )
-from woodwright.part import Board
+from woodwright.part import Board, Rod
 from woodwright.placement import CENTERED, FRONT, LEFT, UP, flush_with, offset, orient
 from woodwright.stock import Stock
 
@@ -43,6 +48,9 @@ LEG_STOCK = Stock.board(thickness=45, species="oak")
 POST_STOCK = Stock.board(thickness=70, species="oak")
 HOLLOW_LEG_OAK = Stock.board(thickness=15, species="oak")
 SPLINE_OAK = Stock.board(thickness=6, species="oak")  # for loose tongues
+ROD_OAK = Stock.rod(diameter=25, species="oak")  # rungs, stretchers
+ROUND_LEG_OAK = Stock.rod(diameter=40, species="oak")
+DOWEL_OAK = Stock.rod(diameter=8, species="oak")  # dowels and pegs
 
 
 # --- Butt joints ------------------------------------------------------------
@@ -1146,4 +1154,197 @@ def cross_lap(
     a = asm.add(Board("a", stock, length=length_a, width=width))
     b = asm.add(Board("b", stock, length=length_b, width=width))
     asm.join(CrossLap(a.back_edge, b.left_end))
+    return asm
+
+
+# --- Round joints -----------------------------------------------------------
+
+
+def rod_in_hole(leg_length: float = 450, rod_length: float = 300) -> Assembly:
+    """A rod (a rung, a stretcher) going with its whole cross-section into a
+    blind hole in a square leg, two thirds of the leg deep."""
+    asm = Assembly("rod_in_hole", root_location=STANDING)
+    leg = asm.add(Board("leg", LEG_STOCK, length=leg_length, width=45))
+    rod = asm.add(Rod("rod", ROD_OAK, length=rod_length))
+    asm.join(RoundMortiseTenon(tenon=rod.left_end, mortise=leg.back_edge))
+    return asm
+
+
+def round_mortise_tenon(
+    leg_length: float = 450, rung_length: float = 300, diameter: float = 16
+) -> Assembly:
+    """A rung with a round tenon (a shoulder all round, its end chamfered)
+    in a blind hole in a square leg."""
+    asm = Assembly("round_mortise_tenon", root_location=STANDING)
+    leg = asm.add(Board("leg", LEG_STOCK, length=leg_length, width=45))
+    rung = asm.add(Rod("rung", ROD_OAK, length=rung_length))
+    asm.join(
+        RoundMortiseTenon(tenon=rung.left_end, mortise=leg.back_edge, diameter=diameter, chamfer=1)
+    )
+    return asm
+
+
+def round_tenon_in_round_leg(
+    leg_length: float = 450, rung_length: float = 300, diameter: float = 16
+) -> Assembly:
+    """A stretcher's round tenon in a cross hole in a round leg (its shoulder
+    meets the leg along a line, as it would before being scribed to it)."""
+    asm = Assembly("round_tenon_in_round_leg", root_location=STANDING)
+    leg = asm.add(Rod("leg", ROUND_LEG_OAK, length=leg_length))
+    rung = asm.add(Rod("rung", ROD_OAK, length=rung_length))
+    asm.join(
+        RoundMortiseTenon(tenon=rung.left_end, mortise=leg.back_edge, diameter=diameter, length=25)
+    )
+    return asm
+
+
+def through_round_tenon(leg_length: float = 400, diameter: float = 25) -> Assembly:
+    """A square leg with a round tenon through a seat, flush with its top."""
+    asm = Assembly("through_round_tenon")
+    seat = asm.add(Board("seat", THICK_OAK, length=300, width=300))
+    leg = asm.add(Board("leg", LEG_STOCK, length=leg_length, width=45))
+    asm.join(
+        RoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=diameter, length=30
+        )
+    )
+    return asm
+
+
+def tapered_round_tenon(
+    leg_length: float = 400, diameter: float = 25, tip_diameter: float = 20
+) -> Assembly:
+    """A round leg with a tapered tenon through a tapered (reamed) hole in a
+    seat, as in a Windsor chair (not splayed yet)."""
+    asm = Assembly("tapered_round_tenon")
+    seat = asm.add(Board("seat", LEG_STOCK, length=300, width=300))
+    leg = asm.add(Rod("leg", ROUND_LEG_OAK, length=leg_length))
+    asm.join(
+        RoundMortiseTenon(
+            tenon=leg.right_end,
+            mortise=seat.bottom_face,
+            diameter=diameter,
+            tip_diameter=tip_diameter,
+            length=45,
+        )
+    )
+    return asm
+
+
+def wedged_round_tenon(
+    leg_length: float = 400, diameter: float = 25, kerf: float = 2, flare: float = 2
+) -> Assembly:
+    """A round leg through a stool's seat, its tenon spread by a wedge in a
+    kerf across the grain of the seat, into the hole flared at the top.
+
+    The wedge is 20 mm thick (narrower than the tenon), two thirds of the
+    seat long, at its head as wide as the kerf and the spread both ways.
+    """
+    asm = Assembly("wedged_round_tenon")
+    seat = asm.add(Board("seat", THICK_OAK, length=300, width=300))
+    leg = asm.add(Rod("leg", ROUND_LEG_OAK, length=leg_length))
+    wedge_stock = Stock.board(thickness=20, species="oak")
+    wedge = asm.add(Board("wedge", wedge_stock, length=20, width=kerf + 2 * flare))
+    asm.join(
+        WedgedRoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=diameter, wedge=wedge, kerf=kerf
+        )
+    )
+    return asm
+
+
+# --- Dowels, pegs and screws ------------------------------------------------
+
+
+def _dowels(asm: Assembly, prefix: str, count: int, length: float) -> tuple[Rod, ...]:
+    return tuple(asm.add(Rod(f"{prefix}_{i + 1}", DOWEL_OAK, length=length)) for i in range(count))
+
+
+def dowelled_edge_joint(length: float = 500, width: float = 150, stock: Stock = OAK) -> Assembly:
+    """Two boards glued edge to edge, aligned by three dowels, 15 mm into each."""
+    asm = Assembly("dowelled_edge_joint")
+    a = asm.add(Board("a", stock, length=length, width=width))
+    b = asm.add(Board("b", stock, length=length, width=width))
+    asm.join(Dowels(a.back_edge, b.front_edge, _dowels(asm, "dowel", 3, 30)))
+    return asm
+
+
+def dowelled_frame_corner(
+    stile_length: float = 600, rail_length: float = 300, width: float = 60, stock: Stock = OAK
+) -> Assembly:
+    """A rail butted against the edge of a stile, joined by two dowels
+    across its width, 20 mm into each (a dowelled butt joint)."""
+    asm = Assembly("dowelled_frame_corner", root_location=STANDING)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    asm.join(Dowels(stile.back_edge, rail.left_end, _dowels(asm, "dowel", 2, 40)))
+    return asm
+
+
+def pinned_mortise_tenon(
+    stile_length: float = 600, rail_length: float = 300, width: float = 60, drawbore: float = 0
+) -> Assembly:
+    """A mortise and tenon pinned by an 8 mm peg through the stile and the
+    tenon, flush with both faces of the stile."""
+    return _pegged("pinned_mortise_tenon", stile_length, rail_length, width, drawbore)
+
+
+def drawbored_mortise_tenon(
+    stile_length: float = 600, rail_length: float = 300, width: float = 60, drawbore: float = 1.5
+) -> Assembly:
+    """A drawbored mortise and tenon: the hole in the tenon drilled 1.5 mm
+    closer to the shoulder, so the peg pulls the shoulders tight (shown
+    assembled, the holes straight)."""
+    return _pegged("drawbored_mortise_tenon", stile_length, rail_length, width, drawbore)
+
+
+def _pegged(
+    name: str, stile_length: float, rail_length: float, width: float, drawbore: float
+) -> Assembly:
+    asm = Assembly(name, root_location=STANDING)
+    stile = asm.add(Board("stile", THICK_OAK, length=stile_length, width=width))
+    rail = asm.add(Board("rail", THICK_OAK, length=rail_length, width=width))
+    peg = asm.add(Rod("peg", DOWEL_OAK, length=THICK_OAK.thickness))
+    asm.join(
+        PeggedMortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            tenon_length=40,
+            peg=peg,
+            drawbore=drawbore,
+        )
+    )
+    return asm
+
+
+def screwed_batten(screw_length: float = 30) -> Assembly:
+    """A batten screwed to a board (e.g. the ledge of a door, seen from the
+    back), two 4 mm screws in countersunk clearance holes."""
+    asm = Assembly("screwed_batten")
+    board = asm.add(Board("board", OAK, length=500, width=150))
+    batten = asm.add(Board("batten", OAK, length=400, width=60))
+    asm.join(Butt(board.top_face, batten.bottom_face, across=CENTERED))
+    for end in (batten.left_end, batten.right_end):
+        asm.join(Screw(batten.top_face, into=board, length=screw_length, at={end: 40}))
+    return asm
+
+
+def plugged_screws(screw_length: float = 35) -> Assembly:
+    """A thick batten screwed to a board, the screws' heads sunk in
+    counterbores 8 mm deep, to be closed by plugs."""
+    asm = Assembly("plugged_screws")
+    board = asm.add(Board("board", OAK, length=500, width=150))
+    batten = asm.add(Board("batten", THICK_OAK, length=400, width=60))
+    asm.join(Butt(board.top_face, batten.bottom_face, across=CENTERED))
+    for end in (batten.left_end, batten.right_end):
+        asm.join(
+            Screw(
+                batten.top_face,
+                into=board,
+                length=screw_length,
+                at={end: 40},
+                head_diameter=10,
+                counterbore_depth=8,
+            )
+        )
     return asm

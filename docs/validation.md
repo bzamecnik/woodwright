@@ -143,10 +143,12 @@ Done items name their example in `woodwright.examples`
       - [x] two pieces - long L-shaped piece – `joints.edge_mitre_corner`
       - [x] four pieces - hollow leg – `joints.hollow_leg` (edges mitred along the grain,
         `MitreCorner` of two edges)
-  - dowel joint
-    - [ ] two boards with blind drill holes + dowel
+  - dowel joint – `Dowels`
+    - [x] two boards with blind drill holes + dowel – `joints.dowelled_edge_joint`,
+      `joints.dowelled_frame_corner`
     - [ ] one board with a blind hole, one with open hole + dowel
-    - [ ] board with a hole + bigger rod
+    - [x] board with a hole + bigger rod – `RoundMortiseTenon`, `joints.rod_in_hole`,
+      `frames.ladder`
   - mitred half-lap
     - [x] like a half-lap corner, but one side is mitred – `MitredHalfLap`,
       `joints.mitred_half_lap` (the front half mitred, the back half lapped)
@@ -159,8 +161,10 @@ Done items name their example in `woodwright.examples`
       `joints.wedged_through_tenon`
     - [x] tenon with one or two slots ended with a drilled hole + wedge – one or two kerfs per
       tenon, the wedges as parts, in `joints.wedged_through_tenon` (the drilled hole not yet)
-  - drawbore mortise and tenon
-    - [ ] mortise and tenon plus each has a drill hole which is slightly offset + dowel
+  - pegged mortise and tenon – `PeggedMortiseTenon`
+    - [x] pinned: a peg through the mortised part and the tenon – `joints.pinned_mortise_tenon`
+    - [x] drawbored: the hole in the tenon slightly offset towards the shoulder (noted, shown
+      assembled) – `joints.drawbored_mortise_tenon`
   - [x] tusk mortise and tenon – `TuskTenon`
     - tenon extends out of the through mortise
     - there's another smaller mortise going through the tenon
@@ -194,9 +198,15 @@ Done items name their example in `woodwright.examples`
       hidden tenon centered in the layer behind the mitre, in a blind mortise)
     - [ ] 3-way joint: two outer tenons, the outer one pointed, the inner one mitred at its edge
       so the two perpendicular rails don't clash
-  - round tenon
-    - [ ] mortise is a drilled hole, tenon is round
-    - [ ] can be wedged
+  - round tenon – `RoundTenon`, `RoundMortiseTenon`
+    - [x] mortise is a drilled hole, tenon is round – on a rod: `cuts.round_tenon`,
+      `joints.round_mortise_tenon`, into a round leg: `joints.round_tenon_in_round_leg`; on
+      square stock: `cuts.round_tenon_on_square`, through: `joints.through_round_tenon`
+    - [x] tapered, in a reamed hole (Windsor) – `joints.tapered_round_tenon` (not splayed yet)
+    - [x] can be wedged – `WedgedRoundMortiseTenon`, `joints.wedged_round_tenon`
+  - screws (the screws themselves not modelled) – `Screw`
+    - [x] countersunk clearance hole + pilot hole – `joints.screwed_batten`
+    - [x] counterbored for a plug – `joints.plugged_screws`
   - [x] half-blind dovetail – `joints.half_blind_dovetail_corner`, `projects.drawer`
   - [x] blind mitred dovetail – `BlindMitredDovetail`, `joints.blind_mitred_dovetail_corner`
     (secret mitre: mitred lips on both boards, the edges mitred through)
