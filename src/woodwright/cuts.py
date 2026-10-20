@@ -1411,15 +1411,15 @@ class RoundTenon(Cut):
 
 @dataclass
 class WedgedRoundTenon(RoundTenon):
-    """A through round tenon with a saw kerf across its end, spread by a wedge.
+    """A through round tenon with a saw kerf across its end, for a wedge.
 
-    The kerf is `kerf` wide and `kerf_depth` deep from the end, and the
-    tenon spreads along the axis `spread` of the part frame (1 or 2, across
-    the kerf). It is modelled as glued up, as for a `WedgedTenon`: the wedge
-    driven into the kerf has spread the tenon by `flare` all round where it
-    leaves the mortised part, `proud` before its end, a cone approximating
-    the two halves bent apart; the kerf is the wedge's shape. The cut list
-    gives the tenon as cut, straight with a straight kerf.
+    The kerf is `kerf` wide and `kerf_depth` deep from the end, across the
+    axis `spread` of the part frame (1 or 2), along which the wedge spreads
+    the tenon. It is modelled simply, the wood's give ignored: the tenon
+    stays round, in a straight hole, and the kerf is the wedge's shape,
+    opened by `flare` at either side where the tenon leaves the mortised
+    part, `proud` before its end. The cut list gives the tenon as cut, with
+    a straight kerf.
     """
 
     kerf: float = 2.0
@@ -1438,28 +1438,13 @@ class WedgedRoundTenon(RoundTenon):
             raise ValueError("the kerf must reach into the mortise, but not beyond the tenon")
         if self.flare <= 0 or self.kerf <= 0:
             raise ValueError("a wedged round tenon needs a kerf and a flare")
-        part = self.part
-        if self.diameter + 2 * self.flare > min(part.width, part.thickness) + _EPS:
-            raise ValueError(f"the tenon must not spread wider than {part.name}")
+        if self.kerf + 2 * self.flare >= self.diameter:
+            raise ValueError("the kerf must open less than the tenon is wide")
 
     @property
     def bottom(self) -> float:
         """Of the kerf, beyond the shoulder."""
         return self.length - self.kerf_depth
-
-    def profile(self) -> list[tuple[float, float]]:
-        r, f, length = self.diameter / 2, self.flare, self.length
-        spread = length - self.proud
-        return _dedup(
-            [(0, 0), (r, 0), (r, self.bottom), (r + f, spread), (r + f, length), (0, length)]
-        )
-
-    def flare_solid(self) -> bd.Part:
-        """What the tenon spreads into beyond its straight sides (and the hole is flared by)."""
-        r, f, length = self.diameter / 2, self.flare, self.length
-        spread = length - self.proud
-        ring = _dedup([(r, self.bottom), (r + f, spread), (r + f, length), (r, length)])
-        return self._local() * _revolved(ring)
 
     def kerf_solid(self) -> bd.Part:
         """The kerf, as the wedge's shape, through the tenon."""

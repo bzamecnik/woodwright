@@ -1,6 +1,7 @@
 """Joints: placement, allowances and the cuts derived for both parts."""
 
 import math
+from dataclasses import replace
 
 import build123d as bd
 import pytest
@@ -1446,16 +1447,13 @@ def test_wedged_round_tenon() -> None:
         )
     )
     model = asm.resolve()
-    assert cuts(model, seat) == [
-        "through hole ø25, in seat.bottom_face, centered",
-        "hole flared to ø29 over 20, in seat.bottom_face",
-    ]
+    assert cuts(model, seat) == ["through hole ø25, in seat.bottom_face, centered"]
     assert cuts(model, wedge) == [
         "taper 2 mm on wedge.front_edge towards wedge.right_end",
         "taper 2 mm on wedge.back_edge towards wedge.right_end",
     ]
     # The wedge's head is flush with the top of the seat, across its grain
-    # (the kerf runs along y, the tenon spreads along the seat's length).
+    # (the kerf runs along y, the wedge spreads the tenon along the seat's length).
     assert bbox(model[wedge].placed_shape) == (147, 140, -20, 153, 160, 0)
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
@@ -1572,3 +1570,33 @@ def test_screws_cut_parts_placed_by_other_joints() -> None:
     asm.joints[0] = ww.Screw(batten.top_face, into=board, length=45)
     with pytest.raises(ValueError, match="comes out of board"):
         asm.resolve()
+
+
+def test_wedge_of_a_round_tenon_fits_within_it() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    wedge = asm.add(ww.Board("wedge", ww.Stock.board(25, "oak"), length=20, width=6))
+    asm.join(
+        ww.WedgedRoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=25, wedge=wedge
+        )
+    )
+    with pytest.raises(ValueError, match="corners must lie within"):
+        asm.resolve()
+
+    asm.parts[-1] = wedge = ww.Board("wedge", ww.Stock.board(24, "oak"), length=20, width=6)
+    asm.joints[0] = replace(asm.joints[0], wedge=wedge)
+    model = asm.resolve()
+    # The tenon is straight; the kerf, opened to the wedge's shape, is a strip
+    # of the circle from 2 wide at its bottom to 6 at the top, over 20.
+    r = 12.5
+
+    def strip(w: float) -> float:  # of the circle, |y| <= w
+        return 2 * (w * math.sqrt(r * r - w * w) + r * r * math.asin(w / r))
+
+    n = 1000
+    kerf = sum(strip(1 + 2 * (i + 0.5) / n) for i in range(n)) * 20 / n
+    tenon = math.pi * r * r * 30 - kerf
+    assert model[leg].shape.volume == pytest.approx(math.pi * 400 * 400 + tenon, rel=1e-6)
+    assert interference(model) == pytest.approx(0, abs=1e-6)

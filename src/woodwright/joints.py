@@ -2215,21 +2215,22 @@ class RoundMortiseTenon(Joint):
 
 @dataclass
 class WedgedRoundMortiseTenon(RoundMortiseTenon):
-    """A round tenon through a hole, spread by a wedge in a saw kerf across
-    its end, into the hole flared towards the outside, e.g. a stool's leg
-    through its seat.
+    """A round tenon through a hole, held by a wedge in a saw kerf across
+    its end, e.g. a stool's leg through its seat.
 
     The `wedge` is a separate part, given as made: as long as the kerf is
-    deep, at its head as wide as the `kerf` plus twice the spread, and at
-    most as thick as the tenon is wide; the joint tapers both its edges to
-    fit. The kerf runs across the grain of part a, so that the wedge
-    spreads the tenon along it and doesn't split it: the tenon spreads
-    towards `spread`, a side of part a (by default its left end). The hole
-    is flared over the depth of the kerf (less what the tenon stands proud).
+    deep, at its head as wide as the `kerf` plus what it opens the kerf
+    by, and as thick as fits within the tenon (its corners inside the
+    circle, so a bit less than the tenon is wide); the joint tapers both its
+    edges to fit. The kerf runs across the grain of part a, so that the
+    wedge spreads the tenon along it and doesn't split it: towards
+    `spread`, a side of part a (by default its left end).
 
     The tenon goes through, by default flush with the far side of part a;
-    it may stand proud of it, then the wedge is as long. The model is of
-    the joint glued up, the tenon spread (see `WedgedRoundTenon`).
+    it may stand proud of it, then the wedge is as long. The model ignores
+    the wood's give: the tenon and the hole stay straight, the kerf opened
+    to the wedge's shape (see `WedgedRoundTenon`). The small gaps left
+    between the wedge's ends and the hole fill with glue.
     """
 
     wedge: Board | None = None
@@ -2253,8 +2254,9 @@ class WedgedRoundMortiseTenon(RoundMortiseTenon):
         joint = super(WedgedRoundMortiseTenon, joint).with_defaults()
         if not joint.through:
             raise ValueError("a wedged round tenon goes through the hole")
-        if self._wedge().thickness > _require(joint.diameter) + _EPS:
-            raise ValueError("the wedge must not be thicker than the tenon is wide")
+        wedge, r = self._wedge(), _require(joint.diameter) / 2
+        if math.hypot(wedge.thickness / 2, wedge.width / 2) > r + _EPS:
+            raise ValueError("the wedge's corners must lie within the round tenon")
         return joint
 
     def _wedge(self) -> Board:
@@ -2285,19 +2287,13 @@ class WedgedRoundMortiseTenon(RoundMortiseTenon):
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         tenon = self.tenon_cut(placement)
-        flare = ShapeCut(
-            self.mortise.part,
-            placement * tenon.flare_solid(),
-            f"hole flared to ø{tenon.diameter + 2 * tenon.flare:g} over "
-            f"{tenon.kerf_depth - tenon.proud:g}, in {self.mortise}",
-        )
         wedge = self._wedge()
         length = None if tenon.proud < _EPS else tenon.kerf_depth - tenon.proud
         tapers: list[Cut] = [
             Taper(edge, end=wedge.right_end, amount=tenon.flare, length=length)
             for edge in (wedge.front_edge, wedge.back_edge)
         ]
-        return [self.hole(placement), tenon, flare, *tapers]
+        return [self.hole(placement), tenon, *tapers]
 
 
 @dataclass

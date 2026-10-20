@@ -1234,16 +1234,17 @@ def tapered_round_tenon(
 def wedged_round_tenon(
     leg_length: float = 400, diameter: float = 25, kerf: float = 2, flare: float = 2
 ) -> Assembly:
-    """A round leg through a stool's seat, its tenon spread by a wedge in a
-    kerf across the grain of the seat, into the hole flared at the top.
+    """A round leg through a stool's seat, held by a wedge in a kerf across
+    the grain of the seat.
 
-    The wedge is 20 mm thick (narrower than the tenon), two thirds of the
-    seat long, at its head as wide as the kerf and the spread both ways.
+    The wedge is two thirds of the seat long, at its head as wide as the
+    kerf and the spread both ways, and 24 mm thick, so that its corners
+    stay within the 25 mm tenon.
     """
     asm = Assembly("wedged_round_tenon")
     seat = asm.add(Board("seat", THICK_OAK, length=300, width=300))
     leg = asm.add(Rod("leg", ROUND_LEG_OAK, length=leg_length))
-    wedge_stock = Stock.board(thickness=20, species="oak")
+    wedge_stock = Stock.board(thickness=24, species="oak")
     wedge = asm.add(Board("wedge", wedge_stock, length=20, width=kerf + 2 * flare))
     asm.join(
         WedgedRoundMortiseTenon(
