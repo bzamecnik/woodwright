@@ -15,3 +15,5 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 - Source in `src/woodwright/`, tests in `tests/` (pytest), the example library in `src/woodwright/examples/`.
 - Use type hints wherever they help (public functions, dataclasses); don't contort code to satisfy the checker.
 - Commit coherent pieces of work separately, with a descriptive message.
+- After adding or changing examples, export them to `output/` for the user, listing them by name
+  (`uv run woodwright export cuts.dowel cuts.peg ...`), so they can open the results straight away.
