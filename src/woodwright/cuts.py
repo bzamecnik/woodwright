@@ -892,11 +892,15 @@ class DovetailLap(Tenon):
     flare outwards by 1:`slope` towards its end, where it is as wide as the
     part; `sloped` are the edges of the part that slope (by default both,
     one for a half dovetail, e.g. at a corner). Beside the tail, the part is
-    cut back to the shoulder through its whole thickness.
+    cut back to the shoulder through its whole thickness. With `cut_back`,
+    the tail is narrower by that much at the given edges, e.g. where the
+    socket stops short of the end of the other part: the part is cut back to
+    there over the lap, and a sloped edge slopes from there.
     """
 
     slope: float = 7.0
     sloped: tuple[SideRef, ...] | None = None
+    cut_back: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -910,10 +914,12 @@ class DovetailLap(Tenon):
             raise ValueError("a dovetail's slope must be positive")
         if not self.edges:
             raise ValueError("a dovetail lap is sloped at one edge at least")
-        for edge in self.edges:
+        for edge in (*self.edges, *(self.cut_back or {})):
             _check_adjacent(self.side, edge)
             if edge.axis != 1:
                 raise ValueError(f"a dovetail lap is sloped at its edges, not at {edge}")
+        if any(amount < 0 for amount in (self.cut_back or {}).values()):
+            raise ValueError("a dovetail lap is cut back by a positive amount")
         if self.shoulder_width <= 0:
             raise ValueError("the dovetail lap is too long for its slope")
 
@@ -929,9 +935,18 @@ class DovetailLap(Tenon):
         return self.length / self.slope
 
     @property
+    def end_width(self) -> float:
+        """The width of the tail at its end: the part's, less any cut back."""
+        return self.part.width - sum((self.cut_back or {}).values())
+
+    @property
     def shoulder_width(self) -> float:
-        """The width of the tail at the shoulder (it is as wide as the part at its end)."""
-        return self.part.width - len(self.edges) * self.flare
+        """The width of the tail at the shoulder."""
+        return self.end_width - len(self.edges) * self.flare
+
+    def _cut_back(self, sign: int) -> float:
+        """At the edge facing `sign` across the width."""
+        return sum(a for edge, a in (self.cut_back or {}).items() if edge.side.sign == sign)
 
     def tail(self) -> bd.Part:
         """The tail's outline across the face, through the part (in its frame).
@@ -947,8 +962,12 @@ class DovetailLap(Tenon):
 
         def edge(y: float, inwards: int) -> list[tuple[float, float]]:
             """(beyond the shoulder, across) along the edge at y."""
+            back = self._cut_back(-inwards)
+            if back:
+                y += inwards * back
             if -inwards not in sloped:
-                return [(-m, y - inwards * m), (self.length + m, y - inwards * m)]
+                y -= 0 if back else inwards * m
+                return [(-m, y), (self.length + m, y)]
             at_shoulder = y + inwards * self.flare
             far = self.length + m
             return [
@@ -967,9 +986,12 @@ class DovetailLap(Tenon):
     def describe(self) -> str:
         kind = "dovetail lap" if len(self.edges) == 2 else "half-dovetail lap"
         shoulder = round(self.shoulder_width, 1)
+        backs = "".join(
+            f", cut back {amount:g} at {edge}" for edge, amount in (self.cut_back or {}).items()
+        )
         return (
             f"{kind} {self.thickness:g} mm thick, {self.length:g} long, "
-            f"{shoulder:g} wide at the shoulder, 1:{self.slope:g}, on {self.side}"
+            f"{shoulder:g} wide at the shoulder, 1:{self.slope:g}{backs}, on {self.side}"
         )
 
 

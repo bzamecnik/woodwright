@@ -304,6 +304,34 @@ def test_dovetail_half_lap_standing_proud() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
+def test_dovetail_half_lap_stopped_short_of_the_end() -> None:
+    asm, stile, rail = stile_and_rail()
+    asm.join(
+        ww.DovetailHalfLap(
+            lap=rail.left_end,
+            socket=stile.back_edge,
+            position=ww.flush_with(stile.right_end),
+            stopped={stile.right_end: 10},
+            sloped=(rail.front_edge,),
+        )
+    )
+    model = asm.resolve()
+    # The tail is 30 wide at its end, sloping in from there by 40 / 7.
+    shoulder = 30 - 40 / 7
+    assert cuts(model, stile) == [
+        f"dovetail socket {round(shoulder, 1):g} to 30 mm, 10 deep, 1:7, in stile.bottom_face, "
+        "10 mm short of stile.right_end"
+    ]
+    assert cuts(model, rail) == [
+        f"half-dovetail lap 10 mm thick, 40 long, {round(shoulder, 1):g} wide at the shoulder, "
+        "1:7, cut back 10 at rail.front_edge, on rail.left_end"
+    ]
+    tail = (30 + shoulder) / 2 * 40 * 10
+    assert model[stile].shape.volume == pytest.approx(300 * 40 * 20 - tail)
+    assert model[rail].shape.volume == pytest.approx(200 * 40 * 20 + tail)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
 def test_dovetail_lap_too_long_for_its_slope() -> None:
     asm, stile, rail = stile_and_rail()
     asm.join(ww.DovetailHalfLap(lap=rail.left_end, socket=stile.back_edge, slope=1))
@@ -1397,7 +1425,7 @@ def test_tusk_tenon_with_the_wedge_perpendicular_to_the_stile() -> None:
 def _dowel_tusk_tenon(tusks: int = 1, bearings: int | None = None, **kw) -> tuple:
     asm = ww.Assembly("test")
     stile = asm.add(ww.Board("stile", ww.Stock.board(60, "oak"), length=400, width=60))
-    rail = asm.add(ww.Board("rail", ww.Stock.board(30, "oak"), length=200, width=120))
+    rail = asm.add(ww.Board("rail", ww.Stock.board(30, "oak"), length=200, width=140))
     dowel = ww.Stock.rod(20, "oak")
     length = kw.pop("tusk_length", 120)
     bearing_length = kw.pop("bearing_length", 30)
@@ -1425,40 +1453,43 @@ def _dowel_tusk_tenon(tusks: int = 1, bearings: int | None = None, **kw) -> tupl
 def test_dowel_tusk_tenon() -> None:
     asm, stile, rail, (tusk,), (bearing,) = _dowel_tusk_tenon()
     model = asm.resolve()
-    # The hole's inner edge 7.5 mm off the stile (the bearing's radius less
-    # half the flat's depth, 60 / 12 at the tip); the tenon stands out 1.5
-    # tusk diameters beyond the hole.
-    assert model.joints[0].tenon_length == 60 + 27.5 + 30
-    assert cuts(model, stile) == ["through mortise 80 x 30 mm in stile.back_edge"]
-    assert cuts(model, rail) == [
-        "tenon 80 x 30 mm, 117.5 long, on rail.left_end",
+    # The flat, 1:12 over 60 mm, 5 deep at the tip, touches the round top of
+    # the half dowel (r = 10) and lies 10 / cos over its axis there, half
+    # its depth above the tusk's front edge: the hole's inner edge.
+    inner = 10 / math.cos(math.atan(1 / 12)) - 2.5
+    # The tenon stands out 1.5 tusk diameters beyond the hole.
+    assert model.joints[0].tenon_length == pytest.approx(60 + inner + 20 + 30)
+    assert cuts(model, stile) == ["through mortise 100 x 30 mm in stile.back_edge"]
+    assert cuts(model, rail)[1] == (
         "a hole ø20 for tusks through the tenon on rail.left_end, parallel to "
-        "stile.front_edge, 7.5 mm off it",
-    ]
+        "stile.front_edge, 7.5 mm off it"
+    )
     assert cuts(model, tusk) == [
         "flat taper 5 mm over 60 on tusk_1.front_edge towards tusk_1.right_end"
     ]
     assert cuts(model, bearing) == ["flat 20 mm wide, 10 deep, on bearing_1.front_edge"]
-    # The tenon (z from -45 to -15) is centered on x = 200. The tusk lies
-    # parallel to the stile's front edge (y = 0), its head up (the stile's top
-    # face), the middle of its flat over the bearing's axis, behind the tenon.
-    assert bbox(model[tusk].placed_shape) == (190, -27.5, -85, 210, -7.5, 35)
-    box = model[bearing].placed_shape.bounding_box()
-    assert pytest.approx((185, 215, 0, -65)) == (box.min.X, box.max.X, box.max.Y, box.min.Z)
-    # It rests on the stile on its round side, tilted 1:12 under the tusk's flat.
-    assert pytest.approx(-10 - 10 * math.sin(math.atan(1 / 12))) == box.min.Y
+    # The tenon (z from -45 to -15) is centered on x = 200. The half dowel
+    # lies flat on the stile's front edge (y = 0) behind the tenon, across
+    # the tusk; the tusk lies parallel to the stile, its head up (the stile's
+    # top face), the middle of its flat over the half dowel's axis.
+    assert bbox(model[bearing].placed_shape) == (185, -10, -65, 215, 0, -45)
+    assert bbox(model[tusk].placed_shape) == (190, -inner - 20, -85, 210, -inner, 35)
     for a, b in [(tusk, bearing), (bearing, stile)]:
         distance = model[a].placed_shape.distance_to(model[b].placed_shape)
         assert distance == pytest.approx(0, abs=1e-6)
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
-def test_dowel_tusk_tenon_with_two_tusks() -> None:
-    asm, *_, tusks, _ = _dowel_tusk_tenon(tusks=2, bearing_length=20)
+def test_dowel_tusk_tenon_with_two_tusks_on_one_bearing() -> None:
+    asm, *_, tusks, (bearing,) = _dowel_tusk_tenon(tusks=2, bearings=1, bearing_length=100)
     model = asm.resolve()
-    # At the thirds of the tenon's width.
+    # In the second and the fourth fifth of the 100 mm tenon.
     centers = sorted(model[t].placed_shape.bounding_box().center().X for t in tusks)
-    assert centers == pytest.approx([160 + 80 / 3, 160 + 160 / 3])
+    assert centers == pytest.approx([180, 220])
+    assert pytest.approx(200) == model[bearing].placed_shape.bounding_box().center().X
+    for tusk in tusks:
+        distance = model[tusk].placed_shape.distance_to(model[bearing].placed_shape)
+        assert distance == pytest.approx(0, abs=1e-6)
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
@@ -1467,9 +1498,10 @@ def test_dowel_tusk_tenon_with_two_tusks() -> None:
     [
         (dict(tusks=0), "needs tusks"),
         (dict(bearings=0), "a bearing per tusk"),
+        (dict(tusks=2, bearing_length=50), "don't fit side by side"),
         (dict(tusk_slope=4), "deeper than half the dowel"),
         (dict(protrusion=25), "run out of the end of the tenon"),
-        (dict(tusks=3), "don't fit side by side"),
+        (dict(tusks=3), "don't fit side by side"),  # 100 / 7 < 20
         (dict(tusk_length=50), "reach through the tenon"),
     ],
 )
