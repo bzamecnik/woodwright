@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pytest
@@ -194,9 +195,11 @@ def test_ledged_door_tongues_fill_the_grooves() -> None:
     assert sizes["board_1"] == (600, 100, 20)  # the first board has no tongue
     assert sizes["board_2"] == (600, 110, 20)
     assert sizes["ledge_top"] == (370, 80, 20)
-    # The tongues fill the grooves; only the V-chamfers along the joints are gone.
+    # The tongues fill the grooves; only the V-chamfers along the joints and
+    # the screws' pilot holes (ø3, 10 deep, a 118 degree point) are gone.
     boards = sum(part.shape.volume for part in model.parts if part.part.name.startswith("board"))
-    assert boards == pytest.approx(400 * 600 * 20 - 6 * 3 * 3 / 2 * 600)
+    pilot = math.pi * 1.5**2 * (10 + 1.5 / math.tan(math.radians(59)) / 3)
+    assert boards == pytest.approx(400 * 600 * 20 - 6 * 3 * 3 / 2 * 600 - 8 * pilot)
 
 
 def test_ledged_and_braced_door() -> None:
@@ -526,3 +529,74 @@ def test_cabinet_door_hides_the_grooves_in_the_mitred_notches() -> None:
     assert section("stile_left", 585) == pytest.approx(20 * 20 - 6 * 20)
     # Below the rail, the groove, 6 x 8 mm.
     assert section("stile_left", 560) == pytest.approx(30 * 20 - 6 * 8)
+
+
+def test_stool_legs_wedged_through_the_seat() -> None:
+    from woodwright.examples import projects
+
+    model = projects.stool().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.min) == pytest.approx((0, 0, 0))  # standing on the floor
+    assert tuple(box.size) == pytest.approx((360, 300, 450))
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["leg_front_left"].size == (450, 40, 40)  # 420 and the 30 mm tenon
+    for wedge_name in ("wedge_front_left", "wedge_back_right"):
+        # Flush with the seat's top, its kerf across the seat's grain.
+        wedge = parts[wedge_name].placed_shape.bounding_box()
+        assert pytest.approx((6, 24, 20)) == tuple(wedge.size)
+        assert pytest.approx(450) == wedge.max.Z
+    # The side stretchers are higher than the front and back ones.
+    for stretcher, z in [("stretcher_front", 150), ("stretcher_left", 190)]:
+        assert pytest.approx(z) == parts[stretcher].placed_shape.bounding_box().center().Z
+
+
+def test_stepstool_legs_through_the_battens_and_the_seat() -> None:
+    from woodwright.examples import projects
+
+    model = projects.stepstool().resolve()
+    box = model.compound().bounding_box()
+    assert tuple(box.min) == pytest.approx((0, 0, 0))
+    assert tuple(box.size) == pytest.approx((400, 280, 250))
+    parts = {part.part.name: part for part in model.parts}
+    # The shoulders bear on the battens, 40 below the seat's top.
+    assert parts["leg_front_left"].size == (250, 40, 40)
+    assert [cut.describe() for cut in parts["batten_left"].cuts][1:] == [
+        "through hole ø25, in batten_left.bottom_face, 50 from batten_left.left_end, "
+        "centered, for the tenon on leg_front_left.right_end",
+        "through hole ø25, in batten_left.bottom_face, 230 from batten_left.left_end, "
+        "centered, for the tenon on leg_back_left.right_end",
+    ]
+    assert pytest.approx(250) == parts["wedge_back_left"].placed_shape.bounding_box().max.Z
+
+
+def test_coat_rack_pegs() -> None:
+    from woodwright.examples import projects
+
+    model = projects.coat_rack().resolve()
+    parts = {part.part.name: part for part in model.parts}
+    assert parts["peg_1"].size == (95, 22, 22)  # 80 out of the board and the tenon
+    holes = [cut.describe() for cut in parts["board"].cuts if "hole" in cut.describe()]
+    assert len(holes) == 7  # five pegs, two screws
+    box = model.compound().bounding_box()
+    assert tuple(box.size) == pytest.approx((600, 100, 100))
+
+
+def test_table_buttons_and_ledges_are_screwed() -> None:
+    from woodwright.examples import projects
+
+    def screws(model, prefix: str, kind: str) -> int:
+        return sum(
+            cut.describe().startswith(kind)
+            for part in model.parts
+            if part.part.name.startswith(prefix)
+            for cut in part.cuts
+        )
+
+    # Into the board of the top above each button.
+    table = projects.table().resolve()
+    assert screws(table, "button", "clearance hole") == 10
+    assert screws(table, "top", "pilot hole") == 10
+    # One screw through each ledge into each board.
+    door = projects.ledged_door().resolve()
+    assert screws(door, "ledge", "clearance hole") == 8
+    assert screws(door, "board", "pilot hole") == 8

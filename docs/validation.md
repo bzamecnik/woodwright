@@ -207,6 +207,8 @@ Done items name their example in `woodwright.examples`
   - screws (the screws themselves not modelled) – `Screw`
     - [x] countersunk clearance hole + pilot hole – `joints.screwed_batten`
     - [x] counterbored for a plug – `joints.plugged_screws`
+    - [x] in projects: buttons screwed to a table's top (`projects.table`,
+      `projects.side_table`), the ledges of a door to its boards (`projects.ledged_door`)
   - [x] half-blind dovetail – `joints.half_blind_dovetail_corner`, `projects.drawer`
   - [x] blind mitred dovetail – `BlindMitredDovetail`, `joints.blind_mitred_dovetail_corner`
     (secret mitre: mitred lips on both boards, the edges mitred through)
@@ -223,7 +225,14 @@ Done items name their example in `woodwright.examples`
     chamfered through tenons, chamfered tops of the back legs – `projects.chair` (a seat glued up
     from two boards, notched around the back legs and chamfered, splats with blind tenons
     between the back rails, legs tapered on the inside)
-  - [ ] step stool with sliding dovetail cross pieces and angled legs with wedged round tenons
+  - [x] step stool with sliding dovetail cross pieces and legs with wedged round tenons –
+    `projects.stepstool` (straight round legs through the battens and the seat, round
+    stretchers at the sides)
+    - [ ] angled (splayed) legs
+  - [x] stool with round legs wedged through a solid seat, round stretchers – `projects.stool`
+    (straight legs)
+  - [x] coat rack with round pegs in blind holes, counterbored screw holes for the wall –
+    `projects.coat_rack`
   - [ ] workbench
     - two leg assemblies, beams glued up from boards, then half-laps
     - stretchers with trough tusk tenons

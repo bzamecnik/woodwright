@@ -150,6 +150,9 @@ ALL: list[Example] = [
     projects.table,
     projects.side_table,
     projects.chair,
+    projects.stool,
+    projects.stepstool,
+    projects.coat_rack,
 ]
 
 

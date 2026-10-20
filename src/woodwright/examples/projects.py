@@ -1,14 +1,16 @@
-"""Small practical projects: shop tools, boxes, shelves, drawers, frames, tables and a chair."""
+"""Small practical projects: shop tools, boxes, shelves, drawers, frames, tables, a chair,
+stools and a coat rack."""
 
 import itertools
 import math
 
 from woodwright import rules
 from woodwright.assembly import Assembly
-from woodwright.cuts import INF, Chamfer, Mitre, Pocket, Taper
+from woodwright.cuts import INF, Chamfer, EndChamfer, Hole, Mitre, Pocket, Taper
 from woodwright.examples._common import BOX_FRONT, CASE_SIDE, OAK, SIDE_OAK, STANDING, THIN_OAK
 from woodwright.examples.frames import _frame
 from woodwright.joints import (
+    Bore,
     Bridle,
     Butt,
     Button,
@@ -19,12 +21,15 @@ from woodwright.joints import (
     MitredShoulderTenon,
     MortiseTenon,
     RabbetJoint,
+    RoundMortiseTenon,
+    Screw,
     SlidingDovetail,
     ThroughDovetail,
     TongueAndGroove,
+    WedgedRoundMortiseTenon,
 )
-from woodwright.part import Board, SideRef
-from woodwright.placement import BACK, CENTERED, UP, Position, flush_with, offset, orient
+from woodwright.part import Board, Rod, SideRef
+from woodwright.placement import BACK, CENTERED, FRONT, UP, Position, flush_with, offset, orient
 from woodwright.stock import Stock
 
 SQUARE_STOCK = Stock.board(thickness=24, species="oak")
@@ -41,6 +46,9 @@ LEG_STOCK = Stock.board(thickness=45, species="oak")
 BOW_SAW_STOCK = Stock.board(thickness=22, species="oak")
 TABLE_LEG_STOCK = Stock.board(thickness=60, species="oak")
 CHAIR_LEG_STOCK = Stock.board(thickness=40, species="oak")
+ROUND_LEG_STOCK = Stock.rod(diameter=40, species="oak")
+STRETCHER_STOCK = Stock.rod(diameter=25, species="oak")
+PEG_STOCK = Stock.rod(diameter=22, species="oak")
 
 
 def try_square(
@@ -172,17 +180,34 @@ def stepstool_seat(
     runs across all the boards, housed in each of them. The housings run
     through, out of the front and the back edges, where the battens' ends
     are flush with the seat's. The battens are wide enough for the legs'
-    through tenons (not modelled), which cross their grain.
+    through tenons (see `stepstool`), which cross their grain.
     """
     asm = Assembly("stepstool_seat")
+    _stepstool_seat(asm, length, depth, boards, batten_width, batten_inset, slope, stock)
+    return asm
+
+
+def _stepstool_seat(
+    asm: Assembly,
+    length: float,
+    depth: float,
+    boards: int,
+    batten_width: float,
+    batten_inset: float,
+    slope: float,
+    stock: Stock,
+) -> tuple[list[Board], list[Board]]:
+    """The seat boards and the battens of `stepstool_seat`."""
     seat = [
         asm.add(Board(f"seat_{i + 1}", stock, length=length, width=depth / boards))
         for i in range(boards)
     ]
     for a, b in itertools.pairwise(seat):
         asm.join(Butt(a.back_edge, b.front_edge))
+    battens = []
     for name in ("left", "right"):
         batten = asm.add(Board(f"batten_{name}", stock, length=depth, width=batten_width))
+        battens.append(batten)
         # The batten's top face runs from the front (its left end) to the
         # back, across each board in turn; the first joint cuts its tongue.
         for i, board in enumerate(seat):
@@ -197,7 +222,7 @@ def stepstool_seat(
                     cut_tongue=i == 0,
                 )
             )
-    return asm
+    return seat, battens
 
 
 def ledged_door(
@@ -217,8 +242,9 @@ def ledged_door(
     plain. On the front the arrises along the joints are chamfered, so
     that each joint shows as a V and a gap opening as the boards shrink
     is hidden. The ledges, `ledge_from_ends` from the top and the bottom
-    and `ledge_inset` in from the sides, would be screwed to each board
-    from the back (the screws aren't modelled); no braces.
+    and `ledge_inset` in from the sides, are screwed to each board from
+    the back, one screw in the middle of each board, so that the boards can
+    still move; no braces.
     """
     # The boards' reference faces are at the back, their back edges to the right.
     asm = Assembly("ledged_door", root_location=STANDING)
@@ -244,6 +270,9 @@ def ledged_door(
                 across=offset(ledge_inset),
             )
         )
+        for i, board in enumerate(door):
+            at = {ledge.left_end: (i + 0.5) * board.width - ledge_inset}
+            asm.join(Screw(ledge.top_face, into=board, length=30, at=at))
     return asm
 
 
@@ -1001,15 +1030,27 @@ def _glued_top(
 
 
 def _buttons(
-    asm: Assembly, aprons: list[Board], buttons: tuple[int, int], stock: Stock
+    asm: Assembly,
+    aprons: list[Board],
+    buttons: tuple[int, int],
+    stock: Stock,
+    top: list[Board],
+    overhang: float,
 ) -> list[Board]:
     """Buttons holding the top down, in short mortises in the inside of the aprons.
 
     `buttons` along the front and back, and along the sides, spread between
     the legs. The top moves across its grain: in and out of the mortises at
     the front and back, along them at the sides, where they are longer.
+    Each button is screwed to the board of the `top` (from `_glued_top`,
+    overhanging the frame by `overhang` at the front) above it.
     """
     button_width = 40.0
+    # The legs' width, and the frame's depth outside them.
+    leg_width = (top[0].length - 2 * overhang - aprons[0].length) / 2
+    depth = aprons[1].length + 2 * leg_width
+    top_thickness = top[0].thickness
+    screw_length = stock.thickness + 5 * round(top_thickness / 10)
     placed = []
     for i, apron in enumerate(aprons):
         count, play = (buttons[0], 1.0) if i % 2 == 0 else (buttons[1], 5.0)
@@ -1028,6 +1069,12 @@ def _buttons(
                     play=play,
                 )
             )
+            # The button's center from the front of the top: the side aprons
+            # run from the front (right) and from the back (left).
+            along = leg_width + distance + button_width / 2
+            from_front = [0.0, along, depth, depth - along][i] + overhang
+            board = top[min(int(from_front // top[0].width), len(top) - 1)]
+            asm.join(Screw(button.bottom_face, into=board, length=screw_length))
     return placed
 
 
@@ -1151,7 +1198,7 @@ def table(
         shoulder=(10, 30),
         haunch_length=10,
     )
-    _glued_top(
+    top = _glued_top(
         asm,
         aprons[0],
         "top",
@@ -1164,7 +1211,7 @@ def table(
         setback,
         top_stock,
     )
-    _buttons(asm, aprons, buttons, stock)
+    _buttons(asm, aprons, buttons, stock, top, overhang)
     return asm
 
 
@@ -1208,7 +1255,7 @@ def side_table(
     )
     stretchers = _stretchers((stretcher_height, stretcher_height), stretcher_width)
     _leg_rails(asm, legs, width, depth, stretchers, stock, mitred=True)
-    _glued_top(
+    top = _glued_top(
         asm,
         aprons[0],
         "top",
@@ -1221,7 +1268,7 @@ def side_table(
         setback,
         stock,
     )
-    _buttons(asm, aprons, buttons, stock)
+    _buttons(asm, aprons, buttons, stock, top, overhang)
     return asm
 
 
@@ -1358,4 +1405,262 @@ def chair(
         for side in sides:
             for face in (board.top_face, board.bottom_face):
                 board.cut(Chamfer(board.arris(face, side), size=seat_chamfer))
+    return asm
+
+
+def _wedged_legs(
+    asm: Assembly,
+    seat: list[Board],
+    leg_length: float,
+    inset: tuple[float, float],
+    tenon: float,
+    kerf: float,
+    flare: float,
+    wedge_length: float,
+    gap: float = 0.0,
+    stock: Stock = ROUND_LEG_STOCK,
+) -> list[Rod]:
+    """Four round legs with tenons `tenon` wide through the front and the back
+    boards of a `seat`, wedged; their axes `inset` in from the ends and from
+    the front and back edges. With `gap`, their shoulders stand that far
+    below the seat, e.g. under battens they pass through.
+
+    The legs (front left, front right, back right, back left) stand with
+    their left ends on the floor, their front edges to the front. Each
+    wedge is `wedge_length` long, and as thick as fits within the tenon;
+    its kerf runs across the seat's grain.
+    """
+    r = stock.diameter / 2
+    width = kerf + 2 * flare
+    thickness = math.floor(2 * math.sqrt((tenon / 2) ** 2 - (width / 2) ** 2))
+    wedge_stock = Stock.board(thickness=thickness, species=stock.species)
+    front, back = seat[0], seat[-1]
+    corners = [
+        ("front_left", front, "left_end", "front_edge"),
+        ("front_right", front, "right_end", "front_edge"),
+        ("back_right", back, "right_end", "back_edge"),
+        ("back_left", back, "left_end", "back_edge"),
+    ]
+    legs = []
+    for name, board, end, edge in corners:
+        leg = asm.add(Rod(f"leg_{name}", stock, length=leg_length))
+        legs.append(leg)
+        wedge = asm.add(Board(f"wedge_{name}", wedge_stock, length=wedge_length, width=width))
+        asm.join(
+            WedgedRoundMortiseTenon(
+                tenon=leg.right_end,
+                mortise=board.bottom_face,
+                diameter=tenon,
+                position=offset(inset[0] - r, ref=getattr(board, end)),
+                flush=(getattr(board, edge), getattr(leg, edge)),
+                across=offset(inset[1] - r),
+                gap=gap,
+                wedge=wedge,
+                kerf=kerf,
+            )
+        )
+        leg.cut(EndChamfer(leg.left_end, size=2))
+    return legs
+
+
+def _rod_stretchers(
+    asm: Assembly,
+    legs: list[Rod],
+    spans: list[tuple[str, int, float]],
+    between: tuple[float, float],
+    tenon: float,
+    stock: Stock = STRETCHER_STOCK,
+) -> None:
+    """Round stretchers between adjacent round legs from `_wedged_legs`, with
+    round tenons `tenon` wide, 25 mm into cross holes in the legs.
+
+    Each span is a name, the leg it starts at (going round: front left,
+    front right, back right, back left) and the height of its axis above
+    the floor. `between` are the distances between the legs' axes, from
+    side to side and from front to back. Stretchers at one leg go at
+    different heights, so that their holes don't meet inside it.
+    """
+    # Facing the next leg round: to the right, to the back, to the left, to the front.
+    out = ["bottom_face", "back_edge", "top_face", "front_edge"]
+    into = ["top_face", "front_edge", "bottom_face", "back_edge"]
+    for name, i, height in spans:
+        # From the shoulder at one leg to the shoulder at the next.
+        length = between[i % 2] - legs[i].diameter
+        stretcher = asm.add(Rod(name, stock, length=length))
+        for end, leg, side in [
+            (stretcher.left_end, legs[i], out[i]),
+            (stretcher.right_end, legs[(i + 1) % 4], into[i]),
+        ]:
+            asm.join(
+                RoundMortiseTenon(
+                    tenon=end,
+                    mortise=getattr(leg, side),
+                    diameter=tenon,
+                    length=25,
+                    position=offset(height - stock.diameter / 2, ref=leg.left_end),
+                )
+            )
+
+
+def stool(
+    width: float = 360,
+    depth: float = 300,
+    height: float = 450,
+    seat_boards: int = 2,
+    leg_inset: float = 55,
+    tenon: float = 25,
+    stretcher_heights: tuple[float, float] = (150, 190),
+    seat_chamfer: float = 3,
+    stock: Stock = THICK_OAK,
+) -> Assembly:
+    """A stool: four round legs wedged through a solid seat, round stretchers
+    between them; straight legs (splayed ones come later).
+
+    The seat, glued up from `seat_boards` boards edge to edge, its grain
+    from side to side, is `height` above the floor; its arrises are
+    chamfered all round on top. The legs' axes are `leg_inset` in from the
+    seat's ends and edges; their round tenons, `tenon` wide, go through the
+    seat flush with its top, each wedged in a kerf across the seat's grain,
+    so that the wedge spreads the tenon along the grain and doesn't split
+    the seat. The stretchers (their axes at `stretcher_heights`, for the
+    front and back and for the sides) have round tenons in cross holes in
+    the legs, the side ones higher, so that the holes don't meet.
+    """
+    floor = orient(at=(0, 0, height - stock.thickness), top_face=UP, back_edge=BACK)
+    asm = Assembly("stool", root_location=floor)
+    seat = [
+        asm.add(Board(f"seat_{i + 1}", stock, length=width, width=depth / seat_boards))
+        for i in range(seat_boards)
+    ]
+    for a, b in itertools.pairwise(seat):
+        asm.join(Butt(a.back_edge, b.front_edge))
+    for board in seat:
+        sides = [board.left_end, board.right_end]
+        sides += [
+            edge
+            for edge, outer in [(board.front_edge, seat[0]), (board.back_edge, seat[-1])]
+            if board is outer
+        ]
+        for side in sides:
+            board.cut(Chamfer(board.arris(board.top_face, side), size=seat_chamfer))
+    legs = _wedged_legs(
+        asm,
+        seat,
+        height - stock.thickness,
+        (leg_inset, leg_inset),
+        tenon,
+        kerf=2,
+        flare=2,
+        wedge_length=20,
+    )
+    front_back, sides = stretcher_heights
+    spans = [
+        ("stretcher_front", 0, front_back),
+        ("stretcher_right", 1, sides),
+        ("stretcher_back", 2, front_back),
+        ("stretcher_left", 3, sides),
+    ]
+    between = (width - 2 * leg_inset, depth - 2 * leg_inset)
+    _rod_stretchers(asm, legs, spans, between, tenon=16)
+    return asm
+
+
+def stepstool(
+    height: float = 250,
+    length: float = 400,
+    depth: float = 280,
+    batten_width: float = 90,
+    batten_inset: float = 30,
+    leg_inset: float = 50,
+    tenon: float = 25,
+    stretcher_height: float = 90,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A step stool: the seat of `stepstool_seat` on four round legs, which go
+    through the battens and the seat, wedged; straight legs (splayed ones
+    come later).
+
+    The legs stand under the middle of the battens, their axes `leg_inset`
+    in from the front and the back. Their shoulders bear on the battens;
+    the tenons, `tenon` wide, go through a hole bored through each batten
+    and on through the seat, flush with its top, wedged across the seat's
+    grain. The tenons cross the battens' grain, so that the battens hold the
+    seat's boards. A round stretcher under each batten, its axis
+    `stretcher_height` above the floor, joins the front and the back leg.
+    """
+    floor = orient(at=(0, 0, height - stock.thickness), top_face=UP, back_edge=BACK)
+    asm = Assembly("stepstool", root_location=floor)
+    seat, battens = _stepstool_seat(
+        asm, length, depth, 2, batten_width, batten_inset, slope=4, stock=stock
+    )
+    batten = battens[0].thickness
+    x = batten_inset + batten_width / 2
+    legs = _wedged_legs(
+        asm,
+        seat,
+        height - stock.thickness - batten,
+        (x, leg_inset),
+        tenon,
+        kerf=2,
+        flare=1.5,
+        wedge_length=15,
+        gap=batten,
+    )
+    # The front left and the back left leg go through the left batten.
+    for leg, batten_part in zip(
+        legs, [battens[0], battens[1], battens[1], battens[0]], strict=True
+    ):
+        asm.join(Bore(batten_part, leg.right_end, diameter=tenon))
+    spans = [("stretcher_right", 1, stretcher_height), ("stretcher_left", 3, stretcher_height)]
+    _rod_stretchers(asm, legs, spans, (length - 2 * x, depth - 2 * leg_inset), tenon=16)
+    return asm
+
+
+def coat_rack(
+    length: float = 600,
+    width: float = 100,
+    pegs: int = 5,
+    peg_length: float = 80,
+    tenon: float = 12,
+    chamfer: float = 3,
+    stock: Stock = OAK,
+) -> Assembly:
+    """A coat rack: a board on the wall with `pegs` round pegs, evenly spaced.
+
+    The pegs (`peg_length` long from the board) have round tenons `tenon`
+    wide, glued into blind holes in the board's front, their ends
+    chamfered. The board's front arrises along its length are chamfered;
+    it is screwed to the wall through two counterbored holes between the
+    outer pegs, to be closed by plugs.
+    """
+    asm = Assembly("coat_rack", root_location=orient(top_face=FRONT, back_edge=UP))
+    board = asm.add(Board("board", stock, length=length, width=width))
+    for edge in (board.front_edge, board.back_edge):
+        board.cut(Chamfer(board.arris(board.top_face, edge), size=chamfer))
+    pitch = length / pegs
+    for i in range(pegs):
+        peg = asm.add(Rod(f"peg_{i + 1}", PEG_STOCK, length=peg_length))
+        peg.cut(EndChamfer(peg.right_end, size=2))
+        asm.join(
+            RoundMortiseTenon(
+                tenon=peg.left_end,
+                mortise=board.top_face,
+                diameter=tenon,
+                length=15,
+                chamfer=1,
+                position=offset((i + 0.5) * pitch - PEG_STOCK.diameter / 2, ref=board.left_end),
+            )
+        )
+    for end in (board.left_end, board.right_end):
+        board.cut(
+            Hole(
+                board.top_face,
+                5,
+                at={end: pitch},
+                counterbore=10,
+                counterbore_depth=8,
+                kind="screw hole",
+                note="for a 4.5 x 50 screw into the wall",
+            )
+        )
     return asm
