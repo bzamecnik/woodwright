@@ -19,11 +19,13 @@ from woodwright.cuts import (
     Pocket,
     Rabbet,
     RoundTaper,
+    RoundTenon,
     ShapeCut,
     SlotMortise,
     Taper,
     Tenon,
     Tongue,
+    WedgedRoundTenon,
     WedgedTenon,
 )
 from woodwright.joints import (
@@ -50,12 +52,14 @@ from woodwright.joints import (
     MitreSplice,
     MortiseTenon,
     RabbetJoint,
+    RoundMortiseTenon,
     SlidingDovetail,
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
     TuskTenon,
     WedgedMortiseTenon,
+    WedgedRoundMortiseTenon,
 )
 from woodwright.part import ArrisRef, Board, Part, Rod, Side, SideRef
 from woodwright.placement import (
@@ -138,7 +142,9 @@ __all__ = [
     "ResolvedModel",
     "ResolvedPart",
     "Rod",
+    "RoundMortiseTenon",
     "RoundTaper",
+    "RoundTenon",
     "ShapeCut",
     "Side",
     "SideRef",
@@ -153,6 +159,8 @@ __all__ = [
     "TongueAndGroove",
     "TuskTenon",
     "WedgedMortiseTenon",
+    "WedgedRoundMortiseTenon",
+    "WedgedRoundTenon",
     "WedgedTenon",
     "centered",
     "flush_with",

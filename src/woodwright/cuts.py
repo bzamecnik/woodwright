@@ -1314,6 +1314,194 @@ class Hole(Cut):
 
 
 @dataclass
+class RoundTenon(Cut):
+    """A round tenon beyond an end, `diameter` wide and `length` long: on the
+    axis of a rod (turned, or cut with a tenon cutter, leaving a shoulder), or
+    in the middle of the end of a board (a square leg with a round tenon).
+
+    As with `Tenon`, the end is the shoulder and the tenon comes from an
+    allowance it asks for. With `tip_diameter`, it tapers to that at its
+    end, e.g. a Windsor chair's leg in a reamed hole; with `chamfer`, its end
+    is chamfered at 45 degrees that wide, so that it enters its hole. A
+    tenon as wide as a rod (without a taper or a chamfer) cuts nothing: the
+    whole rod goes in.
+    """
+
+    side: SideRef
+    diameter: float
+    length: float
+    tip_diameter: float | None = None
+    chamfer: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.side.axis != 0:
+            raise ValueError(f"a round tenon is cut on an end, not on {self.side}")
+        part = self.part
+        if not 0 < self.diameter <= min(part.width, part.thickness) + _EPS:
+            raise ValueError(f"a round tenon must fit within the end of {part.name}")
+        if self.length <= 0:
+            raise ValueError("a round tenon's length must be positive")
+        if self.tip_diameter is not None and not 0 < self.tip_diameter < self.diameter:
+            raise ValueError("a tapered round tenon is narrower at its tip")
+        if self.chamfer and not 0 < self.chamfer < min(self.length, self.tip / 2):
+            raise ValueError("a round tenon's chamfer must be within its tip")
+
+    @property
+    def tip(self) -> float:
+        """The diameter at the end (before any chamfer)."""
+        return self.diameter if self.tip_diameter is None else self.tip_diameter
+
+    def center(self) -> bd.Vector:
+        """The center of the tenon at the shoulder, in the part frame."""
+        lo, hi = self.part.box
+        center = [(a + b) / 2 for a, b in zip(lo, hi, strict=True)]
+        center[0] = self.side.coordinate
+        return bd.Vector(*center)
+
+    def diameter_at(self, distance: float) -> float:
+        """At a distance beyond the shoulder, as if it went on tapering."""
+        return self.diameter - (self.diameter - self.tip) * distance / self.length
+
+    def profile(self) -> list[tuple[float, float]]:
+        """The outline as (from the axis, beyond the shoulder), from the axis
+        at the shoulder to the axis at the end."""
+        r, length, c = self.diameter / 2, self.length, self.chamfer
+        if not c:
+            return [(0, 0), (r, 0), (self.tip / 2, length), (0, length)]
+        before = self.diameter_at(length - c) / 2
+        return [(0, 0), (r, 0), (before, length - c), (before - c, length), (0, length)]
+
+    def solid(self) -> bd.Part:
+        """The tenon in the part frame."""
+        return self._local() * _revolved(self.profile())
+
+    def _local(self) -> bd.Location:
+        """The tenon's frame: z along its axis, outwards from the shoulder."""
+        return bd.Location(bd.Plane(self.center(), x_dir=(0, 1, 0), z_dir=self.side.normal))
+
+    @property
+    def removes_material(self) -> bool:
+        """False for a whole rod going into a hole."""
+        part = self.part
+        whole = isinstance(part, Rod) and self.diameter >= part.diameter - _EPS
+        return not (whole and self.tip_diameter is None and not self.chamfer)
+
+    def removal(self) -> bd.Part:
+        return _box(self.part, _ranges(_into(self.side, 0))) - self.solid()
+
+    def allowances(self) -> list[Allowance]:
+        return [Allowance(self.side, self.length)]
+
+    def describe(self) -> str:
+        text = f"round tenon ø{self.diameter:g}, {self.length:g} long"
+        if self.tip_diameter is not None:
+            text += f", tapered to ø{self.tip_diameter:g}"
+        if self.chamfer:
+            text += f", end chamfered {self.chamfer:g} mm"
+        return f"{text}, on {self.side}"
+
+
+@dataclass
+class WedgedRoundTenon(RoundTenon):
+    """A through round tenon with a saw kerf across its end, spread by a wedge.
+
+    The kerf is `kerf` wide and `kerf_depth` deep from the end, and the
+    tenon spreads along the axis `spread` of the part frame (1 or 2, across
+    the kerf). It is modelled as glued up, as for a `WedgedTenon`: the wedge
+    driven into the kerf has spread the tenon by `flare` all round where it
+    leaves the mortised part, `proud` before its end, a cone approximating
+    the two halves bent apart; the kerf is the wedge's shape. The cut list
+    gives the tenon as cut, straight with a straight kerf.
+    """
+
+    kerf: float = 2.0
+    kerf_depth: float = 0.0
+    flare: float = 0.0
+    proud: float = 0.0
+    spread: int = 1
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.tip_diameter is not None or self.chamfer:
+            raise ValueError("a wedged round tenon is straight, with a square end")
+        if self.spread not in (1, 2):
+            raise ValueError("a round tenon spreads across its axis")
+        if not self.proud < self.kerf_depth <= self.length:
+            raise ValueError("the kerf must reach into the mortise, but not beyond the tenon")
+        if self.flare <= 0 or self.kerf <= 0:
+            raise ValueError("a wedged round tenon needs a kerf and a flare")
+        part = self.part
+        if self.diameter + 2 * self.flare > min(part.width, part.thickness) + _EPS:
+            raise ValueError(f"the tenon must not spread wider than {part.name}")
+
+    @property
+    def bottom(self) -> float:
+        """Of the kerf, beyond the shoulder."""
+        return self.length - self.kerf_depth
+
+    def profile(self) -> list[tuple[float, float]]:
+        r, f, length = self.diameter / 2, self.flare, self.length
+        spread = length - self.proud
+        return _dedup(
+            [(0, 0), (r, 0), (r, self.bottom), (r + f, spread), (r + f, length), (0, length)]
+        )
+
+    def flare_solid(self) -> bd.Part:
+        """What the tenon spreads into beyond its straight sides (and the hole is flared by)."""
+        r, f, length = self.diameter / 2, self.flare, self.length
+        spread = length - self.proud
+        ring = _dedup([(r, self.bottom), (r + f, spread), (r + f, length), (r, length)])
+        return self._local() * _revolved(ring)
+
+    def kerf_solid(self) -> bd.Part:
+        """The kerf, as the wedge's shape, through the tenon."""
+        c, s = self.side.coordinate, self.side.side.sign
+        m = tuple(self.center())[self.spread]
+        k, f, length = self.kerf, self.flare, self.length
+        spread = length - self.proud
+
+        def at(d: float, v: float) -> tuple[float, float]:
+            return c + s * d, m + v
+
+        points = [
+            at(self.bottom, -k / 2),
+            at(self.bottom, k / 2),
+            at(spread, k / 2 + f),
+            at(length, k / 2 + f),
+            at(length, -k / 2 - f),
+            at(spread, -k / 2 - f),
+        ]
+        return _prism(self.part, 0, self.spread, _dedup(points))
+
+    def removal(self) -> bd.Part:
+        return super().removal() + self.kerf_solid()
+
+    def wedge_location(self, thickness: float) -> bd.Location:
+        """Of the wedge in the kerf, in the part frame: a board `thickness`
+        thick, its thick left end at the end of the tenon, its front edge at
+        the side of the kerf towards lower coordinates along `spread`,
+        centered across the tenon."""
+        s = self.side.side.sign
+        across = 3 - self.spread
+        x_dir = -s * _unit(0)
+        y_dir = _unit(self.spread)
+        z_dir = x_dir.cross(y_dir)
+        center = self.center()
+        origin = [0.0, 0.0, 0.0]
+        origin[0] = self.side.coordinate + s * self.length
+        origin[self.spread] = tuple(center)[self.spread] - self.kerf / 2 - self.flare
+        origin[across] = tuple(center)[across] + tuple(z_dir)[across] * thickness / 2
+        return bd.Location(bd.Plane(tuple(origin), x_dir=x_dir, z_dir=z_dir))
+
+    def describe(self) -> str:
+        tenon = super().describe().removesuffix(f", on {self.side}")
+        return (
+            f"{tenon}, a saw kerf {self.kerf:g} mm, {self.kerf_depth:g} deep, "
+            f"for a wedge, on {self.side}"
+        )
+
+
+@dataclass
 class EndChamfer(Cut):
     """A chamfer around an end: `size` wide on the end, `length` (by default
     as much, at 45 degrees) along the part.
@@ -1573,6 +1761,12 @@ def _prism(part: Part, i: int, j: int, points: list[tuple[float, float]]) -> bd.
 def _cylinder(radius: float, z0: float, z1: float) -> bd.Part:
     """A cylinder along z from z0 to z1, on the z axis."""
     return bd.Pos(0, 0, z0) * bd.Cylinder(radius, z1 - z0, align=_AXIAL)
+
+
+def _revolved(profile: list[tuple[float, float]]) -> bd.Part:
+    """An outline in (from the z axis, along it) revolved about the z axis."""
+    plane = bd.Plane((0, 0, 0), x_dir=(1, 0, 0), z_dir=(0, -1, 0))  # its y is the z axis
+    return bd.revolve(plane * bd.Polygon(*profile), bd.Axis.Z)
 
 
 def _cone_removal(end: SideRef, radius: float, length: float) -> bd.Part:

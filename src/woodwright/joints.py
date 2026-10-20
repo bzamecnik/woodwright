@@ -22,17 +22,20 @@ from woodwright.cuts import (
     DovetailLap,
     DovetailTongue,
     EndRabbet,
+    Hole,
     Mitre,
     Pocket,
     Range,
+    RoundTenon,
     ShapeCut,
     SlotMortise,
     Taper,
     Tenon,
     Tongue,
+    WedgedRoundTenon,
     WedgedTenon,
 )
-from woodwright.part import Board, Part, Side, SideRef
+from woodwright.part import Board, Part, Rod, Side, SideRef
 from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, offset
 
 __all__ = [
@@ -60,12 +63,14 @@ __all__ = [
     "MitredShoulderTenon",
     "MortiseTenon",
     "RabbetJoint",
+    "RoundMortiseTenon",
     "SlidingDovetail",
     "TeeBridle",
     "ThroughDovetail",
     "TongueAndGroove",
     "TuskTenon",
     "WedgedMortiseTenon",
+    "WedgedRoundMortiseTenon",
 ]
 
 _EPS = 1e-6
@@ -102,7 +107,7 @@ class Joint:
     def cuts(self, placement: bd.Location) -> list[Cut]:
         return []
 
-    def pieces(self, placement: bd.Location) -> list[tuple[Board, bd.Location]]:
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
         """Separate pieces the joint places, e.g. a loose tenon or wedges, with
         their locations in the frame of `parts()[0]`. They must be added to the
         assembly like any other part."""
@@ -2103,7 +2108,210 @@ class Button(Joint):
         return [Pocket(self.mortise, (box[0], box[1], box[2])), tongue]
 
 
-def _flush_side(part: Board, side: SideRef, placement: bd.Location) -> SideRef:
+# --- Round joints -----------------------------------------------------------
+
+
+@dataclass
+class RoundMortiseTenon(Joint):
+    """A round tenon on an end of part b (a rod, or square stock) in a hole
+    drilled into a side of part a, e.g. a rung into a leg or a stile.
+
+    The hole is drilled where the tenon lands, so they fit by construction,
+    `clearance` deeper than the tenon reaches; a tenon as long as part a is
+    deep goes through. By default the parts are centered on each other both
+    ways (see `mate` for `position`, `across` and `flush`).
+
+    `diameter` is of the tenon, by default the whole rod (a rod going into
+    a hole with its whole cross-section, without a shoulder), or about 0.6
+    of square stock. `length` is by default two thirds of the material
+    behind the hole's side. With `tip_diameter`, the tenon and the hole are
+    tapered (reamed); with `chamfer`, the tenon's end is chamfered.
+
+    The hole's side may be a long side of a rod, e.g. a stretcher into a
+    round leg; the tenon's shoulder then meets the rod along a line.
+    """
+
+    tenon: SideRef
+    mortise: SideRef
+    diameter: float | None = None
+    length: float | None = None
+    tip_diameter: float | None = None
+    chamfer: float = 0.0
+    clearance: float = 2.0
+    position: Position = CENTERED
+    across: Position = CENTERED
+    flush: tuple[SideRef, SideRef] | None = None
+
+    def parts(self) -> tuple[Part, Part]:
+        return self.mortise.part, self.tenon.part
+
+    def check_parts(self) -> None:
+        if self.tenon.axis != 0:
+            raise ValueError(f"a round tenon is cut on an end, not on {self.tenon}")
+
+    def with_defaults(self) -> Self:
+        part = self.tenon.part
+        diameter = self.diameter
+        if diameter is None:
+            if isinstance(part, Rod):
+                diameter = part.diameter
+            else:
+                diameter = rules.round_tenon_diameter(min(part.width, part.thickness))
+        length = self.length or rules.tenon_length(self.mortise.depth)
+        return replace(self, diameter=diameter, length=length)
+
+    def reach(self) -> float:
+        return _require(self.length)
+
+    def tenon_cut(self) -> RoundTenon:
+        return RoundTenon(
+            self.tenon,
+            diameter=_require(self.diameter),
+            length=self.reach(),
+            tip_diameter=self.tip_diameter,
+            chamfer=self.chamfer,
+        )
+
+    def allowances(self) -> list[Allowance]:
+        return self.tenon_cut().allowances()
+
+    def placement(self) -> bd.Location:
+        flush = self.flush or default_flush(self.mortise, self.tenon)
+        return mate(
+            self.mortise, self.tenon, flush=flush, position=self.position, across=self.across
+        )
+
+    @property
+    def through(self) -> bool:
+        return self.reach() >= self.mortise.depth - _EPS
+
+    def hole(self, placement: bd.Location) -> Hole:
+        tenon = self.tenon_cut()
+        depth = None if self.through else min(self.reach() + self.clearance, self.mortise.depth)
+        bottom = None
+        if self.tip_diameter is not None:
+            bottom = tenon.diameter_at(self.mortise.depth if depth is None else depth)
+        center = placement * bd.Location(tuple(tenon.center()))
+        return Hole(
+            self.mortise,
+            tenon.diameter,
+            depth=depth,
+            at=_hole_at(self.mortise, center.position),
+            bottom_diameter=bottom,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tenon = self.tenon_cut()
+        hole: list[Cut] = [self.hole(placement)]
+        return [*hole, tenon] if tenon.removes_material else hole
+
+
+@dataclass
+class WedgedRoundMortiseTenon(RoundMortiseTenon):
+    """A round tenon through a hole, spread by a wedge in a saw kerf across
+    its end, into the hole flared towards the outside, e.g. a stool's leg
+    through its seat.
+
+    The `wedge` is a separate part, given as made: as long as the kerf is
+    deep, at its head as wide as the `kerf` plus twice the spread, and at
+    most as thick as the tenon is wide; the joint tapers both its edges to
+    fit. The kerf runs across the grain of part a, so that the wedge
+    spreads the tenon along it and doesn't split it: the tenon spreads
+    towards `spread`, a side of part a (by default its left end). The hole
+    is flared over the depth of the kerf (less what the tenon stands proud).
+
+    The tenon goes through, by default flush with the far side of part a;
+    it may stand proud of it, then the wedge is as long. The model is of
+    the joint glued up, the tenon spread (see `WedgedRoundTenon`).
+    """
+
+    wedge: Board | None = None
+    kerf: float = 2.0
+    spread: SideRef | None = None
+
+    def __post_init__(self) -> None:
+        if self.wedge is None:
+            raise ValueError("a wedged round tenon needs a wedge")
+        if self.tip_diameter is not None or self.chamfer:
+            raise ValueError("a wedged round tenon is straight, with a square end")
+        if self.wedge.width <= self.kerf:
+            raise ValueError("the wedge must be wider at its head than the kerf")
+
+    def with_defaults(self) -> Self:
+        joint = replace(
+            self,
+            length=self.length or self.mortise.depth,
+            spread=self.spread or self.mortise.part.left_end,
+        )
+        joint = super(WedgedRoundMortiseTenon, joint).with_defaults()
+        if not joint.through:
+            raise ValueError("a wedged round tenon goes through the hole")
+        if self._wedge().thickness > _require(joint.diameter) + _EPS:
+            raise ValueError("the wedge must not be thicker than the tenon is wide")
+        return joint
+
+    def _wedge(self) -> Board:
+        assert self.wedge is not None
+        return self.wedge
+
+    def tenon_cut(self, placement: bd.Location | None = None) -> WedgedRoundTenon:
+        tenon = super().tenon_cut()
+        spread = 1
+        if placement is not None:
+            spread = _axis(_direction(placement.inverse(), _require(self.spread).normal))
+            if spread == 0:
+                raise ValueError(f"the tenon spreads across its axis, not towards {self.spread}")
+        wedge = self._wedge()
+        return WedgedRoundTenon(
+            **{field.name: getattr(tenon, field.name) for field in fields(tenon)},
+            kerf=self.kerf,
+            kerf_depth=wedge.length,
+            flare=(wedge.width - self.kerf) / 2,
+            proud=self.reach() - self.mortise.depth,
+            spread=spread,
+        )
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        wedge = self._wedge()
+        location = self.tenon_cut(placement).wedge_location(wedge.thickness)
+        return [(wedge, placement * location)]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tenon = self.tenon_cut(placement)
+        flare = ShapeCut(
+            self.mortise.part,
+            placement * tenon.flare_solid(),
+            f"hole flared to ø{tenon.diameter + 2 * tenon.flare:g} over "
+            f"{tenon.kerf_depth - tenon.proud:g}, in {self.mortise}",
+        )
+        wedge = self._wedge()
+        length = None if tenon.proud < _EPS else tenon.kerf_depth - tenon.proud
+        tapers: list[Cut] = [
+            Taper(edge, end=wedge.right_end, amount=tenon.flare, length=length)
+            for edge in (wedge.front_edge, wedge.back_edge)
+        ]
+        return [self.hole(placement), tenon, flare, *tapers]
+
+
+def _hole_at(side: SideRef, point: bd.Vector) -> dict[SideRef, float]:
+    """The position of a hole's center on a side, as distances from the left
+    end, the front edge or the bottom face (as named, on a mirrored part too),
+    leaving out the axes it is centered on."""
+    lo, hi = side.part.box
+    at = {}
+    for axis in side._plane_axes:
+        c = tuple(point)[axis]
+        if abs(c - (lo[axis] + hi[axis]) / 2) > _EPS:
+            ref = side.part.side(_low_side(axis))
+            at[ref] = (ref.coordinate - c) * ref.side.sign
+    return at
+
+
+def _low_side(axis: int) -> Side:
+    return next(s for s in Side if s.axis == axis and s.sign < 0)
+
+
+def _flush_side(part: Part, side: SideRef, placement: bd.Location) -> SideRef:
     """The side of `part` (placed by `placement` in the frame of side's part) facing
     the same way as `side`."""
     return next(

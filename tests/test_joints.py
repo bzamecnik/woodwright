@@ -1,5 +1,7 @@
 """Joints: placement, allowances and the cuts derived for both parts."""
 
+import math
+
 import build123d as bd
 import pytest
 
@@ -1358,3 +1360,115 @@ def test_wedges_must_fit_the_tenon() -> None:
         ww.WedgedMortiseTenon(
             tenon=rail.left_end, mortise=stile.back_edge, shoulder=1, wedges=(wedge,)
         ).with_defaults().tenon_cut()
+
+
+# --- Round joints -----------------------------------------------------------
+
+ROD = ww.Stock.rod(25, "oak")
+LEG = ww.Stock.board(45, "oak")
+
+
+def leg_and_rod(stock: ww.Stock = ROD) -> tuple[ww.Assembly, ww.Board, ww.Rod]:
+    asm = ww.Assembly("test")
+    leg = asm.add(ww.Board("leg", LEG, length=400, width=45))
+    rod = asm.add(ww.Rod("rod", stock, length=300))
+    return asm, leg, rod
+
+
+def test_whole_rod_in_a_blind_hole() -> None:
+    asm, leg, rod = leg_and_rod()
+    asm.join(ww.RoundMortiseTenon(tenon=rod.left_end, mortise=leg.back_edge))
+    model = asm.resolve()
+    assert cuts(model, leg) == ["hole ø25, 32 deep, in leg.back_edge, centered"]
+    assert cuts(model, rod) == []
+    assert model[rod].size == (330, 25, 25)
+    # Centered on the leg both ways, 30 into it.
+    assert bbox(model[rod].placed_shape) == (187.5, 15, -35, 212.5, 345, -10)
+    removed = 400 * 45 * 45 - model[leg].shape.volume
+    assert removed == pytest.approx(math.pi * 12.5**2 * 32)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_round_tenon_on_square_stock_through() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    leg = asm.add(ww.Board("leg", LEG, length=400, width=45))
+    asm.join(ww.RoundMortiseTenon(tenon=leg.right_end, mortise=seat.bottom_face, length=30))
+    model = asm.resolve()
+    # About 0.6 of the leg, snapped down to a drill bit.
+    assert cuts(model, leg) == ["round tenon ø25, 30 long, on leg.right_end"]
+    assert cuts(model, seat) == ["through hole ø25, in seat.bottom_face, centered"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_tapered_round_tenon_in_a_reamed_hole() -> None:
+    asm, leg, rod = leg_and_rod(ww.Stock.rod(30, "oak"))
+    asm.join(
+        ww.RoundMortiseTenon(
+            tenon=rod.left_end, mortise=leg.back_edge, diameter=20, tip_diameter=16, length=30
+        )
+    )
+    model = asm.resolve()
+    # The hole tapers on, 2 deeper than the tenon.
+    hole = "tapered hole ø20 to ø15.7333, 32 deep, in leg.back_edge, centered"
+    assert cuts(model, leg) == [hole]
+    assert cuts(model, rod) == ["round tenon ø20, 30 long, tapered to ø16, on rod.left_end"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_round_tenon_into_a_rod() -> None:
+    asm = ww.Assembly("test")
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    rung = asm.add(ww.Rod("rung", ROD, length=300))
+    asm.join(
+        ww.RoundMortiseTenon(tenon=rung.left_end, mortise=leg.back_edge, diameter=16, length=25)
+    )
+    model = asm.resolve()
+    assert cuts(model, leg) == ["hole ø16, 27 deep, in leg.back_edge, centered"]
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_round_tenon_is_on_an_end() -> None:
+    asm, leg, rod = leg_and_rod()
+    asm.join(ww.RoundMortiseTenon(tenon=rod.top_face, mortise=leg.back_edge))
+    with pytest.raises(ValueError, match="on an end, not on rod"):
+        asm.resolve()
+
+
+def test_wedged_round_tenon() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    wedge = asm.add(ww.Board("wedge", OAK, length=20, width=6))
+    asm.join(
+        ww.WedgedRoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=25, wedge=wedge
+        )
+    )
+    model = asm.resolve()
+    assert cuts(model, seat) == [
+        "through hole ø25, in seat.bottom_face, centered",
+        "hole flared to ø29 over 20, in seat.bottom_face",
+    ]
+    assert cuts(model, wedge) == [
+        "taper 2 mm on wedge.front_edge towards wedge.right_end",
+        "taper 2 mm on wedge.back_edge towards wedge.right_end",
+    ]
+    # The wedge's head is flush with the top of the seat, across its grain
+    # (the kerf runs along y, the tenon spreads along the seat's length).
+    assert bbox(model[wedge].placed_shape) == (147, 140, -20, 153, 160, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_wedged_round_tenon_goes_through() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    wedge = asm.add(ww.Board("wedge", OAK, length=15, width=6))
+    asm.join(
+        ww.WedgedRoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=25, wedge=wedge, length=20
+        )
+    )
+    with pytest.raises(ValueError, match="goes through"):
+        asm.resolve()

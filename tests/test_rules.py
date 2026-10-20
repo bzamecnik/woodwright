@@ -17,3 +17,9 @@ def test_tenon_thickness_with_custom_chisels() -> None:
 
 def test_tenon_length() -> None:
     assert rules.tenon_length(60) == pytest.approx(40)
+
+
+def test_round_tenon_diameter_snaps_down_to_a_drill() -> None:
+    assert rules.round_tenon_diameter(45) == 25
+    assert rules.round_tenon_diameter(40) == 22
+    assert rules.round_tenon_diameter(5) == 6  # the smallest bit

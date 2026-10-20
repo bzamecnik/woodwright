@@ -58,3 +58,13 @@ def dovetail_lap(stock_thickness: float) -> float:
 def finger_width(stock_thickness: float) -> float:
     """Of the fingers of a box joint: as wide as the stock is thick."""
     return _round(stock_thickness)
+
+
+DRILL_DIAMETERS = (6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 25.0, 28.0, 30.0, 32.0)
+
+
+def round_tenon_diameter(size: float, drills: tuple[float, ...] = DRILL_DIAMETERS) -> float:
+    """Of a round tenon on square stock `size` thick: about 0.6 of it, snapped
+    down to a drill bit (the hole is drilled, the tenon cut to fit it)."""
+    fitting = [d for d in sorted(drills) if d <= size * 0.6]
+    return fitting[-1] if fitting else min(drills)
