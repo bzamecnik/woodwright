@@ -1,8 +1,8 @@
 # woodwright
 
 A semantic CAD library for woodworking. You describe furniture the way a
-woodworker thinks about it: boards with named sides, and the joints between
-them. woodwright works out the joinery, the cut sizes and where every part
+woodworker thinks about it: boards and rods with named sides, and the
+joints between them. woodwright works out the joinery, the cut sizes and where every part
 goes, and produces 3D models (STEP, STL), drawings (SVG) and cut lists.
 
 It is built on [build123d](https://github.com/gumyr/build123d). This is an
@@ -120,24 +120,32 @@ rail   340 x 60 x 20 mm  oak
 
 What's there so far:
 
+- **Stock:** boards, and round rods (dowels, pegs, rungs, round legs).
 - **Cuts:** grooves, dados and rabbets (through or stopped), mortises, slot
   mortises, tenons (haunched, mitred, chamfered, multiple side by side or
   across the thickness, wedged), tongues, dovetail tongues and laps,
-  chamfers, mitres (across the face, the edge, or along the grain), tapers.
+  chamfers, mitres (across the face, the edge, or along the grain), tapers;
+  holes (through, blind, counterbored, countersunk, tapered), round tenons
+  (tapered, chamfered, with a kerf for a wedge), end chamfers, round tapers
+  and flats on rods.
 - **Joints:** butt (also turned at an angle); dado, rabbet, groove and
   tongue and groove housings (also stopped); mortise and tenon (blind,
   through, stub, haunched, mitred, with mitred shoulders, multiple, wedged,
-  tusk); loose tenons and loose tongues; bridles (L and T); half laps
-  (plain, dovetailed, mitred), cross laps, mitred face tenons; box joints;
-  sliding, through, half-blind, mitred-corner and blind mitred dovetails;
-  mitre corners and splices; table-top buttons.
+  tusk, pinned, drawbored); loose tenons and loose tongues; bridles (L and
+  T); half laps (plain, dovetailed, mitred), cross laps, mitred face
+  tenons; box joints; sliding, through, half-blind, mitred-corner and blind
+  mitred dovetails; mitre corners and splices; table-top buttons; round
+  tenons and whole rods in holes (blind, through, tapered, wedged, into
+  square or round stock); dowels; screws (clearance and pilot holes,
+  countersunk or counterbored).
 
 ## Example library
 
-`woodwright.examples` holds over ninety examples, from single cuts through
+`woodwright.examples` holds over 130 examples, from single cuts through
 joints to projects: a try square, a mallet, a bookshelf, a dovetailed drawer
-with a bottom, a dining table, a side table, a chair, a step stool seat,
-ledged and frame-and-panel doors, a small glazed cabinet door.
+with a bottom, a dining table, a side table, a chair, a stool and a step
+stool on round legs wedged through their seats, a towel rail, a coat rack
+with pegs, ledged and frame-and-panel doors, a small glazed cabinet door.
 
 ```shell
 woodwright list

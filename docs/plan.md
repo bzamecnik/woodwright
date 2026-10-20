@@ -346,19 +346,21 @@ passing a value. **[OPEN]** how to version rules (vision §15).
 
 ## 5. Package layout
 
-As of 0.1.0:
+As of 0.1.0, with round stock (M8) since:
 
 ```
 src/woodwright/
   __init__.py      # public API re-exports
-  stock.py         # Stock, species
-  part.py          # Board, Side, SideRef, ArrisRef, part frames, mirrored boards
+  stock.py         # Stock (boards and rods), species
+  part.py          # Part, Board, Rod, Side, SideRef, ArrisRef, part frames, mirrored parts
   placement.py     # mate, positions (flush_with, offset, centered), orient
   cuts.py          # Cut base class + library: box cuts (stoppable), tenons (multiple,
-                   # wedged), tongues, dovetail tongues and laps, chamfer, mitre, taper
+                   # wedged), tongues, dovetail tongues and laps, chamfer, mitre, taper;
+                   # holes, round tenons (tapered, wedged), end chamfers, round tapers, flats
   joints.py        # Joint base class + library: butt, housings, mortise and tenon
                    # variants, loose tenons and tongues, laps, bridles, box joint,
-                   # dovetails, mitres, button
+                   # dovetails, mitres, button; round mortise and tenon (wedged), bore,
+                   # dowels, pegged mortise and tenon, screws
   rules.py         # rules of thumb
   assembly.py      # Assembly, resolution, ResolvedModel, cut list
   export.py        # STEP, STL, SVG views, exploded view
@@ -623,10 +625,13 @@ wide, shallow sliding dovetails), a ledged door, a ledged and braced door,
 a frame-and-panel door (2x2 bevelled panels), a mitred frame with a
 glued-up panel, a hollow leg, and smaller pieces (bench hook, bow saw
 frame, butt and dovetail shelves, rabbeted box, shoji frame, shiplap and
-loose-tongue panels, a stopped dado shelf). Open: the step stool's legs
-(round, splayed: M8 and F2), the workbench.
+loose-tongue panels, a stopped dado shelf). Open: the workbench.
 
-### M8: Round stock, holes and round tenons 🟡 started
+Done on 2026-10-20 (with M8): a stool and a step stool on round legs wedged
+through the seat (straight; splayed legs need F2), a coat rack, screws in
+the table's buttons and the ledged door.
+
+### M8: Round stock, holes and round tenons ✅ mostly done
 
 Everything so far assumes a rectangular blank: `Board` has a box, six
 planar sides, twelve arrises, and `ResolvedPart.shape` starts from a
@@ -832,13 +837,37 @@ Steps 3 and 4 done on 2026-10-20 (basic examples so far):
   and frame corner; pinned and drawbored mortise and tenon; screwed and
   plugged battens. Board outputs stayed byte-identical.
 
-Open: identical cuts aren't grouped in the cut list (24 shelf-pin holes
-are 24 lines; with A3); a flat at one end is given as stopped short of the
-other end (a length from an end would read better); dowels through one
-part (an open hole); screws and pegs into the projects (buttons, battens,
-ledged doors, drawbored frames); step 5's larger examples (coat rack,
-stool with round legs, the step stool's legs); tapered and wedged round
-tenons together.
+Step 5 done on 2026-10-20 (the smaller examples of it came with steps 1–4:
+the dowelled joints, the pinned and drawbored mortise and tenon, the
+ladder, shelf-pin holes):
+
+- `projects.stool`: four round legs with round tenons wedged through a
+  glued-up seat, the kerfs across its grain; round stretchers with round
+  tenons in cross holes in the legs, staggered so that the holes don't meet.
+- `projects.stepstool`: the seat of `projects.stepstool_seat` on round legs
+  going through the battens and the seat, wedged in the seat, side
+  stretchers. For this, `RoundMortiseTenon(gap=...)` stands the shoulder
+  off the mortised part (on the batten between), and `Bore(part, tenon,
+  diameter)`, a joint that doesn't place its parts (like `Screw`), bores
+  the batten where the tenon passes through it.
+- `projects.coat_rack`: round pegs with chamfered round tenons in blind
+  holes along a board, its front arrises chamfered, two counterbored screw
+  holes for the wall.
+- Screws in the projects: the buttons of `projects.table` and
+  `projects.side_table` are screwed to the board of the top above each
+  (countersunk clearance hole, pilot hole in the top), the ledges of
+  `projects.ledged_door` to each board, one screw in its middle.
+- The other examples' outputs stayed byte-identical.
+
+Open (into the backlog below): splayed legs (F2), and with them the step
+stool's and the Windsor chair's real form; identical cuts aren't grouped in
+the cut list (24 shelf-pin holes are 24 lines; with A3); a flat at one end
+is given as stopped short of the other end (a length from an end would read
+better); dowels through one part (an open hole); pegs in the projects
+(drawbored frames and doors); screws in the ledged and braced door (from the
+front, through the boards into the ledges and the brace); tapered and wedged
+round tenons together; step 6 (turned rods, round-ended mortises,
+roundovers).
 
 A rod's tenon into a round leg (`joints.round_tenon_in_round_leg`): the
 rail's end is still flat, touching the leg along a line, a first
@@ -852,6 +881,12 @@ leg's radius (scribed), so it wraps around the leg.
 
 IDs are for reference when prioritizing. Joints and examples come from
 [validation.md](validation.md), where they are also listed.
+
+Candidates for the next milestone, now that round stock is in (a
+suggestion, not decided): F2, splayed legs, which the stools and the
+Windsor chair are waiting for; A3 and A9, grouping identical parts and
+cuts, as the round-legged projects have many of both; D1, the interference
+check as a library check; E2/E3, cut list formats and snapshots.
 
 **A. Library and API**
 
@@ -867,8 +902,12 @@ IDs are for reference when prioritizing. Joints and examples come from
 - A6. Side-plane coordinates measured from reference sides (M0 item 3).
 - A7. ✅ Stopped grooves, dados and rabbets. Open: stopped sliding
   dovetails and mortises.
-- A8. Screws and other fasteners as parts or annotations (buttons, the
-  drawer bottom's slot screw).
+- A8. 🟡 Screws and other fasteners as parts or annotations. Done: screws
+  as annotated holes (`Screw`: clearance, countersink or counterbore,
+  pilot), in the buttons and the ledged door. Open: the drawer bottom's
+  slot screw, the ledged and braced door, screws as hardware parts (for
+  the shopping list), nails.
+- A9. Grouping identical cuts in the cut list ("24 x hole ø5"), with A3.
 
 **B. Joints on the existing machinery** ✅ all done on 2026-10-18 (see M3)
 
@@ -901,8 +940,12 @@ IDs are for reference when prioritizing. Joints and examples come from
   mitre-frame top was dropped).
 - C9. Workbench: leg assemblies, glued-up beams, half laps, tusk-tenoned
   stretchers, a top of laminated beams, a drawer.
-- C10. Step stool: ✅ the seat with sliding dovetail battens; open: splayed
-  legs with wedged round tenons (needs M8 and F2).
+- C10. Step stool: ✅ the seat with sliding dovetail battens, ✅ straight
+  round legs through the battens and the seat with wedged round tenons
+  (`projects.stepstool`); open: splayed legs (F2).
+- C12. ✅ Stool with round legs and stretchers, coat rack with pegs (M8).
+- C13. Pegs in the projects: drawbored frames and doors (the frame-and-panel
+  door), a pinned bridle.
 - C11. ✅ Chair, doors (ledged, ledged and braced, frame and panel).
 
 **D. Checks**
@@ -926,9 +969,11 @@ IDs are for reference when prioritizing. Joints and examples come from
 
 **F. New kinds of geometry** (see Later)
 
-- F1. Rods and drilling: dowels, holes (through, blind, countersunk),
-  round tenons, drawbores. Planned as M8 below.
-- F2. Angled parts and joints: splayed legs, angled half laps.
+- F1. ✅ Rods and drilling: dowels, holes (through, blind, countersunk),
+  round tenons, drawbores: M8. Open: turned (profiled) rods, round-ended
+  mortises, roundovers, dowels through one part (M8 step 6).
+- F2. Angled parts and joints: splayed legs, angled half laps; angled holes
+  and round tenons for the splayed legs of the stools and a Windsor chair.
 - F3. Joints of more than two parts: kumiko, three-way mitres.
 
 **G. Project infrastructure**
@@ -939,7 +984,7 @@ IDs are for reference when prioritizing. Joints and examples come from
 
 ### Later
 
-- Rods and drilling: see M8.
+- Turned (profiled) rods, round-ended mortises, roundovers: M8 step 6.
 - Angled parts and joints: splayed legs, angled half-laps, compound angles.
 - Joints of more than two parts (kumiko, three-way mitres).
 - Process plan: operations per part, order, glue-up sequence, instructions.
