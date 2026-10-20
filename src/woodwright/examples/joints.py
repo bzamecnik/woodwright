@@ -15,6 +15,7 @@ from woodwright.joints import (
     DadoJoint,
     DovetailHalfLap,
     Dowels,
+    DowelTuskTenon,
     GrooveJoint,
     HalfBlindDovetail,
     HalfLap,
@@ -327,6 +328,62 @@ def dovetail_half_lap(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(DovetailHalfLap(lap=rail.left_end, socket=stile.back_edge))
+    return asm
+
+
+def let_in_rail(
+    leg_length: float = 400, rail_length: float = 300, stock: Stock = POST_STOCK
+) -> Assembly:
+    """A square rail let in half its thickness across a square leg, at its end:
+    the leg is notched a quarter of its thickness, the rail isn't cut and
+    stands out of the leg by the other half, towards the viewer (as the
+    rails of a workbench's legs). Its end is flush with the far edge of the
+    leg.
+    """
+    asm = Assembly("let_in_rail", root_location=STANDING)
+    leg = asm.add(Board("leg", stock, length=leg_length, width=stock.thickness))
+    rail_stock = Stock.board(thickness=stock.thickness / 2, species=stock.species)
+    rail = asm.add(Board("rail", rail_stock, length=rail_length, width=rail_stock.thickness))
+    half = rail_stock.thickness / 2
+    asm.join(
+        HalfLap(
+            lap=rail.left_end,
+            socket=leg.back_edge,
+            position=offset(100, ref=leg.left_end),
+            flush=(leg.bottom_face, rail.top_face),
+            lap_thickness=rail_stock.thickness,
+            over=True,
+            proud=half,
+        )
+    )
+    return asm
+
+
+def let_in_dovetail_rail(
+    leg_length: float = 400, rail_length: float = 300, stock: Stock = POST_STOCK
+) -> Assembly:
+    """A square rail let in half its thickness at the top of a square leg, its
+    inner half cut to a half dovetail: flat at the bottom, sloped 1:6 at the
+    top, so the rail can't be pulled out of the leg along its length. The
+    notch in the leg is open at its top end.
+    """
+    asm = Assembly("let_in_dovetail_rail", root_location=STANDING)
+    leg = asm.add(Board("leg", stock, length=leg_length, width=stock.thickness))
+    rail_stock = Stock.board(thickness=stock.thickness / 2, species=stock.species)
+    rail = asm.add(Board("rail", rail_stock, length=rail_length, width=rail_stock.thickness))
+    asm.join(
+        DovetailHalfLap(
+            lap=rail.left_end,
+            socket=leg.back_edge,
+            position=flush_with(leg.right_end),
+            flush=(leg.bottom_face, rail.top_face),
+            lap_thickness=rail_stock.thickness,
+            over=True,
+            proud=rail_stock.thickness / 2,
+            slope=6,
+            sloped=(rail.back_edge,),
+        )
+    )
     return asm
 
 
@@ -854,6 +911,50 @@ def tusk_tenon_flat(
         wedge_size=(80, 25, 20),
         wedge_slope=8,
     )
+
+
+def dowel_tusk_tenon(
+    leg_length: float = 500,
+    stretcher_length: float = 400,
+    width: float = 150,
+    tusk_diameter: float = 20,
+    tusk_length: float = 96,
+) -> Assembly:
+    """A tusk tenon held by dowels (after Rex Krueger's workbench): a
+    stretcher through a 70 mm square leg, held by two tapered dowels through
+    its tenon, level, their heads towards the viewer.
+
+    The 45 x 150 mm stretcher's tenon is as thick as the stretcher, between
+    20 mm shoulders at its edges. Each tusk, a `tusk_diameter` dowel
+    `tusk_length` long, has a flat planed on it, tapering 1:12 to its tip,
+    and goes through a hole bored through the tenon; its flat bears on two
+    half dowels glued on the outer face of the leg, beside the tenon.
+    Knocked out, the tusks free the stretcher.
+    """
+    asm = Assembly("dowel_tusk_tenon", root_location=orient(right_end=UP, back_edge=LEFT))
+    leg = asm.add(Board("leg", POST_STOCK, length=leg_length, width=POST_STOCK.thickness))
+    stretcher = asm.add(Board("stretcher", LEG_STOCK, length=stretcher_length, width=width))
+    dowel = Stock.rod(diameter=tusk_diameter, species="oak")
+    tusks = tuple(asm.add(Rod(f"tusk_{i + 1}", dowel, length=tusk_length)) for i in range(2))
+    beside = (POST_STOCK.thickness - LEG_STOCK.thickness) / 2
+    bearings = tuple(
+        asm.add(Rod(f"bearing_{i + 1}", dowel, length=beside)) for i in range(2 * len(tusks))
+    )
+    asm.join(
+        DowelTuskTenon(
+            tenon=stretcher.left_end,
+            mortise=leg.back_edge,
+            position=offset(80, ref=leg.right_end),
+            across=CENTERED,
+            shoulder=20,
+            tenon_thickness=LEG_STOCK.thickness,
+            tenon_chamfer=2,
+            tusks=tusks,
+            bearings=bearings,
+            tusk_head=leg.top_face,
+        )
+    )
+    return asm
 
 
 def mortise_tenon_thin_rail(

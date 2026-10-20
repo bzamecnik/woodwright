@@ -74,6 +74,8 @@ ALL: list[Example] = [
     joints.half_lap_corner,
     joints.half_lap_t,
     joints.dovetail_half_lap,
+    joints.let_in_rail,
+    joints.let_in_dovetail_rail,
     joints.bridle_corner,
     joints.bridle_t,
     joints.mortise_tenon,
@@ -91,6 +93,7 @@ ALL: list[Example] = [
     joints.wedged_through_tenon,
     joints.tusk_tenon,
     joints.tusk_tenon_flat,
+    joints.dowel_tusk_tenon,
     joints.mortise_tenon_thin_rail,
     joints.mitred_shoulder_tenon,
     joints.mitred_shoulder_corner,
@@ -153,6 +156,7 @@ ALL: list[Example] = [
     projects.stool,
     projects.stepstool,
     projects.coat_rack,
+    projects.workbench,
 ]
 
 

@@ -145,7 +145,9 @@ What's there so far:
 joints to projects: a try square, a mallet, a bookshelf, a dovetailed drawer
 with a bottom, a dining table, a side table, a chair, a stool and a step
 stool on round legs wedged through their seats, a towel rail, a coat rack
-with pegs, ledged and frame-and-panel doors, a small glazed cabinet door.
+with pegs, ledged and frame-and-panel doors, a small glazed cabinet door, a
+knock-down workbench after Rex Krueger's Quick Stack (get his plans for the
+real thing).
 
 ```shell
 woodwright list

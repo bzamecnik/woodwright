@@ -629,7 +629,9 @@ loose-tongue panels, a stopped dado shelf). Open: the workbench.
 
 Done on 2026-10-20 (with M8): a stool and a step stool on round legs wedged
 through the seat (straight; splayed legs need F2), a coat rack, screws in
-the table's buttons and the ledged door.
+the table's buttons and the ledged door. Later the same day: a workbench
+after Rex Krueger's Quick Stack (rails let in half their thickness,
+`HalfLap.proud`; dowel tusk tenons, `DowelTuskTenon`).
 
 ### M8: Round stock, holes and round tenons ✅ mostly done
 
@@ -726,7 +728,9 @@ tenons).
   next to the hole in the protruding tenon, and a second dowel with a planar
   taper driven through the hole, tightening where its taper bears on the
   round of the glued half. A variant of `TuskTenon` whose wedge is a tapered
-  rod and whose bearing is a separate half-round piece. Low priority.
+  rod and whose bearing is a separate half-round piece. ✅ `DowelTuskTenon`
+  (2026-10-20), two half dowels per tusk beside the tenon, so that it can
+  still be drawn out.
 - Screws as annotated holes (A8): a pilot hole, a clearance hole and a
   countersink or counterbore (buttons, battens, ledged doors). The screw
   itself as hardware later.
@@ -938,8 +942,10 @@ check as a library check; E2/E3, cut list formats and snapshots.
 - C7. ✅ Mitred frame with an inset panel of glued-up boards.
 - C8. ✅ Side table with aprons and stretchers (with a glued-up top; the
   mitre-frame top was dropped).
-- C9. Workbench: leg assemblies, glued-up beams, half laps, tusk-tenoned
-  stretchers, a top of laminated beams, a drawer.
+- C9. ✅ Workbench: leg assemblies, glued-up beams, half laps, tusk-tenoned
+  stretchers, a top of laminated beams, a drawer (`projects.workbench`, after
+  Rex Krueger's Quick Stack; legs as single pieces, the drawer an open tray,
+  no vise or holdfast holes).
 - C10. Step stool: ✅ the seat with sliding dovetail battens, ✅ straight
   round legs through the battens and the seat with wedged round tenons
   (`projects.stepstool`); open: splayed legs (F2).

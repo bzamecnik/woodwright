@@ -1,5 +1,5 @@
 """Small practical projects: shop tools, boxes, shelves, drawers, frames, tables, a chair,
-stools and a coat rack."""
+stools, a coat rack and a workbench."""
 
 import itertools
 import math
@@ -15,7 +15,11 @@ from woodwright.joints import (
     Butt,
     Button,
     DadoJoint,
+    DovetailHalfLap,
+    Dowels,
+    DowelTuskTenon,
     HalfBlindDovetail,
+    HalfLap,
     Joint,
     MitreCorner,
     MitredShoulderTenon,
@@ -29,7 +33,17 @@ from woodwright.joints import (
     WedgedRoundMortiseTenon,
 )
 from woodwright.part import Board, Rod, SideRef
-from woodwright.placement import BACK, CENTERED, FRONT, UP, Position, flush_with, offset, orient
+from woodwright.placement import (
+    BACK,
+    CENTERED,
+    FRONT,
+    LEFT,
+    UP,
+    Position,
+    flush_with,
+    offset,
+    orient,
+)
 from woodwright.stock import Stock
 
 SQUARE_STOCK = Stock.board(thickness=24, species="oak")
@@ -49,6 +63,10 @@ CHAIR_LEG_STOCK = Stock.board(thickness=40, species="oak")
 ROUND_LEG_STOCK = Stock.rod(diameter=40, species="oak")
 STRETCHER_STOCK = Stock.rod(diameter=25, species="oak")
 PEG_STOCK = Stock.rod(diameter=22, species="oak")
+BENCH_LEG_STOCK = Stock.board(thickness=90, species="oak")  # glued up from two 45 mm boards
+BENCH_STOCK = Stock.board(thickness=45, species="oak")  # rails, stretchers, top beams
+BENCH_DOWEL_STOCK = Stock.rod(diameter=20, species="oak")
+TUSK_STOCK = Stock.rod(diameter=25, species="oak")
 
 
 def try_square(
@@ -1661,6 +1679,209 @@ def coat_rack(
                 counterbore_depth=8,
                 kind="screw hole",
                 note="for a 4.5 x 50 screw into the wall",
+            )
+        )
+    return asm
+
+
+def workbench(
+    length: float = 2000,
+    depth: float = 600,
+    height: float = 900,
+    overhang: float = 400,
+    stretcher_width: float = 300,
+    stretcher_height: float = 360,
+    lower_rail_height: float = 120,
+    tusks: int = 2,
+    top_beams: int = 7,
+    tray_thickness: float = 20,
+) -> Assembly:
+    """A knock-down workbench, an approximation of Rex Krueger's Quick Stack
+    workbench (get his plans for the real thing, at rexkrueger.com).
+
+    Two leg assemblies, `length` - 2 x `overhang` apart over the outsides of
+    the legs, are joined by two wide stretchers with tusk tenons, and carry
+    a split top `height` above the floor: a massive desk at the front and a
+    tray (a drawer-like box) at the back, flush with the legs at the front
+    and the back, `depth` deep, `overhang` beyond the legs at each end.
+
+    Each leg assembly: two 90 mm square legs (glued up from two 45 mm
+    boards), their feet chamfered, and two 45 mm square rails from front to
+    back, flush with the legs' front and back. Each rail is let in half its
+    thickness into the legs (they are notched a quarter of theirs) and
+    stands out of them by the other half: the lower one on the outside,
+    `lower_rail_height` above the floor, not cut itself; the upper one on
+    the inside, flush with the tops of the legs, its inner half cut to a
+    half dovetail, flat at the bottom and sloped at the top, so that it
+    holds the legs together; the notches for it are open at the top.
+
+    The stretchers, 45 mm thick and `stretcher_width` wide, `stretcher_height`
+    above the floor, have long through tenons, as thick as the stretchers,
+    standing proud outside the legs. Each tenon is held by `tusks` dowel
+    tusks: dowels with a tapered flat, level through the tenon's thickness,
+    their heads to the front, their flats bearing on half dowels glued on
+    the leg on either side of the tenon.
+
+    The desk is glued up from `top_beams` 45 x 90 mm beams standing on edge
+    (as "2x4s"), the tray from `tray_thickness` boards: a bottom with front,
+    back and end walls on it, as high as the desk is thick. Both sit on the
+    legs and the upper rails and are located on the legs by short 20 mm
+    dowels: one into each of the two beams over a front leg, two into the
+    tray's bottom over each back leg.
+    """
+    leg_size, rail = BENCH_LEG_STOCK.thickness, BENCH_STOCK.thickness
+    beam_height = 2 * rail
+    leg_length = height - beam_height
+    span = length - 2 * overhang  # over the outsides of the legs
+    root = orient(at=(overhang, 0, 0), right_end=UP, top_face=LEFT)
+    asm = Assembly("workbench", root_location=root)
+
+    # The leg assemblies; the right one is the mirror image of the left one.
+    legs: dict[str, dict[str, Board]] = {}
+    for side, mirror in [("left", False), ("right", True)]:
+        front, back = (
+            asm.add(
+                Board(f"{side}_{end}_leg", BENCH_LEG_STOCK, leg_length, leg_size, mirror=mirror)
+            )
+            for end in ("front", "back")
+        )
+        legs[side] = {"front": front, "back": back}
+        for leg in (front, back):
+            leg.cut(EndChamfer(leg.left_end, size=5))
+        between = depth - 2 * leg_size
+        lower, upper = (
+            asm.add(Board(f"{side}_{level}_rail", BENCH_STOCK, between, rail, mirror=mirror))
+            for level in ("lower", "upper")
+        )
+        for lap, leg in [(lower.left_end, front), (lower.right_end, back)]:
+            asm.join(
+                HalfLap(
+                    lap=lap,
+                    socket=leg.back_edge if leg is front else leg.front_edge,
+                    position=offset(lower_rail_height, ref=leg.left_end),
+                    flush=(leg.top_face, lower.top_face),
+                    lap_thickness=rail,
+                    over=True,
+                    proud=rail / 2,
+                )
+            )
+        for lap, leg in [(upper.left_end, front), (upper.right_end, back)]:
+            asm.join(
+                DovetailHalfLap(
+                    lap=lap,
+                    socket=leg.back_edge if leg is front else leg.front_edge,
+                    position=flush_with(leg.right_end),
+                    flush=(leg.bottom_face, upper.top_face),
+                    lap_thickness=rail,
+                    over=True,
+                    proud=rail / 2,
+                    slope=6,
+                    sloped=(upper.back_edge,),
+                )
+            )
+
+    # The stretchers, their reference faces outside, through the inner faces of the legs.
+    for end in ("front", "back"):
+        stretcher = asm.add(
+            Board(f"{end}_stretcher", BENCH_STOCK, span - 2 * leg_size, stretcher_width)
+        )
+        for side, tenon in [("left", stretcher.left_end), ("right", stretcher.right_end)]:
+            leg = legs[side][end]
+            name = f"{end}_{side}"
+            tusk_rods = tuple(
+                asm.add(Rod(f"{name}_tusk_{i + 1}", TUSK_STOCK, length=120)) for i in range(tusks)
+            )
+            bearings = tuple(
+                asm.add(Rod(f"{name}_bearing_{i + 1}", TUSK_STOCK, length=(leg_size - rail) / 2))
+                for i in range(2 * tusks)
+            )
+            asm.join(
+                DowelTuskTenon(
+                    tenon=tenon,
+                    mortise=leg.bottom_face,
+                    position=offset(stretcher_height, ref=leg.left_end),
+                    flush=(
+                        (leg.front_edge, stretcher.top_face)
+                        if end == "front"
+                        else (leg.back_edge, stretcher.top_face)
+                    ),
+                    across=CENTERED,
+                    shoulder=30,
+                    tenon_thickness=rail,
+                    tenon_chamfer=3,
+                    tusks=tusk_rods,
+                    bearings=bearings,
+                    tusk_head=leg.front_edge,
+                )
+            )
+
+    # The desk: beams on edge, their reference faces to the front, glued face to face.
+    beams = [
+        asm.add(Board(f"top_beam_{i + 1}", BENCH_STOCK, length, beam_height))
+        for i in range(top_beams)
+    ]
+    for a, b in itertools.pairwise(beams):
+        asm.join(Butt(a.bottom_face, b.top_face))
+    for side in ("left", "right"):
+        leg = legs[side]["front"]
+        at = overhang if side == "left" else length - overhang - leg_size
+        for beam, flush, centre in [
+            (beams[0], (beams[0].top_face, leg.front_edge), rail / 2),
+            (beams[1], (beams[1].bottom_face, leg.back_edge), leg_size - rail / 2),
+        ]:
+            dowel = asm.add(Rod(f"{beam.name}_{side}_dowel", BENCH_DOWEL_STOCK, length=50))
+            asm.join(
+                Dowels(
+                    beam.front_edge,
+                    leg.right_end,
+                    dowels=(dowel,),
+                    offsets=(centre,),
+                    flush=flush,
+                    position=offset(at, ref=beam.left_end),
+                )
+            )
+
+    # The tray: walls standing on its bottom, the ends between the front and the back.
+    tray_stock = Stock.board(thickness=tray_thickness, species="oak")
+    tray_depth = depth - top_beams * rail
+    wall_height = beam_height - tray_thickness
+    bottom = asm.add(Board("tray_bottom", tray_stock, length, tray_depth))
+    tray_front, tray_back = (
+        asm.add(Board(f"tray_{end}", tray_stock, length, wall_height)) for end in ("front", "back")
+    )
+    asm.join(
+        Butt(bottom.top_face, tray_front.front_edge, flush=(bottom.front_edge, tray_front.top_face))
+    )
+    asm.join(
+        Butt(bottom.top_face, tray_back.front_edge, flush=(bottom.back_edge, tray_back.top_face))
+    )
+    for end in ("left", "right"):
+        wall = asm.add(
+            Board(f"tray_{end}", tray_stock, tray_depth - 2 * tray_thickness, wall_height)
+        )
+        asm.join(
+            Butt(
+                tray_front.bottom_face,
+                wall.left_end,
+                position=flush_with(getattr(tray_front, f"{end}_end")),
+                flush=(tray_front.front_edge, wall.front_edge),
+            )
+        )
+    for side in ("left", "right"):
+        leg = legs[side]["back"]
+        at = overhang if side == "left" else length - overhang - leg_size
+        dowels = tuple(
+            asm.add(Rod(f"tray_{side}_dowel_{i + 1}", BENCH_DOWEL_STOCK, length=40))
+            for i in range(2)
+        )
+        asm.join(
+            Dowels(
+                bottom.bottom_face,
+                leg.right_end,
+                dowels=dowels,
+                depth=tray_thickness * 0.7,
+                flush=(bottom.back_edge, leg.back_edge),
+                position=offset(at, ref=bottom.left_end),
             )
         )
     return asm
