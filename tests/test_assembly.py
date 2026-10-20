@@ -178,3 +178,28 @@ def test_rod_is_only_extended_at_its_ends() -> None:
     rod.cuts[0].allowances = lambda: [ww.Allowance(rod.top_face, 5)]
     with pytest.raises(ValueError, match="only extended at its ends"):
         asm.resolve()
+
+
+@pytest.mark.parametrize(
+    ("across", "ply_size", "glue_axis"),
+    [("thickness", "500 x 90 x 45", 2), ("width", "500 x 90 x 45", 1)],
+)
+def test_laminated_board_in_plies(across, ply_size, glue_axis) -> None:
+    leg = ww.Board("leg", ww.Stock.board(90), 500, 90, plies=2, plies_across=across)
+    leg.cut(ww.EndChamfer(leg.left_end, size=5))
+    asm = ww.Assembly("leg")
+    asm.add(leg)
+    model = asm.resolve()
+    shape = model[leg].shape
+    assert len(shape.solids()) == 2
+    a, b = sorted(shape.solids(), key=lambda s: tuple(s.center())[glue_axis])
+    assert a.volume == pytest.approx(b.volume)
+    assert tuple(a.bounding_box().max)[glue_axis] == pytest.approx(
+        tuple(b.bounding_box().min)[glue_axis]
+    )
+    assert f"glued up from 2 boards {ply_size} mm" in model.cut_list()
+
+
+def test_laminated_board_needs_a_ply() -> None:
+    with pytest.raises(ValueError, match="at least one ply"):
+        ww.Board("leg", ww.Stock.board(90), 500, 90, plies=0)

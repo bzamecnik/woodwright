@@ -22,11 +22,15 @@ its axis at y = diameter / 2, z = -diameter / 2. Its ends are real sides;
 its four long sides are virtual, the tangent planes of the box. They place
 the rod (flush with the top of a rail) and give directions for cross holes
 and flats, but cuts that need a planar side refuse them.
+
+A board may be laminated: glued up from equal plies, then cut as one. The
+plies show as separate solids in the model (the glue lines in the drawings)
+and in the cut list.
 """
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import build123d as bd
 
@@ -85,6 +89,10 @@ class Part:
         """Whether a side isn't a real planar side of the part (of a rod)."""
         return False
 
+    def ply_boxes(self, lo: Point, hi: Point) -> list[tuple[Point, Point]]:
+        """The boxes of the plies the blank between `lo` and `hi` is glued up from."""
+        return [(lo, hi)]
+
     def side(self, side: Side) -> SideRef:
         """The side named `side`; on a mirrored part the ends are swapped."""
         return SideRef(self, _named(side, self.mirror))
@@ -137,7 +145,14 @@ class Part:
 
 @dataclass(eq=False)
 class Board(Part):
-    """A named board with design dimensions; thickness comes from its stock."""
+    """A named board with design dimensions; thickness comes from its stock.
+
+    With `plies` > 1, it is laminated from as many equal boards, stacked
+    through its thickness (glued face to face, the glue lines showing on its
+    edges and ends) or, with `plies_across="width"`, side by side across its
+    width (the glue lines on its faces and ends), e.g. a 90 mm square leg
+    from two 45 x 90 mm boards.
+    """
 
     name: str
     stock: Stock
@@ -145,10 +160,27 @@ class Board(Part):
     width: float
     cuts: list[Cut] = field(default_factory=list)
     mirror: bool = False
+    plies: int = 1
+    plies_across: Literal["thickness", "width"] = "thickness"
 
     def __post_init__(self) -> None:
         if self.stock.round:
             raise ValueError(f"{self.name} is a board, but its stock is round: make it a Rod")
+        if self.plies < 1:
+            raise ValueError(f"{self.name} needs at least one ply")
+        if self.plies_across not in ("thickness", "width"):
+            raise ValueError(f"{self.name}: plies go across its thickness or its width")
+
+    def ply_boxes(self, lo: Point, hi: Point) -> list[tuple[Point, Point]]:
+        axis = 2 if self.plies_across == "thickness" else 1
+        step = (hi[axis] - lo[axis]) / self.plies
+        boxes = []
+        for i in range(self.plies):
+            a, b = list(lo), list(hi)
+            a[axis] = lo[axis] + i * step
+            b[axis] = a[axis] + step
+            boxes.append((tuple(a), tuple(b)))
+        return boxes
 
     @property
     def box(self) -> tuple[Point, Point]:

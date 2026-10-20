@@ -172,10 +172,19 @@ class ResolvedPart:
 
     @cached_property
     def shape(self) -> bd.Part:
-        """Blank minus all cuts, in the part frame."""
+        """Blank minus all cuts, in the part frame; a laminated board in its plies."""
         shape = self.part.blank(*self.blank)
         for cut in self.cuts:
             shape -= cut.removal()
+        plies = self.part.ply_boxes(*self.blank)
+        if len(plies) > 1:
+            solids = [
+                solid
+                for box in plies
+                for solid in (shape & self.part.blank(*box)).solids()
+                if solid.volume > 1e-6
+            ]
+            shape = bd.Part(bd.Compound(solids).wrapped)
         shape.label = self.part.name
         return shape
 
@@ -208,7 +217,15 @@ class ResolvedModel:
             if isinstance(part, Rod):
                 size = f"ø{part.diameter:g} x {resolved.size[0]:g}"
             line = f"{part.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip()
-            lines.append(line + ", mirror image" if part.mirror else line)
+            if part.mirror:
+                line += ", mirror image"
+            plies = part.ply_boxes(*resolved.blank)
+            if len(plies) > 1:
+                lo, hi = plies[0]
+                ply = sorted((b - a for a, b in zip(lo[1:], hi[1:], strict=True)), reverse=True)
+                ply_size = " x ".join(f"{x:g}" for x in (hi[0] - lo[0], *ply))
+                line += f", glued up from {len(plies)} boards {ply_size} mm"
+            lines.append(line)
             lines.extend(f"{'':<{name_width}}  - {cut.describe()}" for cut in resolved.cuts)
         return "\n".join(lines)
 
