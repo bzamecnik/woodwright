@@ -2136,6 +2136,10 @@ class RoundMortiseTenon(Joint):
 
     The hole's side may be a long side of a rod, e.g. a stretcher into a
     round leg; the tenon's shoulder then meets the rod along a line.
+
+    With `gap`, the shoulder stands that far off part a, e.g. below a
+    batten between them, through which the tenon passes (see `Bore`); the
+    tenon's `length` includes it.
     """
 
     tenon: SideRef
@@ -2148,6 +2152,7 @@ class RoundMortiseTenon(Joint):
     position: Position = CENTERED
     across: Position = CENTERED
     flush: tuple[SideRef, SideRef] | None = None
+    gap: float = 0.0
 
     def parts(self) -> tuple[Part, Part]:
         return self.mortise.part, self.tenon.part
@@ -2155,6 +2160,8 @@ class RoundMortiseTenon(Joint):
     def check_parts(self) -> None:
         if self.tenon.axis != 0:
             raise ValueError(f"a round tenon is cut on an end, not on {self.tenon}")
+        if self.gap < 0:
+            raise ValueError("the shoulder can't be inside the mortised part")
 
     def with_defaults(self) -> Self:
         part = self.tenon.part
@@ -2164,11 +2171,17 @@ class RoundMortiseTenon(Joint):
                 diameter = part.diameter
             else:
                 diameter = rules.round_tenon_diameter(min(part.width, part.thickness))
-        length = self.length or rules.tenon_length(self.mortise.depth)
+        length = self.length or rules.tenon_length(self.mortise.depth) + self.gap
+        if length <= self.gap:
+            raise ValueError("the tenon must reach into the mortised part")
         return replace(self, diameter=diameter, length=length)
 
     def reach(self) -> float:
         return _require(self.length)
+
+    def inside(self) -> float:
+        """How far the tenon reaches into part a."""
+        return self.reach() - self.gap
 
     def tenon_cut(self) -> RoundTenon:
         return RoundTenon(
@@ -2185,23 +2198,29 @@ class RoundMortiseTenon(Joint):
     def placement(self) -> bd.Location:
         flush = self.flush or default_flush(self.mortise, self.tenon)
         return mate(
-            self.mortise, self.tenon, flush=flush, position=self.position, across=self.across
+            self.mortise,
+            self.tenon,
+            flush=flush,
+            position=self.position,
+            across=self.across,
+            gap=self.gap,
         )
 
     @property
     def through(self) -> bool:
-        return self.reach() >= self.mortise.depth - _EPS
+        return self.inside() >= self.mortise.depth - _EPS
 
     def hole(self, placement: bd.Location) -> Hole:
         tenon = self.tenon_cut()
-        depth = None if self.through else min(self.reach() + self.clearance, self.mortise.depth)
-        bottom = None
+        depth = None if self.through else min(self.inside() + self.clearance, self.mortise.depth)
+        diameter, bottom = tenon.diameter, None
         if self.tip_diameter is not None:
-            bottom = tenon.diameter_at(self.mortise.depth if depth is None else depth)
+            diameter = tenon.diameter_at(self.gap)
+            bottom = tenon.diameter_at(self.gap + (self.mortise.depth if depth is None else depth))
         center = placement * bd.Location(tuple(tenon.center()))
         return Hole(
             self.mortise,
-            tenon.diameter,
+            diameter,
             depth=depth,
             at=_hole_at(self.mortise, center.position),
             bottom_diameter=bottom,
@@ -2211,6 +2230,48 @@ class RoundMortiseTenon(Joint):
         tenon = self.tenon_cut()
         hole: list[Cut] = [self.hole(placement)]
         return [*hole, tenon] if tenon.removes_material else hole
+
+
+@dataclass
+class Bore(Joint):
+    """A hole bored through part a for a round tenon (or a whole rod) on
+    the end `tenon` of part b, passing through it, both placed by other
+    joints: e.g. a stool's leg through a batten under the seat, tenoned
+    into the seat (`RoundMortiseTenon` with a `gap`). The hole is `diameter`
+    wide, on the tenon's axis.
+    """
+
+    places = False
+
+    part: Part
+    tenon: SideRef
+    diameter: float
+
+    def parts(self) -> tuple[Part, Part]:
+        return self.part, self.tenon.part
+
+    def check_parts(self) -> None:
+        if self.tenon.axis != 0:
+            raise ValueError(f"a round tenon is on an end, not on {self.tenon}")
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        # The tenon goes in at the side of part a facing against it.
+        direction = _direction(placement, self.tenon.normal)
+        entry = next(
+            side for side in map(self.part.side, Side) if (side.normal + direction).length < _EPS
+        )
+        lo, hi = self.tenon.part.box
+        center = [(a + b) / 2 for a, b in zip(lo, hi, strict=True)]
+        center[0] = self.tenon.coordinate
+        point = list(tuple((placement * bd.Location(tuple(center))).position))
+        point[entry.axis] = entry.coordinate
+        hole = Hole(
+            entry,
+            self.diameter,
+            at=_hole_at(entry, bd.Vector(*point)),
+            note=f"for the tenon on {self.tenon}",
+        )
+        return [hole]
 
 
 @dataclass
@@ -2248,7 +2309,7 @@ class WedgedRoundMortiseTenon(RoundMortiseTenon):
     def with_defaults(self) -> Self:
         joint = replace(
             self,
-            length=self.length or self.mortise.depth,
+            length=self.length or self.mortise.depth + self.gap,
             spread=self.spread or self.mortise.part.left_end,
         )
         joint = super(WedgedRoundMortiseTenon, joint).with_defaults()
@@ -2276,7 +2337,7 @@ class WedgedRoundMortiseTenon(RoundMortiseTenon):
             kerf=self.kerf,
             kerf_depth=wedge.length,
             flare=(wedge.width - self.kerf) / 2,
-            proud=self.reach() - self.mortise.depth,
+            proud=self.inside() - self.mortise.depth,
             spread=spread,
         )
 

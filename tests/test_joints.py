@@ -1600,3 +1600,47 @@ def test_wedge_of_a_round_tenon_fits_within_it() -> None:
     tenon = math.pi * r * r * 30 - kerf
     assert model[leg].shape.volume == pytest.approx(math.pi * 400 * 400 + tenon, rel=1e-6)
     assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_round_tenon_through_a_batten_with_a_gap() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    batten = asm.add(ww.Board("batten", OAK, length=300, width=90))
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    asm.join(ww.Butt(seat.bottom_face, batten.top_face, across=ww.centered()))
+    # The shoulder bears on the batten; the tenon goes on through the seat.
+    asm.join(
+        ww.RoundMortiseTenon(
+            tenon=leg.right_end, mortise=seat.bottom_face, diameter=25, length=50, gap=20
+        )
+    )
+    asm.join(ww.Bore(batten, leg.right_end, diameter=25))
+    model = asm.resolve()
+    assert cuts(model, seat) == ["through hole ø25, in seat.bottom_face, centered"]
+    assert cuts(model, batten) == [
+        "through hole ø25, in batten.bottom_face, centered, for the tenon on leg.right_end"
+    ]
+    assert cuts(model, leg) == ["round tenon ø25, 50 long, on leg.right_end"]
+    assert bbox(model[leg].placed_shape) == (130, 130, -450, 170, 170, 0)
+    hole = math.pi * 12.5**2
+    assert model[batten].shape.volume == pytest.approx(300 * 90 * 20 - hole * 20)
+    assert model[leg].shape.volume == pytest.approx(math.pi * 20**2 * 400 + hole * 50)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_bore_and_gap_checks() -> None:
+    asm = ww.Assembly("test")
+    seat = asm.add(ww.Board("seat", ww.Stock.board(30, "oak"), length=300, width=300))
+    leg = asm.add(ww.Rod("leg", ww.Stock.rod(40, "oak"), length=400))
+    asm.join(ww.RoundMortiseTenon(tenon=leg.right_end, mortise=seat.bottom_face, gap=-1))
+    with pytest.raises(ValueError, match="shoulder can't be inside"):
+        asm.resolve()
+    asm.joints[0] = ww.RoundMortiseTenon(
+        tenon=leg.right_end, mortise=seat.bottom_face, length=20, gap=20
+    )
+    with pytest.raises(ValueError, match="must reach into the mortised part"):
+        asm.resolve()
+    asm.joints[0] = ww.RoundMortiseTenon(tenon=leg.right_end, mortise=seat.bottom_face)
+    asm.join(ww.Bore(seat, leg.top_face, diameter=25))
+    with pytest.raises(ValueError, match=r"on an end, not on leg\.top_face"):
+        asm.resolve()

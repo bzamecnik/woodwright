@@ -30,6 +30,7 @@ from woodwright.cuts import (
 )
 from woodwright.joints import (
     BlindMitredDovetail,
+    Bore,
     BoxJoint,
     Bridle,
     Butt,
@@ -99,6 +100,7 @@ __all__ = [
     "Assembly",
     "BlindMitredDovetail",
     "Board",
+    "Bore",
     "BoxCut",
     "BoxJoint",
     "Bridle",
