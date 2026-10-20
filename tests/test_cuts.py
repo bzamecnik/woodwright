@@ -468,3 +468,31 @@ def test_tenons_across_the_thickness_errors() -> None:
         )
     with pytest.raises(ValueError, match="a tongue is a single one"):
         ww.Tongue(rail.back_edge, length=10, thickness=10, thickness_count=2, thickness_gap=10)
+
+
+# --- Rods -------------------------------------------------------------------
+
+
+def test_rods_refuse_cuts_needing_planar_sides() -> None:
+    rod = ww.Rod("rung", ww.Stock.rod(25, "oak"), length=300)
+    with pytest.raises(ValueError, match="a groove needs a board, rung is a rod"):
+        ww.Groove(rod.top_face, width=5, depth=5)
+    with pytest.raises(ValueError, match="needs a board"):
+        ww.Chamfer(rod.arris(rod.left_end, rod.top_face), size=2)
+    with pytest.raises(ValueError, match="needs a board"):
+        ww.Tenon(rod.left_end, length=20, thickness=8)
+    with pytest.raises(ValueError, match="mitred at its ends"):
+        ww.Mitre(rod.back_edge, inside=rod.top_face)
+
+
+def test_planar_cuts_on_a_rod() -> None:
+    rod = ww.Rod("rung", ww.Stock.rod(20, "oak"), length=300)
+    taper = ww.Taper(rod.top_face, end=rod.right_end, amount=10, length=100)
+    mitre = ww.Mitre(rod.left_end, inside=rod.back_edge)
+    assert taper.describe() == "flat taper 10 mm over 100 on rung.top_face towards rung.right_end"
+    shape = cut_part(rod, taper, mitre)
+    # The mitre takes half a cylinder 20 long. The taper takes a segment of
+    # the section, growing to a half disc: its area integrated over the depth
+    # is that of the half disc weighted by the height above the axis, 2 r^3 / 3.
+    removed = math.pi * 100 * 20 / 2 + 100 / 10 * 2 * 10**3 / 3
+    assert shape.volume == pytest.approx(math.pi * 100 * 300 - removed)

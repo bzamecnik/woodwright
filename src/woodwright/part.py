@@ -14,6 +14,14 @@ features, e.g. the right side of a case against the left one, both with
 their reference faces outside and reference edges at the front. Its part
 frame is the same, but its ends swap names: its left end lies at x =
 length. Joints and cuts on its named sides are then mirrored too.
+
+A rod (round stock) is thought of as a square box with its four long
+arrises rounded off: its frame and design box are those of a board as wide
+and thick as its diameter, [0, length] x [0, diameter] x [-diameter, 0],
+its axis at y = diameter / 2, z = -diameter / 2. Its ends are real sides;
+its four long sides are virtual, the tangent planes of the box. They place
+the rod (flush with the top of a rail) and give directions for cross holes
+and flats, but cuts that need a planar side refuse them.
 """
 
 from dataclasses import dataclass, field
@@ -45,9 +53,8 @@ class Side(Enum):
         self.sign = sign
 
 
-@dataclass(eq=False)
-class Board:
-    """A named board with design dimensions; thickness comes from its stock.
+class Part:
+    """Base class of parts: a named piece of stock with a design length.
 
     The design box is the part as the user sees it between its joints, e.g. a
     rail from shoulder to shoulder. Joints may extend the blank beyond it.
@@ -57,9 +64,8 @@ class Board:
     name: str
     stock: Stock
     length: float
-    width: float
-    cuts: list[Cut] = field(default_factory=list)
-    mirror: bool = False
+    cuts: list[Cut]
+    mirror: bool
 
     @property
     def thickness(self) -> float:
@@ -68,18 +74,27 @@ class Board:
     @property
     def box(self) -> tuple[Point, Point]:
         """Min and max corners of the design box in the part frame."""
-        return (0.0, 0.0, -self.thickness), (self.length, self.width, 0.0)
+        raise NotImplementedError
+
+    def blank(self, lo: Point, hi: Point) -> bd.Part:
+        """The blank filling the box between `lo` and `hi` (the design box
+        with any allowances), in the part frame."""
+        raise NotImplementedError
+
+    def is_virtual(self, side: Side) -> bool:
+        """Whether a side isn't a real planar side of the part (of a rod)."""
+        return False
 
     def side(self, side: Side) -> SideRef:
-        """The side named `side`; on a mirrored board the ends are swapped."""
+        """The side named `side`; on a mirrored part the ends are swapped."""
         return SideRef(self, _named(side, self.mirror))
 
     def arris(self, a: SideRef, b: SideRef) -> ArrisRef:
-        """The arris where two adjacent sides of this board meet."""
+        """The arris where two adjacent sides of this part meet."""
         return ArrisRef(a, b)
 
     def cut(self, cut: Cut) -> Cut:
-        """Add an explicit cut to this board."""
+        """Add an explicit cut to this part."""
         self.cuts.append(cut)
         return cut
 
@@ -120,12 +135,88 @@ class Board:
         return self.arris(self.top_face, self.front_edge)
 
 
+@dataclass(eq=False)
+class Board(Part):
+    """A named board with design dimensions; thickness comes from its stock."""
+
+    name: str
+    stock: Stock
+    length: float
+    width: float
+    cuts: list[Cut] = field(default_factory=list)
+    mirror: bool = False
+
+    def __post_init__(self) -> None:
+        if self.stock.round:
+            raise ValueError(f"{self.name} is a board, but its stock is round: make it a Rod")
+
+    @property
+    def box(self) -> tuple[Point, Point]:
+        return (0.0, 0.0, -self.thickness), (self.length, self.width, 0.0)
+
+    def blank(self, lo: Point, hi: Point) -> bd.Part:
+        size = [b - a for a, b in zip(lo, hi, strict=True)]
+        return bd.Pos(*lo) * bd.Box(*size, align=(bd.Align.MIN,) * 3)
+
+
+@dataclass(eq=False)
+class Rod(Part):
+    """A named rod of round stock: a dowel, a peg, a rung, a pole.
+
+    Its frame is that of its bounding box (see the module docs); its long
+    sides (`top_face`, `front_edge`, ...) are virtual. Allowances only go on
+    its ends.
+    """
+
+    name: str
+    stock: Stock
+    length: float
+    cuts: list[Cut] = field(default_factory=list)
+    mirror: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.stock.round:
+            raise ValueError(f"{self.name} is a rod, but its stock is a board: use Stock.rod")
+
+    @property
+    def diameter(self) -> float:
+        return self.stock.diameter
+
+    @property
+    def width(self) -> float:
+        return self.diameter
+
+    @property
+    def box(self) -> tuple[Point, Point]:
+        return (0.0, 0.0, -self.diameter), (self.length, self.diameter, 0.0)
+
+    @property
+    def axis(self) -> tuple[float, float]:
+        """The y and z coordinates of the rod's axis in its frame."""
+        return self.diameter / 2, -self.diameter / 2
+
+    def is_virtual(self, side: Side) -> bool:
+        return side.axis != 0
+
+    def blank(self, lo: Point, hi: Point) -> bd.Part:
+        y, z = self.axis
+        cylinder = bd.Cylinder(
+            self.diameter / 2, hi[0] - lo[0], rotation=(0, 90, 0), align=_AXIAL_MIN
+        )
+        return bd.Pos(lo[0], y, z) * cylinder
+
+
 @dataclass(frozen=True)
 class SideRef:
     """A reference to one side of a part's design box."""
 
-    part: Board
+    part: Part
     side: Side
+
+    @property
+    def virtual(self) -> bool:
+        """Whether the side isn't a real planar side of the part (a long side of a rod)."""
+        return self.part.is_virtual(self.side)
 
     @property
     def axis(self) -> int:
@@ -217,8 +308,12 @@ class ArrisRef:
         return f"{self.a.part.name}.{self.a.name}_{self.b.name}_arris"
 
 
+# A cylinder lying along x, from x = 0, centered on its axis.
+_AXIAL_MIN = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
+
+
 def _named(side: Side, mirror: bool) -> Side:
-    """The side named `side` on a board, or the other way round (it's symmetric)."""
+    """The side named `side` on a part, or the other way round (it's symmetric)."""
     if not mirror or side.axis != 0:
         return side
     return Side.RIGHT_END if side is Side.LEFT_END else Side.LEFT_END

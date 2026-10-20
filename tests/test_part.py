@@ -1,3 +1,5 @@
+import math
+
 import build123d as bd
 import pytest
 
@@ -136,3 +138,40 @@ def test_cuts_on_a_mirrored_board_are_mirrored(cut) -> None:
     reflected = bd.mirror(plain, bd.Plane.YZ.offset(150))
     assert mirrored.volume == pytest.approx(plain.volume)
     assert (mirrored - reflected).volume == pytest.approx(0, abs=1e-6)
+
+
+ROD = ww.Stock.rod(30, "oak")
+
+
+def test_rod_stock() -> None:
+    assert ROD.diameter == 30
+    assert ROD.round
+    with pytest.raises(ValueError, match="no diameter"):
+        _ = OAK.diameter
+
+
+def test_rod_is_a_box_with_virtual_long_sides() -> None:
+    rod = ww.Rod("rung", ROD, length=400)
+    assert isinstance(rod, ww.Part)
+    assert rod.box == ((0, 0, -30), (400, 30, 0))
+    assert rod.width == rod.thickness == rod.diameter == 30
+    assert rod.axis == (15, -15)
+    assert not rod.left_end.virtual
+    assert all(s.virtual for s in (rod.top_face, rod.bottom_face, rod.front_edge, rod.back_edge))
+    assert not make_board().top_face.virtual
+
+
+def test_rod_blank_is_a_cylinder() -> None:
+    rod = ww.Rod("rung", ROD, length=400)
+    blank = rod.blank((-20, 0, -30), (400, 30, 0))
+    assert blank.volume == pytest.approx(math.pi * 15**2 * 420)
+    box = blank.bounding_box()
+    assert tuple(box.min) == pytest.approx((-20, 0, -30), abs=1e-6)
+    assert tuple(box.max) == pytest.approx((400, 30, 0), abs=1e-6)
+
+
+def test_stock_must_match_the_part() -> None:
+    with pytest.raises(ValueError, match="make it a Rod"):
+        ww.Board("b", ROD, length=300, width=30)
+    with pytest.raises(ValueError, match="use Stock"):
+        ww.Rod("r", OAK, length=300)

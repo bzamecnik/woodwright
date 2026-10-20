@@ -6,6 +6,11 @@ part frame, measured on the design box; an infinite bound means the cut is
 open on that side (it runs out of the board), so it also goes through any
 allowance there. The cut list names such cuts by their shape, whichever class
 made them: a `Groove` at the very edge of a board is listed as a rabbet.
+
+Cuts that need the planar sides of a board (grooves, dados,
+rabbets, mortises, tenons, chamfers along an arris) refuse rods; a rod can
+be mitred at an end, tapered flat along a long side, flattened (`Flat`) or
+cut by a `Pocket`.
 """
 
 import functools
@@ -15,7 +20,7 @@ from dataclasses import dataclass
 
 import build123d as bd
 
-from woodwright.part import ArrisRef, Board, Side, SideRef
+from woodwright.part import ArrisRef, Board, Part, Side, SideRef
 
 _MIN = (bd.Align.MIN, bd.Align.MIN, bd.Align.MIN)
 _EPS = 1e-6
@@ -38,7 +43,7 @@ class Cut:
     side: SideRef
 
     @property
-    def part(self) -> Board:
+    def part(self) -> Part:
         return self.side.part
 
     def removal(self) -> bd.Part:
@@ -123,6 +128,7 @@ class Groove(BoxCut):
     stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a groove")
         if self.side.axis == 0:
             raise ValueError(f"a groove goes along the grain, not into {self.side}")
         if self.ref is None:
@@ -157,6 +163,7 @@ class Dado(BoxCut):
     stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a dado")
         if self.side.axis == 0:
             raise ValueError(f"a dado goes across the grain, not into {self.side}")
         if self.ref is None:
@@ -186,6 +193,7 @@ class Rabbet(BoxCut):
     stopped: dict[SideRef, float] | None = None
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a rabbet")
         _check_adjacent(self.side, self.at)
         _check_stops(self.side, self.stopped, along=3 - self.side.axis - self.at.axis)
 
@@ -218,6 +226,7 @@ class SlotMortise(BoxCut):
     ref: SideRef | None = None
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a slot mortise")
         if self.side.axis != 0:
             raise ValueError(f"a slot mortise goes into an end, not into {self.side}")
         if self.ref is None:
@@ -241,6 +250,9 @@ class Mortise(BoxCut):
     offset: float  # along the side's y
     width: float
     depth: float
+
+    def __post_init__(self) -> None:
+        _check_board(self.side, "a mortise")
 
     def unstopped_ranges(self) -> tuple[Range, Range, Range]:
         box = side_box(
@@ -318,6 +330,7 @@ class Tenon(Cut):
     thickness_gap: float = 0.0
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a tenon")
         if self.side.axis == 2:
             raise ValueError(f"a tenon is cut on an end or an edge, not on {self.side}")
         if self.count < 1:
@@ -759,6 +772,7 @@ class Tongue(Tenon):
     """
 
     def __post_init__(self) -> None:
+        _check_board(self.side, "a tongue")
         if self.side.axis == 2:
             raise ValueError(f"a tongue is cut on an edge or an end, not on {self.side}")
         if self.width is not None:
@@ -801,6 +815,9 @@ class DovetailTongue(Cut):
     slope: float = 7.0
     thickness_offset: float | None = None
     half: bool = False
+
+    def __post_init__(self) -> None:
+        _check_board(self.side, "a dovetail tongue")
 
     @property
     def across(self) -> int:
@@ -956,8 +973,11 @@ class Chamfer(Cut):
     size_b: float | None = None
     run_out: bool = False
 
+    def __post_init__(self) -> None:
+        _check_board(self.arris.a, "a chamfer along an arris ")
+
     @property
-    def part(self) -> Board:
+    def part(self) -> Part:
         return self.arris.a.part
 
     def removal(self) -> bd.Part:
@@ -1012,6 +1032,8 @@ class Mitre(Cut):
     def __post_init__(self) -> None:
         if self.side.axis == 2:
             raise ValueError(f"a mitre is cut on an end or an edge, not on {self.side}")
+        if self.side.virtual:
+            raise ValueError(f"a rod is mitred at its ends, not along {self.side}")
         _check_adjacent(self.side, self.inside)
         if self.side.axis == 1 and self.inside.axis != 2:
             raise ValueError(f"an edge is mitred towards a face, not towards {self.inside}")
@@ -1096,19 +1118,20 @@ class Taper(Cut):
 
     def describe(self) -> str:
         over = "" if self.length is None else f" over {self.length:g}"
-        return f"taper {self.amount:g} mm{over} on {self.side} towards {self.end}"
+        kind = "flat taper" if self.side.virtual else "taper"
+        return f"{kind} {self.amount:g} mm{over} on {self.side} towards {self.end}"
 
 
 @dataclass
 class ShapeCut(Cut):
     """An arbitrary build123d solid removed from a part, given in its frame."""
 
-    target: Board
+    target: Part
     shape: bd.Part
     name: str = "custom cut"
 
     @property
-    def part(self) -> Board:
+    def part(self) -> Part:
         return self.target
 
     def removal(self) -> bd.Part:
@@ -1129,6 +1152,13 @@ def side_box(
 
 
 # --- Helpers ----------------------------------------------------------------
+
+
+def _check_board(side: SideRef, what: str) -> None:
+    """Fail for cuts that need the planar sides of a board."""
+    if not isinstance(side.part, Board):
+        kind = type(side.part).__name__.lower()
+        raise ValueError(f"{what} needs a board, {side.part.name} is a {kind}")
 
 
 def _check_adjacent(side: SideRef, other: SideRef) -> None:
@@ -1203,7 +1233,7 @@ def _ranges(*given: tuple[int, Range]) -> tuple[Range, Range, Range]:
 
 
 def _open(
-    part: Board, ranges: tuple[Range, Range, Range], skip: int | None = None
+    part: Part, ranges: tuple[Range, Range, Range], skip: int | None = None
 ) -> tuple[Range, Range, Range]:
     """Make bounds open where they reach the sides of the design box."""
     lo, hi = part.box
@@ -1216,12 +1246,12 @@ def _open(
     return opened[0], opened[1], opened[2]
 
 
-def _margin(part: Board) -> float:
+def _margin(part: Part) -> float:
     """How far open cuts reach beyond the design box (to clear any allowance)."""
     return part.length + part.width + part.thickness
 
 
-def _box(part: Board, ranges: tuple[Range, Range, Range]) -> bd.Part:
+def _box(part: Part, ranges: tuple[Range, Range, Range]) -> bd.Part:
     lo, hi = part.box
     m = _margin(part)
     corner, size = [], []
@@ -1239,7 +1269,7 @@ def _unit(axis: int) -> bd.Vector:
     return bd.Vector(*coords)
 
 
-def _prism(part: Board, i: int, j: int, points: list[tuple[float, float]]) -> bd.Part:
+def _prism(part: Part, i: int, j: int, points: list[tuple[float, float]]) -> bd.Part:
     """A polygon in (i, j) coordinates of the part frame, through the part along the third axis."""
     t = 3 - i - j
     lo, hi = part.box

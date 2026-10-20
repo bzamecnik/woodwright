@@ -8,7 +8,7 @@ import build123d as bd
 
 from woodwright.cuts import BoxCut, Cut
 from woodwright.joints import Joint
-from woodwright.part import Board, Point
+from woodwright.part import Part, Point, Rod
 from woodwright.placement import Orientation
 
 
@@ -22,10 +22,10 @@ class Assembly:
     def __init__(self, name: str, root_location: Orientation | bd.Location | None = None) -> None:
         self.name = name
         self.root_location = root_location or bd.Location()
-        self.parts: list[Board] = []
+        self.parts: list[Part] = []
         self.joints: list[Joint] = []
 
-    def add(self, part: Board) -> Board:
+    def add[P: Part](self, part: P) -> P:
         self.parts.append(part)
         return part
 
@@ -37,6 +37,8 @@ class Assembly:
         """Fill in joint defaults, size the blanks, place the parts, collect cuts."""
         if not self.parts:
             raise ValueError(f"assembly {self.name} has no parts")
+        for joint in self.joints:
+            joint.check_parts()
         joints = [joint.with_defaults() for joint in self.joints]
         for joint in joints:
             for part in joint.parts():
@@ -47,6 +49,8 @@ class Assembly:
         allowances = [a for joint in joints for a in joint.allowances()]
         allowances += [a for part in self.parts for cut in part.cuts for a in cut.allowances()]
         for allowance in allowances:
+            if allowance.side.virtual:
+                raise ValueError(f"a rod is only extended at its ends, not at {allowance.side}")
             lo, hi = blanks[allowance.side.part]
             axis = allowance.side.axis
             if allowance.side.side.sign > 0:
@@ -80,7 +84,7 @@ class Assembly:
         ]
         return ResolvedModel(self.name, parts, joints)
 
-    def _place(self, links: list[_Link]) -> dict[Board, bd.Location]:
+    def _place(self, links: list[_Link]) -> dict[Part, bd.Location]:
         """Walk the joint graph from the root, then check joints closing loops."""
         root = self.parts[0]
         root_location = self.root_location
@@ -113,8 +117,8 @@ class _Link(NamedTuple):
     """Part b placed by a joint in the frame of part a."""
 
     joint: Joint
-    a: Board
-    b: Board
+    a: Part
+    b: Part
     placement: bd.Location
 
 
@@ -129,9 +133,7 @@ def _same_box(a: Cut, b: Cut) -> bool:
     )
 
 
-def _check_loop(
-    joint: Joint, a: Board, b: Board, expected: bd.Location, actual: bd.Location
-) -> None:
+def _check_loop(joint: Joint, a: Part, b: Part, expected: bd.Location, actual: bd.Location) -> None:
     points = [(0, 0, 0), (1000, 0, 0), (0, 1000, 0)]
     error = max(
         ((expected * bd.Location(p)).position - (actual * bd.Location(p)).position).length
@@ -148,22 +150,21 @@ def _check_loop(
 class ResolvedPart:
     """A part with its blank, its cuts and its location in the assembly."""
 
-    part: Board
+    part: Part
     blank: tuple[Point, Point]  # min and max corners in the part frame
     cuts: list[Cut]
     location: bd.Location
 
     @property
     def size(self) -> tuple[float, float, float]:
-        """Cut dimensions: length, width, thickness."""
+        """Cut dimensions: length, width, thickness (for a rod, the diameter twice)."""
         lo, hi = self.blank
         return hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]
 
     @cached_property
     def shape(self) -> bd.Part:
         """Blank minus all cuts, in the part frame."""
-        lo = self.blank[0]
-        shape = bd.Pos(*lo) * bd.Box(*self.size, align=(bd.Align.MIN,) * 3)
+        shape = self.part.blank(*self.blank)
         for cut in self.cuts:
             shape -= cut.removal()
         shape.label = self.part.name
@@ -182,7 +183,7 @@ class ResolvedModel:
     parts: list[ResolvedPart]
     joints: list[Joint]
 
-    def __getitem__(self, part: Board) -> ResolvedPart:
+    def __getitem__(self, part: Part) -> ResolvedPart:
         for resolved in self.parts:
             if resolved.part is part:
                 return resolved
@@ -195,6 +196,8 @@ class ResolvedModel:
         for resolved in self.parts:
             part = resolved.part
             size = " x ".join(f"{x:g}" for x in resolved.size)
+            if isinstance(part, Rod):
+                size = f"ø{part.diameter:g} x {resolved.size[0]:g}"
             line = f"{part.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip()
             lines.append(line + ", mirror image" if part.mirror else line)
             lines.extend(f"{'':<{name_width}}  - {cut.describe()}" for cut in resolved.cuts)

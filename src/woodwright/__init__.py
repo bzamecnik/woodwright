@@ -53,7 +53,7 @@ from woodwright.joints import (
     TuskTenon,
     WedgedMortiseTenon,
 )
-from woodwright.part import ArrisRef, Board, Side, SideRef
+from woodwright.part import ArrisRef, Board, Part, Rod, Side, SideRef
 from woodwright.placement import (
     BACK,
     DOWN,
@@ -123,12 +123,14 @@ __all__ = [
     "MortiseTenon",
     "Offset",
     "Orientation",
+    "Part",
     "Pocket",
     "Position",
     "Rabbet",
     "RabbetJoint",
     "ResolvedModel",
     "ResolvedPart",
+    "Rod",
     "ShapeCut",
     "Side",
     "SideRef",

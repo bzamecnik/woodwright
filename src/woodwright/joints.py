@@ -32,7 +32,7 @@ from woodwright.cuts import (
     Tongue,
     WedgedTenon,
 )
-from woodwright.part import Board, Side, SideRef
+from woodwright.part import Board, Part, Side, SideRef
 from woodwright.placement import CENTERED, FLUSH, Position, flush_with, mate, offset
 
 __all__ = [
@@ -79,8 +79,15 @@ class Joint:
     joints defined in a shared region can map geometry between the parts.
     """
 
-    def parts(self) -> tuple[Board, Board]:
+    def parts(self) -> tuple[Part, Part]:
         raise NotImplementedError
+
+    def check_parts(self) -> None:
+        """Fail early if the joint can't join its parts, e.g. a rod into a dado."""
+        for part in self.parts():
+            if not isinstance(part, Board):
+                kind = type(part).__name__.lower()
+                raise ValueError(f"a {type(self).__name__} joins boards, {part.name} is a {kind}")
 
     def with_defaults(self) -> Self:
         """A copy with every unset parameter filled in from the rules."""
@@ -134,8 +141,14 @@ class Butt(Joint):
     flush: tuple[SideRef, SideRef] | None = None
     angle: float = 0.0
 
-    def parts(self) -> tuple[Board, Board]:
+    def parts(self) -> tuple[Part, Part]:
         return self.a.part, self.b.part
+
+    def check_parts(self) -> None:
+        # A rod butts with its end; along its length it would touch on a line.
+        for side in (self.a, self.b):
+            if side.virtual:
+                raise ValueError(f"a rod butts against a part with its end, not with {side}")
 
     def placement(self) -> bd.Location:
         flush = self.flush or default_flush(self.a, self.b)

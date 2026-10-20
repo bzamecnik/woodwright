@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import build123d as bd
 
-from woodwright.part import ArrisRef, Board, Point, SideRef
+from woodwright.part import ArrisRef, Part, Point, SideRef
 
 # Directions in the assembly, as seen by a viewer in front of it: X to the
 # right, Y away from the viewer (to the back), Z up.
@@ -146,7 +146,7 @@ class Orientation:
         if len(self.facing) != 2:
             raise ValueError("orient a part by the directions of exactly two of its sides")
 
-    def location(self, part: Board) -> bd.Location:
+    def location(self, part: Part) -> bd.Location:
         """Location of `part` in the assembly."""
         (a, da), (b, db) = self.facing.items()
         side_a, side_b = getattr(part, a), getattr(part, b)

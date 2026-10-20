@@ -1,5 +1,7 @@
 """Resolving assemblies, checked against the plain build123d versions of the examples."""
 
+import math
+
 import build123d as bd
 import pytest
 
@@ -131,3 +133,48 @@ def _volume(shape) -> float:
     if shape is None:
         return 0.0
     return sum(s.volume for s in shape) if isinstance(shape, list) else shape.volume
+
+
+ROD = ww.Stock.rod(25, "oak")
+
+
+def test_rod_resolves_to_a_cylinder_listed_by_its_diameter() -> None:
+    asm = ww.Assembly("rail")
+    rod = asm.add(ww.Rod("rung", ROD, length=380))
+    model = asm.resolve()
+    assert model[rod].shape.volume == pytest.approx(math.pi * 12.5**2 * 380)
+    assert model[rod].size == (380, 25, 25)
+    assert model.cut_list() == "rung  ø25 x 380 mm  oak"
+
+
+def test_rod_butts_with_its_end() -> None:
+    asm = ww.Assembly("peg_on_board")
+    board = asm.add(ww.Board("board", OAK, length=300, width=100))
+    peg = asm.add(ww.Rod("peg", ROD, length=80))
+    asm.join(ww.Butt(board.top_face, peg.left_end, across=ww.centered()))
+    model = asm.resolve()
+    # Standing up from the middle of the board, its axis over the center.
+    assert bbox(model[peg].placed_shape) == (137.5, 37.5, 0, 162.5, 62.5, 80)
+
+    asm.joints[0] = ww.Butt(board.top_face, peg.bottom_face)
+    with pytest.raises(ValueError, match="with its end, not with peg"):
+        asm.resolve()
+
+
+def test_joints_for_boards_refuse_rods() -> None:
+    asm = ww.Assembly("dado")
+    board = asm.add(ww.Board("board", OAK, length=300, width=100))
+    rod = asm.add(ww.Rod("rung", ROD, length=200))
+    asm.join(ww.DadoJoint(board.top_face, rod.left_end))
+    with pytest.raises(ValueError, match="a DadoJoint joins boards, rung is a rod"):
+        asm.resolve()
+
+
+def test_rod_is_only_extended_at_its_ends() -> None:
+    asm = ww.Assembly("rod")
+    rod = asm.add(ww.Rod("rung", ROD, length=200))
+    rod.cut(ww.ShapeCut(rod, bd.Box(1, 1, 1)))
+    asm.resolve()
+    rod.cuts[0].allowances = lambda: [ww.Allowance(rod.top_face, 5)]
+    with pytest.raises(ValueError, match="only extended at its ends"):
+        asm.resolve()
