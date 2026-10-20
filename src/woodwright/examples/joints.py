@@ -912,41 +912,44 @@ def tusk_tenon_flat(
 def dowel_tusk_tenon(
     leg_length: float = 500,
     stretcher_length: float = 400,
-    width: float = 150,
+    width: float = 240,
     tusk_diameter: float = 20,
-    tusk_length: float = 120,
+    tusk_length: float = 100,
 ) -> Assembly:
-    """A tusk tenon held by a dowel (after Rex Krueger's workbench): a
-    stretcher through a 70 mm square leg, held by a tapered dowel through
-    its tenon, level, its head towards the viewer.
+    """A tusk tenon held by dowels (after Rex Krueger's workbench): a wide
+    stretcher through a 70 mm square leg, held by two tapered dowels through
+    its tenon, level, their heads towards the viewer.
 
-    The 45 x 150 mm stretcher's tenon is as thick as the stretcher and a
-    third as wide, standing out of the leg by as much as the leg is wide,
-    with big chamfers at its corners. The tusk, a `tusk_diameter` dowel
-    `tusk_length` long, has a flat planed over its tip half, tapering 1:12,
-    and goes through a straight hole bored through the tenon; behind the
-    tenon its flat bears on a half dowel lying across it on the leg, rocking
-    on its round side. Knocked out, the tusk frees the stretcher.
+    The 45 mm thick stretcher's tenon is as thick as the stretcher and 100
+    mm wide, standing out of the leg by as much as the leg is wide, with big
+    chamfers at its corners. The tusks, `tusk_diameter` dowels `tusk_length`
+    long, have flats planed over their tip halves, tapering 1:12.5, and go
+    through straight holes in the second and the fourth fifth of the tenon;
+    behind the tenon their flats bear on the round top of a half dowel
+    glued flat side down across the leg. Knocked out, the tusks free the
+    stretcher.
     """
     asm = Assembly("dowel_tusk_tenon", root_location=orient(right_end=UP, back_edge=LEFT))
     leg = asm.add(Board("leg", POST_STOCK, length=leg_length, width=POST_STOCK.thickness))
     stretcher = asm.add(Board("stretcher", LEG_STOCK, length=stretcher_length, width=width))
     dowel = Stock.rod(diameter=tusk_diameter, species="oak")
-    tusk = asm.add(Rod("tusk", dowel, length=tusk_length))
-    bearing = asm.add(Rod("bearing", dowel, length=30))
+    tusks = tuple(asm.add(Rod(f"tusk_{i + 1}", dowel, length=tusk_length)) for i in range(2))
+    tenon = 100
+    bearing = asm.add(Rod("bearing", dowel, length=tenon))
     asm.join(
         DowelTuskTenon(
             tenon=stretcher.left_end,
             mortise=leg.back_edge,
-            position=offset(80, ref=leg.right_end),
+            position=offset(60, ref=leg.right_end),
             across=CENTERED,
-            shoulder=width / 3,
+            shoulder=(width - tenon) / 2,
             tenon_thickness=LEG_STOCK.thickness,
             tenon_chamfer=2,
-            tenon_corner_chamfer=15,
-            tusks=(tusk,),
+            tenon_corner_chamfer=20,
+            tusks=tusks,
             bearings=(bearing,),
             tusk_head=leg.top_face,
+            tusk_slope=12.5,
             protrusion=POST_STOCK.thickness,
         )
     )

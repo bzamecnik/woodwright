@@ -631,8 +631,10 @@ Done on 2026-10-20 (with M8): a stool and a step stool on round legs wedged
 through the seat (straight; splayed legs need F2), a coat rack, screws in
 the table's buttons and the ledged door. Later the same day: a workbench
 after Rex Krueger's Quick Stack (rails lapped and let in partly,
-`HalfLap.proud`; dowel tusk tenons, `DowelTuskTenon`; big chamfers at the
-corners of tenons, `Tenon.corner_chamfer`).
+`HalfLap.proud`, dovetail laps stopped short of the end of the leg,
+`DovetailHalfLap.stopped`; dowel tusk tenons, `DowelTuskTenon`; big
+chamfers at the corners of tenons, `Tenon.corner_chamfer`; a reversible
+tray).
 
 ### M8: Round stock, holes and round tenons ✅ mostly done
 
@@ -730,9 +732,10 @@ tenons).
   taper driven through the hole, tightening where its taper bears on the
   round of the glued half. A variant of `TuskTenon` whose wedge is a tapered
   rod and whose bearing is a separate half-round piece. ✅ `DowelTuskTenon`
-  (2026-10-20): the half dowel lies across the tusk, behind the tenon, on
-  its round side (it rocks to lie flat against the tusk's flat, which tapers
-  over the tip half only); not glued in the model.
+  (2026-10-20): the half dowel is glued flat side down across the tusks,
+  behind the tenon; the tusk's flat (tapered at its tip only) stays tangent
+  to its round top as the tusk is driven in. Two tusks in the second and the
+  fourth fifth of the tenon.
 - Screws as annotated holes (A8): a pilot hole, a clearance hole and a
   countersink or counterbore (buttons, battens, ledged doors). The screw
   itself as hardware later.

@@ -160,7 +160,9 @@ Done items name their example in `woodwright.examples`
       `DovetailHalfLap`, `joints.dovetail_half_lap` (at a corner a half dovetail, sloped at
       the inner edge)
     - [x] partly let in, the lap a half dovetail (flat at the bottom, sloped at the top), in a
-      notch open at the end of the leg – `joints.let_in_dovetail_rail`
+      notch open at the end of the leg – `joints.let_in_dovetail_rail`; stopped short of the
+      end of the leg, the tail cut back from the rail's edge – `DovetailHalfLap(stopped=...)`,
+      in `projects.workbench`
   - wedged mortise and tenon
     - [x] through half-dovetail mortise with edges angled outward – `WedgedMortiseTenon`,
       `joints.wedged_through_tenon`
@@ -179,9 +181,9 @@ Done items name their example in `woodwright.examples`
     - [x] the wedge perpendicular to the stile (level, through the tenon's thickness) –
       `joints.tusk_tenon_flat`
     - the second mortise can go through the face or through the edge
-    - [x] dowel tusks (after Rex Krueger): dowels with a flat tapered over their tip half through
-      straight holes in the tenon, bearing on half dowels lying across them on the leg, rocking
-      on their round sides – `DowelTuskTenon`,
+    - [x] dowel tusks (after Rex Krueger): dowels with a flat tapered at their tips through
+      straight holes in the tenon (two in its second and fourth fifth), the flats bearing on the
+      round top of a half dowel glued flat side down across the leg – `DowelTuskTenon`,
       `joints.dowel_tusk_tenon`
   - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
     `joints.stub_tenon_corner` (no inner shoulder, a plain outer one, no haunch)
@@ -248,5 +250,7 @@ Done items name their example in `woodwright.examples`
     - stretchers with through tusk tenons (dowel tusks, big chamfers at the tenons' corners –
       `MortiseTenon(tenon_corner_chamfer=...)`)
     - desk (covering the front half) made of beams glued up by face
-    - drawer (covering the back half): an open box (a tray), its walls butted on the bottom
-    - top and tray located on the upper rails by dowels
+    - drawer (covering the back half): a tray with the bottom between its walls, flush with
+      their lower edges, to be used either way up
+    - top and tray located on the upper rails by dowels (holes in both edges of the tray's
+      walls for turning it over)
