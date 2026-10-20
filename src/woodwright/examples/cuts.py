@@ -1,24 +1,32 @@
-"""Cuts on a single board."""
+"""Cuts on a single part: a board, or a rod of round stock."""
 
 from woodwright.assembly import Assembly
 from woodwright.cuts import (
     Chamfer,
     Dado,
+    EndChamfer,
     EndRabbet,
+    Flat,
     Groove,
+    Hole,
     Mitre,
     Mortise,
     Rabbet,
+    RoundTaper,
     SlotMortise,
     Taper,
     Tenon,
     Tongue,
 )
-from woodwright.examples._common import THIN_OAK
-from woodwright.part import Board
+from woodwright.examples._common import OAK, THIN_OAK
+from woodwright.part import Board, Rod
 from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=40, species="oak")
+DOWEL_OAK = Stock.rod(diameter=10, species="oak")
+THICK_DOWEL_OAK = Stock.rod(diameter=16, species="oak")
+ROD_OAK = Stock.rod(diameter=25, species="oak")
+LEG_OAK = Stock.rod(diameter=40, species="oak")
 
 
 def _board(
@@ -200,4 +208,188 @@ def tapered_leg(
     asm, board = _board("tapered_leg", Stock.board(thickness=40, species="oak"), length, width)
     for side in (board.back_edge, board.bottom_face):
         board.cut(Taper(side, end=board.left_end, amount=taper, length=taper_length))
+    return asm
+
+
+# --- Holes ------------------------------------------------------------------
+
+
+def through_hole(diameter: float = 20, stock: Stock = THICK_OAK) -> Assembly:
+    """A hole through a board, 80 from its left end, centered across it."""
+    asm, board = _board("through_hole", stock, length=300, width=100)
+    board.cut(Hole(board.top_face, diameter, at={board.left_end: 80}))
+    return asm
+
+
+def blind_hole(
+    diameter: float = 12, depth: float = 25, point: float | None = None, stock: Stock = THICK_OAK
+) -> Assembly:
+    """Blind holes, flat-bottomed (Forstner, auger) or with `point`, the
+    angle of a twist drill's tip, a conical point below `depth`."""
+    asm, board = _board("blind_hole", stock, length=300, width=100)
+    for distance in (60, 150, 240):
+        at = {board.left_end: distance, board.front_edge: 35}
+        board.cut(Hole(board.top_face, diameter, depth=depth, at=at, point=point))
+    return asm
+
+
+def counterbored_hole(stock: Stock = OAK) -> Assembly:
+    """A clearance hole for a 5 mm screw, counterbored for its head and a
+    10 mm plug over it, e.g. in a batten screwed to a door."""
+    asm, board = _board("counterbored_hole", stock, length=300, width=60)
+    for end in (board.left_end, board.right_end):
+        board.cut(Hole(board.top_face, 5.5, at={end: 40}, counterbore=10, counterbore_depth=8))
+    return asm
+
+
+def countersunk_hole(stock: Stock = OAK) -> Assembly:
+    """Clearance holes for 5 mm screws, countersunk for their heads (90 degrees)."""
+    asm, board = _board("countersunk_hole", stock, length=300, width=60)
+    for end in (board.left_end, board.right_end):
+        board.cut(Hole(board.top_face, 5.5, at={end: 40}, countersink=11))
+    return asm
+
+
+def tapered_hole(stock: Stock = THICK_OAK) -> Assembly:
+    """Reamed, tapered holes through a Windsor seat for the legs, wider below.
+
+    The legs aren't splayed yet (angled holes come later)."""
+    asm, board = _board("tapered_hole", stock, length=420, width=380)
+    for end in (board.left_end, board.right_end):
+        for edge in (board.front_edge, board.back_edge):
+            board.cut(Hole(board.bottom_face, 28, bottom_diameter=20, at={end: 70, edge: 70}))
+    return asm
+
+
+def shelf_pin_holes(
+    height: float = 700,
+    depth: float = 300,
+    pitch: float = 32,
+    count: int = 12,
+    stock: Stock = OAK,
+) -> Assembly:
+    """Two rows of 5 mm holes, 12 deep, in the inside of a case side for
+    shelf pins, `pitch` apart (the 32 mm system), 37 from the edges."""
+    asm, board = _board("shelf_pin_holes", stock, length=height, width=depth)
+    start = (height - (count - 1) * pitch) / 2
+    for i in range(count):
+        for edge in (board.front_edge, board.back_edge):
+            at = {board.left_end: start + i * pitch, edge: 37}
+            board.cut(Hole(board.top_face, 5, depth=12, at=at, point=118))
+    return asm
+
+
+def dowel_holes(diameter: float = 8, stock: Stock = OAK) -> Assembly:
+    """Holes for dowels: in an edge, for an edge joint (half the dowel's
+    length, 15, deep), and in an end, for a frame corner (25 deep)."""
+    asm, board = _board("dowel_holes", stock, length=400, width=80)
+    for distance in (50, 200, 350):
+        board.cut(Hole(board.front_edge, diameter, depth=15, at={board.left_end: distance}))
+    for distance in (20, 60):
+        board.cut(Hole(board.right_end, diameter, depth=25, at={board.front_edge: distance}))
+    return asm
+
+
+def chamfered_foot(size: float = 3, stock: Stock = THICK_OAK) -> Assembly:
+    """A square leg chamfered around its foot, so that it doesn't splinter."""
+    asm, board = _board("chamfered_foot", stock, length=450, width=40)
+    board.cut(EndChamfer(board.left_end, size))
+    return asm
+
+
+# --- Rods -------------------------------------------------------------------
+
+
+def _rod(name: str, stock: Stock, length: float) -> tuple[Assembly, Rod]:
+    asm = Assembly(name)
+    rod = asm.add(Rod("rod", stock, length=length))
+    return asm, rod
+
+
+def rod(length: float = 380, stock: Stock = ROD_OAK) -> Assembly:
+    """A plain rod, e.g. a ladder rung, a rail: round stock cut to length."""
+    asm, _ = _rod("rod", stock, length)
+    return asm
+
+
+def dowel(length: float = 40, chamfer: float = 1, stock: Stock = DOWEL_OAK) -> Assembly:
+    """A dowel chamfered at both ends, so that it enters its holes."""
+    asm, dowel = _rod("dowel", stock, length)
+    for end in (dowel.left_end, dowel.right_end):
+        dowel.cut(EndChamfer(end, chamfer))
+    return asm
+
+
+def peg(length: float = 60, point: float = 15, stock: Stock = DOWEL_OAK) -> Assembly:
+    """A peg (a pin) pointed at its right end, e.g. for a drawbored tenon;
+    its other end is chamfered."""
+    asm, peg = _rod("peg", stock, length)
+    peg.cut(RoundTaper(peg.right_end, 0, length=point))
+    peg.cut(EndChamfer(peg.left_end, 1))
+    return asm
+
+
+def round_tapered_leg(
+    length: float = 450,
+    foot: float = 28,
+    taper_length: float = 300,
+    stock: Stock = LEG_OAK,
+) -> Assembly:
+    """A round leg tapering (a cone, as turned) towards its foot over its
+    lower part, chamfered around the foot."""
+    asm, leg = _rod("round_tapered_leg", stock, length)
+    leg.cut(RoundTaper(leg.left_end, foot, length=taper_length))
+    leg.cut(EndChamfer(leg.left_end, 2))
+    return asm
+
+
+def tapered_rod(length: float = 300, stock: Stock = ROD_OAK) -> Assembly:
+    """A rod tapering to a cone over its whole length, e.g. a spindle."""
+    asm, rod = _rod("tapered_rod", stock, length)
+    rod.cut(RoundTaper(rod.right_end, 15))
+    return asm
+
+
+def flat_tapered_dowel(
+    length: float = 120, amount: float = 8, stock: Stock = THICK_DOWEL_OAK
+) -> Assembly:
+    """A dowel tapered flat (a sloping plane, not a cone) on one side
+    towards its right end, e.g. a wedge driven through the tenon of a
+    dowel tusk joint."""
+    asm, rod = _rod("flat_tapered_dowel", stock, length)
+    rod.cut(Taper(rod.top_face, end=rod.right_end, amount=amount, length=length - 20))
+    return asm
+
+
+def half_dowel(length: float = 120, stock: Stock = THICK_DOWEL_OAK) -> Assembly:
+    """A dowel ripped in half along its length, its flat side down: e.g. the
+    bearing of a dowel tusk wedge, glued flat on a board."""
+    asm, rod = _rod("half_dowel", stock, length)
+    rod.cut(Flat(rod.bottom_face, stock.diameter / 2))
+    return asm
+
+
+def rod_with_flats(length: float = 380, stock: Stock = ROD_OAK) -> Assembly:
+    """A rod with flats planed at both ends on its underside, e.g. where it
+    lies on a pair of brackets, so that it doesn't roll."""
+    asm, rod = _rod("rod_with_flats", stock, length)
+    rod.cut(Flat(rod.bottom_face, 3, stopped={rod.right_end: length - 50}))
+    rod.cut(Flat(rod.bottom_face, 3, stopped={rod.left_end: length - 50}))
+    return asm
+
+
+def mitred_rod(angle: float = 45, stock: Stock = ROD_OAK) -> Assembly:
+    """A rod mitred at both ends, e.g. a towel rail's corner."""
+    asm, rod = _rod("mitred_rod", stock, 300)
+    for end in (rod.left_end, rod.right_end):
+        rod.cut(Mitre(end, inside=rod.back_edge, angle=angle))
+    return asm
+
+
+def drilled_rod(length: float = 200, stock: Stock = ROD_OAK) -> Assembly:
+    """A rod with a cross hole through it near one end (e.g. for a peg) and
+    a blind hole into its other end, on its axis (e.g. for a dowel)."""
+    asm, rod = _rod("drilled_rod", stock, length)
+    rod.cut(Hole(rod.top_face, 8, at={rod.left_end: 25}))
+    rod.cut(Hole(rod.right_end, 10, depth=30, point=118))
     return asm

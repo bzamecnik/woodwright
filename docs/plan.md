@@ -626,7 +626,7 @@ frame, butt and dovetail shelves, rabbeted box, shoji frame, shiplap and
 loose-tongue panels, a stopped dado shelf). Open: the step stool's legs
 (round, splayed: M8 and F2), the workbench.
 
-### M8: Round stock, holes and round tenons (proposal)
+### M8: Round stock, holes and round tenons 🟡 started
 
 Everything so far assumes a rectangular blank: `Board` has a box, six
 planar sides, twelve arrises, and `ResolvedPart.shape` starts from a
@@ -769,18 +769,42 @@ Decided (with the user, 2026-10-18):
   not on the axis. A rod is a box with its long arrises rounded off; even a
   turned leg is still thought of as a box, sometimes with a square head.
 - The long sides of the bounding box are kept as sides (for placement,
-  cross holes, flats, tapers, and the orientation of a wedge's kerf). Open:
-  whether they are `SideRef`s with a flag or a separate type.
+  cross holes, flats, tapers, and the orientation of a wedge's kerf).
 - Fits such as pegs and drawbores are noted in the cut list, not modelled:
   the geometry shows the assembled state (the peg straight, deformed in
   reality as it pulls the tenon in), as for the wedged tenons. The model
   needn't be accurate about wood's elasticity.
 
-**[OPEN]**
+**Status.** Steps 1 and 2 done on 2026-10-20:
 
-- The interference check needs a tolerance with cylinders, as they are
-  tessellated for STL and SVG and volumes are approximate.
-- Hidden-line SVG views of cylinders (silhouette edges) need a check.
+- `Part` is the base of `Board` and `Rod`, each with its own `blank()`
+  (a box or a cylinder along x); `Stock.rod(diameter)` (a `Stock` with
+  `round`). A rod's long sides are `SideRef`s like any other, with
+  `SideRef.virtual` true. Allowances on them are refused. The cut list
+  gives "ø25 x 380 mm".
+- Joints check their parts (`Joint.check_parts`) before resolving: all
+  of them join boards, except `Butt`, which takes a rod's end (not a long
+  side, a line contact). Cuts needing planar sides refuse rods: grooves,
+  dados, rabbets, slot mortises, mortises, tenons, dovetail tongues and
+  `Chamfer` along an arris. A rod can be mitred at an end, tapered flat
+  on a long side (listed as a flat taper) and cut by a `Pocket`.
+- `Hole(side, diameter, depth=None, at={side: distance, ...})`, centered
+  across any axis not given: through or blind, flat-bottomed or with a
+  drill `point`, `bottom_diameter` for a tapered (reamed or flared) hole,
+  `counterbore` + `counterbore_depth` or `countersink` (+ angle). Holes
+  into a rod's end (on its axis by default) and across it.
+- New round cuts: `EndChamfer` (around an end: the four arrises of a
+  board, a cone on a rod), `RoundTaper` (a cone towards an end, to a
+  point with diameter 0), `Flat` (along a rod, stoppable; a half dowel).
+- Board examples' outputs (STL, cut lists) stayed byte-identical.
+- The open questions turned out fine: the interference check intersects
+  exact B-rep solids (not the tessellation), so it needs no tolerance so
+  far, and the hidden-line views draw the cylinders' silhouettes.
+
+Open: identical cuts aren't grouped in the cut list (24 shelf-pin holes
+are 24 lines; with A3); a flat at one end is given as stopped short of the
+other end (a length from an end would read better); round tenons and the
+joints on them (steps 3–5).
 
 ### Next steps: backlog (to be prioritized)
 

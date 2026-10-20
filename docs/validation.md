@@ -9,7 +9,7 @@ Done items name their example in `woodwright.examples`
 
 - single piece in different dimensions
   - [x] rectangular board
-  - [ ] cylindrical dowel/rod
+  - [x] cylindrical dowel/rod – `Rod`, `Stock.rod`: `cuts.rod`
 - cuts
   - [x] cross - across the grain (implicit: a `Board` is cut to size)
   - [x] rip - along the grain (implicit: a `Board` is cut to size)
@@ -37,10 +37,23 @@ Done items name their example in `woodwright.examples`
     derived by `SlidingDovetail`, in `joints.sliding_dovetail_shelf`
   - [x] dovetail tongue - tongue where the sides are not perpendicular, but angled outward –
     `DovetailTongue`, in `joints.sliding_dovetail_shelf`
-  - drilled hole
-    - [ ] through
-    - [ ] blind
-    - [ ] chamfered hole (countersink)
+  - [x] end chamfer - around the end of a board or a rod (a cone) – `cuts.chamfered_foot`,
+    `cuts.dowel`
+  - drilled hole – `Hole`
+    - [x] through – `cuts.through_hole`
+    - [x] blind – flat-bottomed or with a drill point: `cuts.blind_hole`, `cuts.shelf_pin_holes`,
+      in an edge and an end: `cuts.dowel_holes`
+    - [x] chamfered hole (countersink) – `cuts.countersunk_hole`
+    - [x] counterbored hole - for a screw head and a plug – `cuts.counterbored_hole`
+    - [x] tapered (reamed) hole – `cuts.tapered_hole` (straight; splayed holes later)
+    - [x] holes in a rod - a cross hole and one into its end – `cuts.drilled_rod`
+  - cuts on round stock
+    - [x] round taper - a cone, as turned – `cuts.round_tapered_leg`, `cuts.tapered_rod`
+    - [x] point - a peg or a stake – `cuts.peg`
+    - [x] flat taper - a sloping plane on one side – `cuts.flat_tapered_dowel`
+    - [x] flat - a rod ripped or planed flat along its length – `cuts.half_dowel`,
+      stopped: `cuts.rod_with_flats`
+    - [x] end mitre – `cuts.mitred_rod`
 - joints
   - butt joint (glued)
     - [x] edges - panel – `joints.butt_panel`
