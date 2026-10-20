@@ -435,6 +435,19 @@ def test_tenon_with_a_chamfered_end() -> None:
     assert pytest.approx((8, -11, 52, -9), abs=1e-2) == (box.min.Y, box.min.Z, box.max.Y, box.max.Z)
 
 
+def test_tenon_with_chamfered_corners() -> None:
+    rail = ww.Board("rail", OAK, length=300, width=60)
+    tenon = ww.Tenon(rail.left_end, length=65, thickness=8, width=50, corner_chamfer=20)
+    assert tenon.describe() == (
+        "tenon 50 x 8 mm, 65 long, corners chamfered 20 mm, on rail.left_end"
+    )
+    shape = cut_part(rail, tenon)
+    # Two triangles, 20 mm each way, through the tenon's thickness.
+    assert shape.volume == pytest.approx(300 * 60 * 20 + 50 * 8 * 65 - 2 * 20 * 20 / 2 * 8)
+    with pytest.raises(ValueError, match="within half the tenon"):
+        ww.Tenon(rail.left_end, length=65, thickness=8, width=50, corner_chamfer=25)
+
+
 def test_tenon_chamfer_must_fit() -> None:
     rail = ww.Board("rail", OAK, length=300, width=60)
     with pytest.raises(ValueError, match="thinner than half"):

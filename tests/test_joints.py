@@ -276,29 +276,31 @@ def test_half_lap_standing_proud_must_reach_in(kw: dict, message: str) -> None:
         asm.resolve()
 
 
-def test_dovetail_half_lap_standing_proud_shapes_only_the_inner_half() -> None:
+def test_dovetail_half_lap_standing_proud() -> None:
     asm, stile, rail = stile_and_rail()
     asm.join(
         ww.DovetailHalfLap(
             lap=rail.left_end,
             socket=stile.back_edge,
             position=ww.flush_with(stile.right_end),
-            lap_thickness=20,
             over=True,
-            proud=10,
+            proud=5,
             slope=4,
             sloped=(rail.front_edge,),
         )
     )
     model = asm.resolve()
-    assert cuts(model, stile) == ["dovetail socket 30 to 40 mm, 10 deep, 1:4, in stile.top_face"]
+    assert cuts(model, stile) == ["dovetail socket 30 to 40 mm, 5 deep, 1:4, in stile.top_face"]
     assert cuts(model, rail) == [
-        "half-dovetail tail 10 mm deep, 40 long, 30 wide at the shoulder, 1:4, on rail.left_end"
+        "half-dovetail lap 10 mm thick, 40 long, 30 wide at the shoulder, 1:4, on rail.left_end"
     ]
-    # The triangle beside the tail, 40 long and 10 across at the shoulder, 10 deep.
-    triangle = 40 * 10 / 2 * 10
-    assert model[rail].shape.volume == pytest.approx(240 * 40 * 20 - triangle)
-    assert model[stile].shape.volume == pytest.approx(300 * 40 * 20 - (40 * 40 * 10 - triangle))
+    # The rail stands 5 mm out of the stile's top face.
+    assert bbox(model[rail].placed_shape) == (260, 0, -15, 300, 240, 5)
+    # The triangle beside the tail, 40 long and 10 across at the shoulder,
+    # through the lap, but only 5 deep in the socket.
+    triangle = 40 * 10 / 2
+    assert model[rail].shape.volume == pytest.approx(240 * 40 * 20 - 40 * 40 * 10 - triangle * 10)
+    assert model[stile].shape.volume == pytest.approx(300 * 40 * 20 - (40 * 40 - triangle) * 5)
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
@@ -1392,15 +1394,17 @@ def test_tusk_tenon_with_the_wedge_perpendicular_to_the_stile() -> None:
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
-def _dowel_tusk_tenon(tusks: int = 2, bearings: bool = True, **kw) -> tuple:
+def _dowel_tusk_tenon(tusks: int = 1, bearings: int | None = None, **kw) -> tuple:
     asm = ww.Assembly("test")
     stile = asm.add(ww.Board("stile", ww.Stock.board(60, "oak"), length=400, width=60))
     rail = asm.add(ww.Board("rail", ww.Stock.board(30, "oak"), length=200, width=120))
     dowel = ww.Stock.rod(20, "oak")
-    rods = tuple(asm.add(ww.Rod(f"tusk_{i + 1}", dowel, length=96)) for i in range(tusks))
+    length = kw.pop("tusk_length", 120)
+    bearing_length = kw.pop("bearing_length", 30)
+    rods = tuple(asm.add(ww.Rod(f"tusk_{i + 1}", dowel, length=length)) for i in range(tusks))
     halves = tuple(
-        asm.add(ww.Rod(f"bearing_{i + 1}", dowel, length=15))
-        for i in range(2 * tusks if bearings else 0)
+        asm.add(ww.Rod(f"bearing_{i + 1}", dowel, length=bearing_length))
+        for i in range(tusks if bearings is None else bearings)
     )
     asm.join(
         ww.DowelTuskTenon(
@@ -1419,48 +1423,42 @@ def _dowel_tusk_tenon(tusks: int = 2, bearings: bool = True, **kw) -> tuple:
 
 
 def test_dowel_tusk_tenon() -> None:
-    asm, stile, rail, tusks, bearings = _dowel_tusk_tenon()
+    asm, stile, rail, (tusk,), (bearing,) = _dowel_tusk_tenon()
     model = asm.resolve()
-    # Through the stile and proud by the bearings and 2.5 tusk diameters.
-    assert model.joints[0].tenon_length == 60 + 10 + 50
+    # The hole's inner edge 7.5 mm off the stile (the bearing's radius less
+    # half the flat's depth, 60 / 12 at the tip); the tenon stands out 1.5
+    # tusk diameters beyond the hole.
+    assert model.joints[0].tenon_length == 60 + 27.5 + 30
     assert cuts(model, stile) == ["through mortise 80 x 30 mm in stile.back_edge"]
     assert cuts(model, rail) == [
-        "tenon 80 x 30 mm, 120 long, on rail.left_end",
-        "2 holes ø20 for tusks through the tenon on rail.left_end, bored at 1:12 to "
-        "stile.front_edge, 6 mm off it at the middle, 4 below the tops of the bearings",
+        "tenon 80 x 30 mm, 117.5 long, on rail.left_end",
+        "a hole ø20 for tusks through the tenon on rail.left_end, parallel to "
+        "stile.front_edge, 7.5 mm off it",
     ]
-    assert cuts(model, tusks[0]) == [
-        "flat taper 8 mm on tusk_1.front_edge towards tusk_1.right_end"
+    assert cuts(model, tusk) == [
+        "flat taper 5 mm over 60 on tusk_1.front_edge towards tusk_1.right_end"
     ]
-    assert cuts(model, bearings[0]) == ["flat 20 mm wide, 10 deep, on bearing_1.front_edge"]
-    # Across the 80 mm tenon at its thirds, the bearings on the stile's front
-    # edge (y = 0) beside the tenon (z from -45 to -15), the first of each
-    # pair towards the heads (up, the stile's top face).
-    assert bbox(model[bearings[0]].placed_shape) == (610 / 3, -10, -15, 670 / 3, 0, 0)
-    assert bbox(model[bearings[1]].placed_shape) == (610 / 3, -10, -60, 670 / 3, 0, -45)
-    # The tusks lie on the bearings' tops, 10 mm off the stile, centered on the
-    # tenon along their length (tilted 1:12), touching the bearings.
-    for tusk in tusks:
-        box = model[tusk].placed_shape.bounding_box()
-        assert pytest.approx(-10) == box.max.Y
-        assert pytest.approx(-30, abs=0.5) == (box.min.Z + box.max.Z) / 2
-        assert box.max.Z > 0 and box.min.Z < -60
-    for tusk, pair in [(tusks[0], bearings[:2]), (tusks[1], bearings[2:])]:
-        for bearing in pair:
-            distance = model[tusk].placed_shape.distance_to(model[bearing].placed_shape)
-            assert distance == pytest.approx(0, abs=1e-6)
+    assert cuts(model, bearing) == ["flat 20 mm wide, 10 deep, on bearing_1.front_edge"]
+    # The tenon (z from -45 to -15) is centered on x = 200. The tusk lies
+    # parallel to the stile's front edge (y = 0), its head up (the stile's top
+    # face), the middle of its flat over the bearing's axis, behind the tenon.
+    assert bbox(model[tusk].placed_shape) == (190, -27.5, -85, 210, -7.5, 35)
+    box = model[bearing].placed_shape.bounding_box()
+    assert pytest.approx((185, 215, 0, -65)) == (box.min.X, box.max.X, box.max.Y, box.min.Z)
+    # It rests on the stile on its round side, tilted 1:12 under the tusk's flat.
+    assert pytest.approx(-10 - 10 * math.sin(math.atan(1 / 12))) == box.min.Y
+    for a, b in [(tusk, bearing), (bearing, stile)]:
+        distance = model[a].placed_shape.distance_to(model[b].placed_shape)
+        assert distance == pytest.approx(0, abs=1e-6)
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
-def test_dowel_tusk_tenon_without_bearings_bears_on_the_stile() -> None:
-    asm, _, rail, tusks, _ = _dowel_tusk_tenon(tusks=1, bearings=False)
+def test_dowel_tusk_tenon_with_two_tusks() -> None:
+    asm, *_, tusks, _ = _dowel_tusk_tenon(tusks=2, bearing_length=20)
     model = asm.resolve()
-    assert model.joints[0].tenon_length == 60 + 50
-    assert cuts(model, rail)[1] == (
-        "a hole ø20 for tusks through the tenon on rail.left_end, bored at 1:12 to "
-        "stile.front_edge, -4 mm off it at the middle"
-    )
-    assert pytest.approx(0) == model[tusks[0]].placed_shape.bounding_box().max.Y
+    # At the thirds of the tenon's width.
+    centers = sorted(model[t].placed_shape.bounding_box().center().X for t in tusks)
+    assert centers == pytest.approx([160 + 80 / 3, 160 + 160 / 3])
     assert interference(model) == pytest.approx(0, abs=1e-6)
 
 
@@ -1468,9 +1466,11 @@ def test_dowel_tusk_tenon_without_bearings_bears_on_the_stile() -> None:
     ("kw", "message"),
     [
         (dict(tusks=0), "needs tusks"),
+        (dict(bearings=0), "a bearing per tusk"),
         (dict(tusk_slope=4), "deeper than half the dowel"),
         (dict(protrusion=25), "run out of the end of the tenon"),
-        (dict(tusks=4), "don't fit side by side"),
+        (dict(tusks=3), "don't fit side by side"),
+        (dict(tusk_length=50), "reach through the tenon"),
     ],
 )
 def test_dowel_tusk_tenon_must_fit(kw: dict, message: str) -> None:

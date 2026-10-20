@@ -300,7 +300,10 @@ class Tenon(Cut):
 
     With `chamfer`, the four arrises around the end of the tenon are
     chamfered at 45 degrees that wide, e.g. on a through tenon standing
-    proud of the mortised part.
+    proud of the mortised part. With `corner_chamfer`, only the two arrises
+    at its edges (across its width) are chamfered at 45 degrees, that far
+    each way, e.g. big chamfers taking the sharp corners off a long tenon
+    standing proud of a workbench's leg.
 
     With `count`, the tenon is split into that many tenons side by side
     along the side, `gap` apart, e.g. twin tenons on a wide rail; `width`
@@ -326,6 +329,7 @@ class Tenon(Cut):
     mitre_depth: float = 0.0
     mitred: tuple[SideRef, ...] = ()
     chamfer: float = 0.0
+    corner_chamfer: float = 0.0
     count: int = 1
     gap: float = 0.0
     thickness_count: int = 1
@@ -355,6 +359,11 @@ class Tenon(Cut):
                 raise ValueError("a tenon's chamfer must be thinner than half the tenon")
             if self.width is not None and self.chamfer >= self.single_width / 2:
                 raise ValueError("a tenon's chamfer must be narrower than half the tenon")
+        if self.corner_chamfer:
+            if self.mitre is not None:
+                raise ValueError("a tenon is either mitred or chamfered at its end")
+            if not 0 < self.corner_chamfer < min(self.length, self.single_width / 2):
+                raise ValueError("a tenon's corner chamfers must be within half the tenon")
         if self.mitre_depth < 0:
             raise ValueError("the mitred shoulders' depth must not be negative")
         for edge in self.mitred:
@@ -484,20 +493,25 @@ class Tenon(Cut):
             removal -= _box(self.part, _open(self.part, haunch, skip=self.side.axis))
         if self.mitre is not None:
             removal += self._mitre_removal() & _box(self.part, beyond)
+        u = self.side.axis
         if self.chamfer:
-            removal += self._chamfer_removal() & _box(self.part, beyond)
+            removal += self._chamfer_removal(self.chamfer, (1 - u, 2)) & _box(self.part, beyond)
+        if self.corner_chamfer:
+            corners = self._chamfer_removal(self.corner_chamfer, (1 - u,))
+            removal += corners & _box(self.part, beyond)
         if self.mitre_depth > 0:
             removal -= self.reach_solid()
         return removal
 
-    def _chamfer_removal(self) -> bd.Part:
-        """The four arrises around the end of each tenon, beyond the chamfers."""
-        u, s, k = self.side.axis, self.side.side.sign, self.chamfer
+    def _chamfer_removal(self, k: float, axes: tuple[int, ...]) -> bd.Part:
+        """The arrises around the end of each tenon at its sides along `axes`
+        (across the width, the thickness), beyond chamfers `k` wide."""
+        u, s = self.side.axis, self.side.side.sign
         m = _margin(self.part)
         corners = []
         for box in self.tenon_boxes():
             end = box[u][1] if s > 0 else box[u][0]
-            for axis in (1 - u, 2):  # across the width, across the thickness
+            for axis in axes:
                 for sign, c in zip((-1, 1), box[axis], strict=True):
                     # As a `Chamfer` of the arris between the end and this side.
                     points = [
@@ -600,6 +614,8 @@ class Tenon(Cut):
             size += f", end mitred {self.mitre_angle:g} deg towards {self.mitre}"
         if self.chamfer:
             size += f", end chamfered {self.chamfer:g} mm"
+        if self.corner_chamfer:
+            size += f", corners chamfered {self.corner_chamfer:g} mm"
         if self.mitre_depth > 0:
             reach = f", reaching {self.mitre_depth:g} beyond the shoulder"
             if self.mitred:
@@ -876,31 +892,18 @@ class DovetailLap(Tenon):
     flare outwards by 1:`slope` towards its end, where it is as wide as the
     part; `sloped` are the edges of the part that slope (by default both,
     one for a half dovetail, e.g. at a corner). Beside the tail, the part is
-    cut back to the shoulder through its whole thickness, or only within
-    `tail_z`, a range of z in the part frame: for a part let in only partly
-    into the other (see `HalfLap.proud`), the lap may then be as thick as
-    the part, without a cheek.
+    cut back to the shoulder through its whole thickness.
     """
 
     slope: float = 7.0
     sloped: tuple[SideRef, ...] | None = None
-    tail_z: Range | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
         if self.side.axis != 0:
             raise ValueError(f"a dovetail lap is cut on an end, not on {self.side}")
-        cheeks = (0, 1) if self.tail_z is not None else (1,)
-        if (
-            self.width is not None
-            or self.count * self.thickness_count > 1
-            or self.cheeks() not in cheeks
-        ):
+        if self.width is not None or self.count * self.thickness_count > 1 or self.cheeks() != 1:
             raise ValueError("a dovetail lap spans the whole end, with one cheek")
-        if self.tail_z is not None:
-            (_, _), (_, _), (z0, z1) = self.tenon_box()
-            if not z0 - _EPS <= self.tail_z[0] < self.tail_z[1] <= z1 + _EPS:
-                raise ValueError("a dovetail lap's tail lies within the lap")
         if self.haunch is not None or self.mitre is not None or self.chamfer or self.mitre_depth:
             raise ValueError("a dovetail lap has a square end and square shoulders")
         if self.slope <= 0:
@@ -958,24 +961,14 @@ class DovetailLap(Tenon):
         return _prism(self.part, 0, 1, [(c + s * r, y) for r, y in outline])
 
     def removal(self) -> bd.Part:
-        z = _open(self.part, _ranges((2, self.tail_z or (-INF, INF))))[2]
-        beside = _box(self.part, _ranges(_into(self.side, 0), (2, z))) - self.tail()
-        if self.cheeks() == 0:
-            return beside
+        beside = _box(self.part, _ranges(_into(self.side, 0))) - self.tail()
         return super().removal() + beside
 
     def describe(self) -> str:
-        kind = "dovetail" if len(self.edges) == 2 else "half-dovetail"
+        kind = "dovetail lap" if len(self.edges) == 2 else "half-dovetail lap"
         shoulder = round(self.shoulder_width, 1)
-        size = f"lap {self.thickness:g} mm thick"
-        if self.tail_z is not None:
-            size = (
-                f"{'lap' if self.cheeks() else 'tail'} {self.tail_z[1] - self.tail_z[0]:g} mm deep"
-            )
-            if self.cheeks():
-                size += f", {self.thickness:g} thick"
         return (
-            f"{kind} {size}, {self.length:g} long, "
+            f"{kind} {self.thickness:g} mm thick, {self.length:g} long, "
             f"{shoulder:g} wide at the shoulder, 1:{self.slope:g}, on {self.side}"
         )
 
