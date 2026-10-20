@@ -1472,3 +1472,103 @@ def test_wedged_round_tenon_goes_through() -> None:
     )
     with pytest.raises(ValueError, match="goes through"):
         asm.resolve()
+
+
+# --- Dowels, pegs and screws -------------------------------------------------
+
+DOWEL = ww.Stock.rod(8, "oak")
+
+
+def test_dowels_in_an_edge_joint() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=400, width=100))
+    b = asm.add(ww.Board("b", OAK, length=400, width=100))
+    dowels = tuple(asm.add(ww.Rod(f"dowel_{i}", DOWEL, length=30)) for i in range(2))
+    asm.join(ww.Dowels(a.back_edge, b.front_edge, dowels, depth=12))
+    model = asm.resolve()
+    assert cuts(model, a) == [
+        "dowel hole ø8, 13 deep, in a.back_edge, 133.333 from a.left_end, centered",
+        "dowel hole ø8, 13 deep, in a.back_edge, 266.667 from a.left_end, centered",
+    ]
+    assert cuts(model, b)[0] == (
+        "dowel hole ø8, 19 deep, in b.front_edge, 133.333 from b.left_end, centered"
+    )
+    # 12 into a, the rest into b, in the middle of the thickness.
+    assert bbox(model[dowels[0]].placed_shape) == (400 / 3 - 4, 88, -14, 400 / 3 + 4, 118, -6)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_dowels_errors() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=400, width=100))
+    b = asm.add(ww.Board("b", OAK, length=400, width=100))
+    short = ww.Rod("short", DOWEL, length=20)
+    long = ww.Rod("long", DOWEL, length=30)
+    with pytest.raises(ValueError, match="same size"):
+        ww.Dowels(a.back_edge, b.front_edge, (short, long))
+    with pytest.raises(ValueError, match="end or an edge"):
+        ww.Dowels(a.top_face, b.bottom_face, (long,))
+    with pytest.raises(ValueError, match="an offset for each"):
+        ww.Dowels(a.back_edge, b.front_edge, (long,), offsets=(10, 20))
+
+
+def pegged(drawbore: float = 0) -> tuple[ww.ResolvedModel, ww.Board, ww.Board, ww.Rod]:
+    asm = ww.Assembly("test")
+    stock = ww.Stock.board(30, "oak")
+    stile = asm.add(ww.Board("stile", stock, length=600, width=60))
+    rail = asm.add(ww.Board("rail", stock, length=300, width=60))
+    peg = asm.add(ww.Rod("peg", DOWEL, length=34))
+    asm.join(
+        ww.PeggedMortiseTenon(
+            tenon=rail.left_end,
+            mortise=stile.back_edge,
+            tenon_length=40,
+            peg=peg,
+            peg_distance=12,
+            drawbore=drawbore,
+        )
+    )
+    return asm.resolve(), stile, rail, peg
+
+
+def test_pinned_mortise_tenon() -> None:
+    model, stile, rail, peg = pegged()
+    assert cuts(model, stile)[-1] == (
+        "peg hole ø8, in stile.top_face, 48 from stile.front_edge, centered"
+    )
+    assert (
+        cuts(model, rail)[-1]
+        == "peg hole ø8 through the tenon on rail.left_end, 12 from the shoulder"
+    )
+    # Through the stile, 2 proud of both faces.
+    assert bbox(model[peg].placed_shape) == (296, 44, -32, 304, 52, 2)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    removed = 300 * 60 * 30 + 40 * 50 * 10 - model[rail].shape.volume
+    assert removed == pytest.approx(math.pi * 16 * 10)
+
+
+def test_drawbored_mortise_tenon_notes_the_offset() -> None:
+    model, _, rail, _ = pegged(drawbore=1.5)
+    assert cuts(model, rail)[-1].endswith("drawbored: drilled 1.5 mm closer to the shoulder")
+
+
+def test_screws_cut_parts_placed_by_other_joints() -> None:
+    asm = ww.Assembly("test")
+    board = asm.add(ww.Board("board", OAK, length=500, width=150))
+    batten = asm.add(ww.Board("batten", OAK, length=400, width=60))
+    # Declared before the joint placing the batten.
+    asm.join(ww.Screw(batten.top_face, into=board, length=30, at={batten.left_end: 40}))
+    asm.join(ww.Butt(board.top_face, batten.bottom_face, across=ww.centered()))
+    model = asm.resolve()
+    assert cuts(model, batten) == [
+        "clearance hole ø4.5, countersunk ø8, 90 deg, in batten.top_face, "
+        "40 from batten.left_end, centered, for a 4 x 30 screw"
+    ]
+    assert cuts(model, board) == [
+        "pilot hole ø3, 10 deep, drill point 118 deg, in board.top_face, "
+        "90 from board.left_end, centered, for a 4 x 30 screw"
+    ]
+
+    asm.joints[0] = ww.Screw(batten.top_face, into=board, length=45)
+    with pytest.raises(ValueError, match="comes out of board"):
+        asm.resolve()

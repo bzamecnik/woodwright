@@ -68,3 +68,23 @@ def round_tenon_diameter(size: float, drills: tuple[float, ...] = DRILL_DIAMETER
     down to a drill bit (the hole is drilled, the tenon cut to fit it)."""
     fitting = [d for d in sorted(drills) if d <= size * 0.6]
     return fitting[-1] if fitting else min(drills)
+
+
+def screw_clearance(diameter: float) -> float:
+    """Of the hole a screw passes through freely: a bit wider than its shank."""
+    return diameter + 0.5
+
+
+def screw_pilot(diameter: float) -> float:
+    """Of the pilot hole a screw cuts its thread into, in hardwood: about 0.7 of it."""
+    return _round(diameter * 0.7)
+
+
+def screw_head(diameter: float) -> float:
+    """Of a countersunk screw's head: about twice the screw."""
+    return 2 * diameter
+
+
+def peg_distance(tenon_length: float) -> float:
+    """Of a peg through a tenon from the shoulder: a third of the tenon."""
+    return _round(tenon_length / 3)

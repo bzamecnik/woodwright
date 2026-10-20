@@ -58,10 +58,14 @@ class Assembly:
             else:
                 lo[axis] -= allowance.amount
 
-        placements = [joint.placement() for joint in joints]
         # Each joint places part b relative to part a, and any separate pieces.
         links = []
+        placements: list[bd.Location | None] = [
+            joint.placement() if joint.places else None for joint in joints
+        ]
         for joint, placement in zip(joints, placements, strict=True):
+            if placement is None:
+                continue
             a, b = joint.parts()
             links.append(_Link(joint, a, b, placement))
             for piece, location in joint.pieces(placement):
@@ -69,6 +73,11 @@ class Assembly:
                     raise ValueError(f"{piece.name} is joined but not added to {self.name}")
                 links.append(_Link(joint, a, piece, location))
         locations = self._place(links)
+        # The other joints cut the parts where the placing ones put them.
+        for i, joint in enumerate(joints):
+            if placements[i] is None:
+                a, b = joint.parts()
+                placements[i] = locations[a].inverse() * locations[b]
 
         cuts = {part: list(part.cuts) for part in self.parts}
         for joint, placement in zip(joints, placements, strict=True):

@@ -23,3 +23,9 @@ def test_round_tenon_diameter_snaps_down_to_a_drill() -> None:
     assert rules.round_tenon_diameter(45) == 25
     assert rules.round_tenon_diameter(40) == 22
     assert rules.round_tenon_diameter(5) == 6  # the smallest bit
+
+
+def test_screw_holes() -> None:
+    assert rules.screw_clearance(4) == 4.5
+    assert rules.screw_pilot(4) == 3
+    assert rules.screw_head(4) == 8

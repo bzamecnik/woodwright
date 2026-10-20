@@ -48,6 +48,7 @@ __all__ = [
     "CrossLap",
     "DadoJoint",
     "DovetailHalfLap",
+    "Dowels",
     "GrooveJoint",
     "HalfBlindDovetail",
     "HalfLap",
@@ -62,8 +63,10 @@ __all__ = [
     "MitredHalfLap",
     "MitredShoulderTenon",
     "MortiseTenon",
+    "PeggedMortiseTenon",
     "RabbetJoint",
     "RoundMortiseTenon",
+    "Screw",
     "SlidingDovetail",
     "TeeBridle",
     "ThroughDovetail",
@@ -82,7 +85,11 @@ class Joint:
     `placement()` gives the location of `parts()[1]` in the frame of
     `parts()[0]`. Cuts are produced once the placement is known, so that
     joints defined in a shared region can map geometry between the parts.
+    A joint that doesn't `place` its parts (e.g. a screw through two parts
+    placed by other joints) gets the placement they ended up in.
     """
+
+    places = True
 
     def parts(self) -> tuple[Part, Part]:
         raise NotImplementedError
@@ -2293,6 +2300,264 @@ class WedgedRoundMortiseTenon(RoundMortiseTenon):
         return [self.hole(placement), tenon, flare, *tapers]
 
 
+@dataclass
+class Dowels(Joint):
+    """Side `b` of part b (an end or an edge) butted against side `a` of
+    part a, as by `Butt`, and joined by `dowels` glued into holes in both.
+
+    The dowels are separate parts (rods), all of the same size, reaching
+    `depth` into part a (by default half their length) and the rest into
+    part b. Along side `b` they are spaced evenly, or at `offsets` from its
+    front edge (on an end) or its left end (on an edge); across it they lie
+    in the middle of its thickness, or `dowel_offset` below its reference
+    face. Each hole is `clearance` deeper than the dowel reaches, for glue.
+    """
+
+    a: SideRef
+    b: SideRef
+    dowels: tuple[Rod, ...]
+    depth: float | None = None
+    offsets: tuple[float, ...] | None = None
+    dowel_offset: float | None = None
+    position: Position = CENTERED
+    across: Position = FLUSH
+    flush: tuple[SideRef, SideRef] | None = None
+    clearance: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.dowels:
+            raise ValueError("a dowelled joint needs dowels")
+        first = self.dowels[0]
+        if any((d.length, d.diameter) != (first.length, first.diameter) for d in self.dowels):
+            raise ValueError("the dowels must be of the same size")
+        if self.offsets is not None and len(self.offsets) != len(self.dowels):
+            raise ValueError("give an offset for each dowel")
+        if self.b.axis == 2:
+            raise ValueError(f"dowels go into an end or an edge, not into {self.b}")
+
+    def parts(self) -> tuple[Part, Part]:
+        return self.a.part, self.b.part
+
+    def check_parts(self) -> None:
+        for side in (self.a, self.b):
+            if side.virtual:
+                raise ValueError(f"dowels join flat sides, not {side}")
+
+    def with_defaults(self) -> Self:
+        length = self.dowels[0].length
+        depth = length / 2 if self.depth is None else self.depth
+        if not 0 < depth < length:
+            raise ValueError("the dowels must reach into both parts")
+        return replace(self, depth=depth)
+
+    def placement(self) -> bd.Location:
+        flush = self.flush or default_flush(self.a, self.b)
+        return mate(self.a, self.b, flush=flush, position=self.position, across=self.across)
+
+    def centers(self) -> list[bd.Vector]:
+        """Of the dowels on side b, in the frame of part b."""
+        b, part = self.b, self.b.part
+        ref = part.front_edge if b.axis == 0 else part.left_end
+        n = len(self.dowels)
+        offsets = self.offsets or tuple(ref.depth * (i + 1) / (n + 1) for i in range(n))
+        z = -part.thickness / 2 if self.dowel_offset is None else -self.dowel_offset
+        centers = []
+        for offset_ in offsets:
+            center = [0.0, 0.0, z]
+            center[b.axis] = b.coordinate
+            center[ref.axis] = ref.coordinate - ref.side.sign * offset_
+            centers.append(bd.Vector(*center))
+        return centers
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        depth = _require(self.depth)
+        return [
+            (
+                dowel,
+                placement * _rod_location(dowel, center + self.b.normal * depth, -self.b.normal),
+            )
+            for dowel, center in zip(self.dowels, self.centers(), strict=True)
+        ]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        d, length = self.dowels[0].diameter, self.dowels[0].length
+        depth = _require(self.depth)
+        cuts: list[Cut] = []
+        for center in self.centers():
+            in_a = (placement * bd.Location(tuple(center))).position
+            for side, point, reach in [(self.a, in_a, depth), (self.b, center, length - depth)]:
+                hole_depth = min(reach + self.clearance, side.depth)
+                at = _hole_at(side, point)
+                cuts.append(Hole(side, d, depth=hole_depth, at=at, kind="dowel hole"))
+        return cuts
+
+
+@dataclass
+class PeggedMortiseTenon(MortiseTenon):
+    """A mortise and tenon held by a `peg` (a rod) through the mortised part
+    and the tenon, across its cheeks: pinned, or drawbored.
+
+    The peg goes through the mortised part, centered on its thickness there
+    (so a longer peg stands proud of both sides, to be trimmed), its axis
+    `peg_distance` from the mortised side (by default about a third of the
+    tenon's length), in the middle of the tenon's width.
+
+    With `drawbore`, the hole in the tenon is drilled that much closer to
+    the shoulder, so the peg driven in pulls the shoulders tight. As for
+    wedged tenons, the model shows the joint assembled: the holes and the
+    peg straight; the offset is noted in the cut list.
+    """
+
+    peg: Rod | None = None
+    peg_distance: float | None = None
+    drawbore: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.peg is None:
+            raise ValueError("a pegged mortise and tenon needs a peg")
+        if self.tenons != 1 or self.thickness_tenons != 1:
+            raise ValueError("a pegged mortise and tenon has a single tenon")
+        if self.drawbore < 0:
+            raise ValueError("a drawbore offsets the hole towards the shoulder")
+
+    def with_defaults(self) -> Self:
+        joint = super().with_defaults()
+        distance = self.peg_distance
+        if distance is None:
+            distance = rules.peg_distance(joint.reach())
+        r = self._peg().diameter / 2
+        if not r < distance < joint.reach() - r:
+            raise ValueError("the peg must go through the tenon")
+        return replace(joint, peg_distance=distance)
+
+    def _peg(self) -> Rod:
+        assert self.peg is not None
+        return self.peg
+
+    def _peg_frame(self, placement: bd.Location) -> tuple[SideRef, bd.Vector]:
+        """The side of the mortised part the peg goes in at, and the peg's
+        center on it, in the frame of the mortised part."""
+        tenon = self.tenon
+        box = self.tenon_cut().tenon_box()
+        center = [sum(r) / 2 for r in box]
+        center[tenon.axis] = tenon.coordinate + tenon.side.sign * _require(self.peg_distance)
+        face = _flush_side(self.mortise.part, tenon.part.top_face, placement.inverse())
+        point = list(tuple((placement * bd.Location(tuple(center))).position))
+        point[face.axis] = face.coordinate
+        return face, bd.Vector(*point)
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        peg = self._peg()
+        face, point = self._peg_frame(placement)
+        if peg.length < face.depth - _EPS:
+            raise ValueError("the peg must be long enough to go through the mortised part")
+        start = point + face.normal * ((peg.length - face.depth) / 2)
+        return [(peg, _rod_location(peg, start, -face.normal))]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        peg = self._peg()
+        face, point = self._peg_frame(placement)
+        width = self.tenon_cut().tenon_box()[1 - self.tenon.axis]
+        if peg.diameter > width[1] - width[0] - _EPS:
+            raise ValueError("the peg must be narrower than the tenon")
+        hole = Hole(face, peg.diameter, at=_hole_at(face, point), kind="peg hole")
+        # Through the tenon across its cheeks (along z), where it lies in the tenoned part.
+        in_b = (placement.inverse() * bd.Location(tuple(point))).position
+        m = self.tenon.part.length + self.tenon.part.width + self.tenon.part.thickness
+        bore = bd.Pos(in_b.X, in_b.Y, -m) * bd.Cylinder(
+            peg.diameter / 2, 2 * m, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
+        )
+        description = (
+            f"peg hole ø{peg.diameter:g} through the tenon on {self.tenon}, "
+            f"{_require(self.peg_distance):g} from the shoulder"
+        )
+        if self.drawbore:
+            description += f", drawbored: drilled {self.drawbore:g} mm closer to the shoulder"
+        return [*super().cuts(placement), hole, ShapeCut(self.tenon.part, bore, description)]
+
+
+@dataclass
+class Screw(Joint):
+    """A screw driven through part b from its side `head` into part a, both
+    placed by other joints, e.g. a batten screwed to the back of a door.
+
+    Part b gets a clearance hole, countersunk for the screw's head (by
+    default twice as wide as the screw), or with `counterbore_depth`
+    counterbored as wide, e.g. for a plug; part a a pilot hole, as deep as
+    the screw reaches into it. The hole is at `at` on side `head` (see
+    `Hole`). The screw itself isn't modelled; the cut list names it.
+    """
+
+    places = False
+
+    head: SideRef
+    into: Part
+    diameter: float = 4.0
+    length: float = 30.0
+    at: dict[SideRef, float] | None = None
+    head_diameter: float | None = None
+    counterbore_depth: float | None = None
+    clearance_diameter: float | None = None
+    pilot_diameter: float | None = None
+
+    def parts(self) -> tuple[Part, Part]:
+        return self.into, self.head.part
+
+    def check_parts(self) -> None:
+        if self.head.virtual:
+            raise ValueError(f"a screw goes in at a flat side, not at {self.head}")
+
+    def with_defaults(self) -> Self:
+        d = self.diameter
+        return replace(
+            self,
+            head_diameter=self.head_diameter or rules.screw_head(d),
+            clearance_diameter=self.clearance_diameter or rules.screw_clearance(d),
+            pilot_diameter=self.pilot_diameter or rules.screw_pilot(d),
+        )
+
+    @property
+    def screw(self) -> str:
+        return f"for a {self.diameter:g} x {self.length:g} screw"
+
+    def clearance_hole(self) -> Hole:
+        head = _require(self.head_diameter)
+        bored = self.counterbore_depth is not None
+        return Hole(
+            self.head,
+            _require(self.clearance_diameter),
+            at=self.at,
+            counterbore=head if bored else None,
+            counterbore_depth=self.counterbore_depth or 0.0,
+            countersink=None if bored else head,
+            kind="clearance hole",
+            note=self.screw,
+        )
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        clearance = self.clearance_hole()
+        entry = _flush_side(self.into, self.head, placement.inverse())
+        point = list(tuple((placement * bd.Location(tuple(clearance.center()))).position))
+        point[entry.axis] = entry.coordinate
+        reach = self.length - self.head.depth + (self.counterbore_depth or 0.0)
+        if reach <= 0:
+            raise ValueError(
+                f"a {self.length:g} mm screw doesn't reach through {self.head.part.name}"
+            )
+        if reach >= entry.depth:
+            raise ValueError(f"a {self.length:g} mm screw comes out of {self.into.name}")
+        pilot = Hole(
+            entry,
+            _require(self.pilot_diameter),
+            depth=reach,
+            at=_hole_at(entry, bd.Vector(*point)),
+            point=118,
+            kind="pilot hole",
+            note=self.screw,
+        )
+        return [clearance, pilot]
+
+
 def _hole_at(side: SideRef, point: bd.Vector) -> dict[SideRef, float]:
     """The position of a hole's center on a side, as distances from the left
     end, the front edge or the bottom face (as named, on a mirrored part too),
@@ -2309,6 +2574,23 @@ def _hole_at(side: SideRef, point: bd.Vector) -> dict[SideRef, float]:
 
 def _low_side(axis: int) -> Side:
     return next(s for s in Side if s.axis == axis and s.sign < 0)
+
+
+def _rod_location(rod: Rod, start: bd.Vector, direction: bd.Vector) -> bd.Location:
+    """Of a rod whose left end is centered on `start`, running along `direction`."""
+    x_dir = direction.normalized()
+    y_dir = _unit_vector(min(range(3), key=lambda axis: abs(tuple(x_dir)[axis])))
+    y_dir = (y_dir - x_dir * y_dir.dot(x_dir)).normalized()
+    z_dir = x_dir.cross(y_dir)
+    r = rod.diameter / 2
+    origin = start - y_dir * r + z_dir * r
+    return bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=z_dir))
+
+
+def _unit_vector(axis: int) -> bd.Vector:
+    coords = [0.0, 0.0, 0.0]
+    coords[axis] = 1.0
+    return bd.Vector(*coords)
 
 
 def _flush_side(part: Part, side: SideRef, placement: bd.Location) -> SideRef:

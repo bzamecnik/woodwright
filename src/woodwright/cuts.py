@@ -1167,6 +1167,9 @@ class Hole(Cut):
     With `counterbore` (a diameter) and `counterbore_depth`, a wider, shallow
     hole over it, for a screw head or a plug; with `countersink` (the
     diameter at the side), a cone at `countersink_angle` for a screw head.
+
+    `kind` names it in the cut list instead of "hole" (e.g. "pilot hole"),
+    `note` is added at the end (e.g. "for a 4 x 30 screw").
     """
 
     side: SideRef
@@ -1179,6 +1182,8 @@ class Hole(Cut):
     counterbore_depth: float = 0.0
     countersink: float | None = None
     countersink_angle: float = 90.0
+    kind: str | None = None
+    note: str | None = None
 
     def __post_init__(self) -> None:
         if self.diameter <= 0:
@@ -1291,6 +1296,7 @@ class Hole(Cut):
         kind = "hole" if self.bottom_diameter is None else "tapered hole"
         if self.depth is None:
             kind = f"through {kind}"
+        kind = self.kind or kind
         text = f"{kind} ø{self.diameter:g}"
         if self.bottom_diameter is not None:
             text += f" to ø{self.bottom_diameter:g}"
@@ -1310,6 +1316,8 @@ class Hole(Cut):
                 text += f", {distance:g} from {ref}"
         if len(at) < 2:
             text += ", centered"
+        if self.note:
+            text += f", {self.note}"
         return text
 
 
