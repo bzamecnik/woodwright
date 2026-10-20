@@ -1707,8 +1707,9 @@ def workbench(
     tray (a drawer-like box) at the back, flush with the legs at the front
     and the back, `depth` deep, `overhang` beyond the legs at each end.
 
-    Each leg assembly: two 90 mm square legs (glued up from two 45 mm
-    boards), their feet chamfered, and two rails from front to back, flush
+    Each leg assembly: two 90 mm square legs, their feet chamfered, and two
+    rails from front to back, all glued up from two 45 mm boards (the legs'
+    glue lines on their sides, the rails' upright), the rails flush
     with the legs' front and back, lapped across the legs but let in only
     partly: the rails are cut to half their thickness, the legs notched a
     quarter of theirs, so the rails stand out of the legs by a quarter. The
@@ -1754,7 +1755,15 @@ def workbench(
     for side, mirror in [("left", False), ("right", True)]:
         front, back = (
             asm.add(
-                Board(f"{side}_{end}_leg", BENCH_LEG_STOCK, leg_length, leg_size, mirror=mirror)
+                Board(
+                    f"{side}_{end}_leg",
+                    BENCH_LEG_STOCK,
+                    leg_length,
+                    leg_size,
+                    mirror=mirror,
+                    plies=2,
+                    plies_across="width",
+                )
             )
             for end in ("front", "back")
         )
@@ -1763,7 +1772,11 @@ def workbench(
             leg.cut(EndChamfer(leg.left_end, size=5))
         between = depth - 2 * leg_size
         lower, upper = (
-            asm.add(Board(f"{side}_{level}_rail", BENCH_LEG_STOCK, between, width, mirror=mirror))
+            asm.add(
+                Board(
+                    f"{side}_{level}_rail", BENCH_LEG_STOCK, between, width, mirror=mirror, plies=2
+                )
+            )
             for level, width in [("lower", leg_size), ("upper", 1.5 * leg_size)]
         )
         upper_rails[side] = upper

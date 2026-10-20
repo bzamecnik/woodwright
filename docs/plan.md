@@ -634,7 +634,7 @@ after Rex Krueger's Quick Stack (rails lapped and let in partly,
 `HalfLap.proud`, dovetail laps stopped short of the end of the leg,
 `DovetailHalfLap.stopped`; dowel tusk tenons, `DowelTuskTenon`; big
 chamfers at the corners of tenons, `Tenon.corner_chamfer`; a reversible
-tray).
+tray; legs and rails laminated from two boards, `Board(plies=...)`).
 
 ### M8: Round stock, holes and round tenons ✅ mostly done
 

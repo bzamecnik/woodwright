@@ -19,6 +19,18 @@ early alpha: the API will still change.
     in the example library. Every tenon and mortise is derived from the
     joints between the parts.</td>
   </tr>
+  <tr>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/workbench.svg"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/workbench.svg" width="420" alt="A workbench drawn by woodwright"></a></td>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/workbench_exploded.svg"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/workbench_exploded.svg" width="420" alt="The workbench taken apart, showing its laps, tusk tenons and dowels"></a></td>
+  </tr>
+  <tr>
+    <td colspan="2">A knock-down workbench after
+    <a href="https://rexkrueger.com">Rex Krueger</a>'s Quick Stack Workbench, assembled and exploded:
+    <a href="https://github.com/bzamecnik/woodwright/blob/master/src/woodwright/examples/projects.py">projects.workbench</a>.
+    Laminated legs and rails, half-dovetailed laps, stretchers held by tapered dowel tusks,
+    a desk of beams on edge and a tray that turns over into a flat top. This is only a rough
+    approximation with different dimensions: get Rex's <a href="https://www.rexkrueger.com/store/p/quick-stack-workbench">plans</a> for the real thing with detailed instructions if you want to build one.</td>
+  </tr>
 </table>
 
 ## Getting started without programming

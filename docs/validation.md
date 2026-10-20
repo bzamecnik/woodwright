@@ -57,7 +57,9 @@ Done items name their example in `woodwright.examples`
 - joints
   - butt joint (glued)
     - [x] edges - panel – `joints.butt_panel`
-    - [x] faces - thick leg – `joints.laminated_leg`
+    - [x] faces - thick leg – `joints.laminated_leg`; a laminated board cut as one after the
+      glue-up, its plies in the model and the cut list – `Board(plies=2)`, the legs and rails
+      in `projects.workbench`
     - perpendicular
       - [x] face on face - bench hook (across the grain) – `projects.bench_hook`
       - [x] edge on face - corner – `joints.butt_corner`, `joints.butt_frame_corner`
@@ -245,8 +247,9 @@ Done items name their example in `woodwright.examples`
   - [x] coat rack with round pegs in blind holes, counterbored screw holes for the wall –
     `projects.coat_rack`
   - [x] workbench, after Rex Krueger's Quick Stack – `projects.workbench`
-    - two leg assemblies, beams glued up from boards, then half-laps (legs modelled as one
-      90 mm square piece; rails lapped and let in partly, the upper ones half-dovetailed)
+    - two leg assemblies, beams glued up from boards, then half-laps (legs and rails each
+      laminated from two 45 mm boards, the legs' glue lines on the sides, the rails' upright;
+      rails lapped and let in partly, the upper ones half-dovetailed)
     - stretchers with through tusk tenons (dowel tusks, big chamfers at the tenons' corners –
       `MortiseTenon(tenon_corner_chamfer=...)`)
     - desk (covering the front half) made of beams glued up by face
