@@ -876,18 +876,31 @@ class DovetailLap(Tenon):
     flare outwards by 1:`slope` towards its end, where it is as wide as the
     part; `sloped` are the edges of the part that slope (by default both,
     one for a half dovetail, e.g. at a corner). Beside the tail, the part is
-    cut back to the shoulder through its whole thickness.
+    cut back to the shoulder through its whole thickness, or only within
+    `tail_z`, a range of z in the part frame: for a part let in only partly
+    into the other (see `HalfLap.proud`), the lap may then be as thick as
+    the part, without a cheek.
     """
 
     slope: float = 7.0
     sloped: tuple[SideRef, ...] | None = None
+    tail_z: Range | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
         if self.side.axis != 0:
             raise ValueError(f"a dovetail lap is cut on an end, not on {self.side}")
-        if self.width is not None or self.count * self.thickness_count > 1 or self.cheeks() != 1:
+        cheeks = (0, 1) if self.tail_z is not None else (1,)
+        if (
+            self.width is not None
+            or self.count * self.thickness_count > 1
+            or self.cheeks() not in cheeks
+        ):
             raise ValueError("a dovetail lap spans the whole end, with one cheek")
+        if self.tail_z is not None:
+            (_, _), (_, _), (z0, z1) = self.tenon_box()
+            if not z0 - _EPS <= self.tail_z[0] < self.tail_z[1] <= z1 + _EPS:
+                raise ValueError("a dovetail lap's tail lies within the lap")
         if self.haunch is not None or self.mitre is not None or self.chamfer or self.mitre_depth:
             raise ValueError("a dovetail lap has a square end and square shoulders")
         if self.slope <= 0:
@@ -945,14 +958,24 @@ class DovetailLap(Tenon):
         return _prism(self.part, 0, 1, [(c + s * r, y) for r, y in outline])
 
     def removal(self) -> bd.Part:
-        beside = _box(self.part, _ranges(_into(self.side, 0))) - self.tail()
+        z = _open(self.part, _ranges((2, self.tail_z or (-INF, INF))))[2]
+        beside = _box(self.part, _ranges(_into(self.side, 0), (2, z))) - self.tail()
+        if self.cheeks() == 0:
+            return beside
         return super().removal() + beside
 
     def describe(self) -> str:
-        kind = "dovetail lap" if len(self.edges) == 2 else "half-dovetail lap"
+        kind = "dovetail" if len(self.edges) == 2 else "half-dovetail"
         shoulder = round(self.shoulder_width, 1)
+        size = f"lap {self.thickness:g} mm thick"
+        if self.tail_z is not None:
+            size = (
+                f"{'lap' if self.cheeks() else 'tail'} {self.tail_z[1] - self.tail_z[0]:g} mm deep"
+            )
+            if self.cheeks():
+                size += f", {self.thickness:g} thick"
         return (
-            f"{kind} {self.thickness:g} mm thick, {self.length:g} long, "
+            f"{kind} {size}, {self.length:g} long, "
             f"{shoulder:g} wide at the shoulder, 1:{self.slope:g}, on {self.side}"
         )
 

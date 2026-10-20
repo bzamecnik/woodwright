@@ -22,6 +22,7 @@ from woodwright.cuts import (
     DovetailLap,
     DovetailTongue,
     EndRabbet,
+    Flat,
     Hole,
     Mitre,
     Pocket,
@@ -48,6 +49,7 @@ __all__ = [
     "CrossLap",
     "DadoJoint",
     "DovetailHalfLap",
+    "DowelTuskTenon",
     "Dowels",
     "GrooveJoint",
     "HalfBlindDovetail",
@@ -917,6 +919,188 @@ class TuskTenon(MortiseTenon):
 
 
 @dataclass
+class DowelTuskTenon(MortiseTenon):
+    """A tusk tenon held by dowels instead of a wedge (as in Rex Krueger's
+    workbench): a long through tenon, and in the part of it standing proud of
+    the mortised part, a hole for each of the `tusks`, dowels with a planar
+    taper (a flat) driven through, its flat towards the mortised part.
+
+    The tenon goes through the mortised part (the leg) and stands
+    `protrusion` proud of its outer side (by default as much as the bearings
+    and two and a half times the tusk's diameter). The tusks are rods, given
+    as made; the joint planes a flat on each, from nothing at its head (its
+    left end) to 1:`tusk_slope` of its length at its tip, and bores their
+    holes through the tenon along them, slightly tilted, as they lie driven
+    home. Their heads point to `tusk_head`, a side of the mortised part (by
+    default its front edge: the tusks perpendicular to the stile, through the
+    tenon's thickness; an end makes them parallel to it, through its width).
+    They are spaced evenly across the tenon, centered on it along their
+    length, so that their heads and tips stick out on either side.
+
+    The tusks' flats bear on the outer side of the leg, or on `bearings`:
+    half dowels (rods as made; the joint rips them in half) glued flat side
+    down on it, two per tusk, next to the tenon on either side, as long as
+    the rods, from the tenon's cheeks outwards. Their round tops bear on the
+    flat, so that the tenon can still be drawn out when the tusks are
+    knocked out. The holes lie partly inside what they bear on (the draw), so
+    that driving the tusks in pulls the tenon out of the leg and its
+    shoulders tight against it. The model is of the joint assembled.
+    """
+
+    tusks: tuple[Rod, ...] = ()
+    bearings: tuple[Rod, ...] = ()
+    tusk_head: SideRef | None = None
+    tusk_slope: float = 12.0
+    protrusion: float | None = None
+
+    def __post_init__(self) -> None:
+        if not self.tusks:
+            raise ValueError("a dowel tusk tenon needs tusks")
+        first = self.tusks[0]
+        if any((t.length, t.diameter) != (first.length, first.diameter) for t in self.tusks):
+            raise ValueError("the tusks must be of the same size")
+        if any(t.mirror for t in (*self.tusks, *self.bearings)):
+            raise ValueError("the tusks and bearings are not mirrored")
+        if self.bearings:
+            if len(self.bearings) != 2 * len(self.tusks):
+                raise ValueError("a dowel tusk tenon has two bearings per tusk, or none")
+            b = self.bearings[0]
+            if any((r.length, r.diameter) != (b.length, b.diameter) for r in self.bearings):
+                raise ValueError("the bearings must be of the same size")
+        if self.tenons != 1 or self.thickness_tenons != 1:
+            raise ValueError("a tusk tenon is a single tenon")
+        if self.mitre is not None:
+            raise ValueError("a tusk tenon has a square end")
+        if self.tusk_head is not None and (
+            self.tusk_head.part is not self.mortise.part or self.tusk_head.axis == self.mortise.axis
+        ):
+            raise ValueError(f"the tusks' heads point to a side next to {self.mortise}")
+        if self.tusk_slope <= 0:
+            raise ValueError("a tusk's slope must be positive")
+
+    def check_parts(self) -> None:
+        super().check_parts()
+        for rod in (*self.tusks, *self.bearings):
+            if not isinstance(rod, Rod):
+                raise ValueError(f"the tusks and bearings are rods, {rod.name} is a board")
+
+    def with_defaults(self) -> Self:
+        if self.tenon_length is not None:
+            raise ValueError("a tusk tenon is as long as given by its protrusion")
+        d = self.tusks[0].diameter
+        protrusion = self.protrusion
+        if protrusion is None:
+            protrusion = self._lift() + 2.5 * d
+        joint = replace(
+            self,
+            protrusion=protrusion,
+            tenon_length=self.mortise.depth + protrusion,
+            tusk_head=self.tusk_head or self.mortise.part.front_edge,
+        )
+        return super(DowelTuskTenon, joint).with_defaults()
+
+    def _lift(self) -> float:
+        """How far the tusks' flats lie off the outer side of the mortised part."""
+        return self.bearings[0].diameter / 2 if self.bearings else 0.0
+
+    def taper(self) -> float:
+        """How deep the flat is at the tusk's tip."""
+        return self.tusks[0].length / self.tusk_slope
+
+    def _locations(
+        self, placement: bd.Location
+    ) -> tuple[list[bd.Location], list[bd.Location], dict[str, float]]:
+        """Of the tusks and the bearings, in the frame of the tenoned part, and
+        some sizes for the checks and the cut list."""
+        tenon, tusk = self.tenon, self.tusks[0]
+        out = tenon.normal
+        head = _direction(placement.inverse(), _require(self.tusk_head).normal)
+        along = _axis(head)
+        across = 3 - tenon.axis - along
+        box = self.tenon_cut().tenon_box()
+        lo, hi = box[along]
+        a0, a1 = box[across]
+        if tusk.length < hi - lo + _EPS:
+            raise ValueError("the tusks must be longer than the tenon they go through")
+        n = len(self.tusks)
+        if (a1 - a0) / n < tusk.diameter + _EPS:
+            raise ValueError("the tusks don't fit side by side across the tenon")
+        outer = tenon.coordinate + tenon.side.sign * self.mortise.depth
+        middle = (lo + hi) / 2
+        # The tusk's flat runs from its head to its tip, rising by the taper;
+        # it lies flat, `lift` off the outer side.
+        taper, length = self.taper(), tusk.length
+        angle = math.degrees(math.atan2(taper, length))
+        flat_length = math.hypot(length, taper)
+        lift = self._lift()
+        x_dir, y_dir = -head, out
+        z_dir = x_dir.cross(y_dir)
+        tusks, bearings = [], []
+        for i in range(n):
+            center = [0.0, 0.0, 0.0]
+            center[tenon.axis] = outer
+            center[along] = middle
+            center[across] = a0 + (a1 - a0) * (i + 1) / (n + 1)
+            base = bd.Vector(*center)
+            # The rod's frame: its front edge (y = 0) along the flat, its axis
+            # half its diameter in from its top face (z = 0).
+            origin = base + out * lift + head * (flat_length / 2) + z_dir * (tusk.diameter / 2)
+            frame = bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=z_dir))
+            tusks.append(frame * bd.Rotation(0, 0, -angle))
+            if not self.bearings:
+                continue
+            r = self.bearings[0].diameter / 2
+            for direction in (head, -head):
+                cheek = [0.0, 0.0, 0.0]
+                cheek[tenon.axis] = outer
+                cheek[along] = hi if direction.dot(_unit_vector(along)) > 0 else lo
+                cheek[across] = center[across]
+                # Ripped in half at its middle, its flat (y = r) on the outer side.
+                z = direction.cross(out)
+                start = bd.Vector(*cheek) - out * r + z * r
+                bearings.append(bd.Location(bd.Plane(start, x_dir=direction, z_dir=z)))
+        sizes = {
+            "outer": outer,
+            "lift": lift,
+            "inner_edge": lift - taper / 2,
+            "outer_edge": lift + tusk.diameter - taper / 2,
+        }
+        if sizes["outer_edge"] > _require(self.protrusion) - _EPS:
+            raise ValueError("the tusks' holes run out of the end of the tenon")
+        if taper > tusk.diameter / 2 + _EPS:
+            raise ValueError("the tusks' flats would be deeper than half the dowel")
+        return tusks, bearings, sizes
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        tusks, bearings, _ = self._locations(placement)
+        return [
+            *((rod, placement * loc) for rod, loc in zip(self.tusks, tusks, strict=True)),
+            *((rod, placement * loc) for rod, loc in zip(self.bearings, bearings, strict=True)),
+        ]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        tusk = self.tusks[0]
+        tusks, _, sizes = self._locations(placement)
+        opposite = next(s for s in Side if s.axis == self.mortise.axis and s != self.mortise.side)
+        outer = SideRef(self.mortise.part, opposite)
+        holes = "a hole" if len(tusks) == 1 else f"{len(tusks)} holes"
+        description = (
+            f"{holes} ø{tusk.diameter:g} for tusks through the tenon on {self.tenon}, "
+            f"bored at 1:{self.tusk_slope:g} to {outer}, "
+            f"{round(sizes['inner_edge'], 1):g} mm off it at the middle"
+        )
+        if self.bearings:
+            draw = sizes["lift"] - sizes["inner_edge"]
+            description += f", {round(draw, 1):g} below the tops of the bearings"
+        blank = tusk.blank(*tusk.box)
+        solid = functools.reduce(operator.add, [loc * blank for loc in tusks])
+        cuts: list[Cut] = [*super().cuts(placement), ShapeCut(self.tenon.part, solid, description)]
+        cuts += [Taper(t.front_edge, end=t.right_end, amount=self.taper()) for t in self.tusks]
+        cuts += [Flat(b.front_edge, depth=b.diameter / 2) for b in self.bearings]
+        return cuts
+
+
+@dataclass
 class MitredShoulderTenon(MortiseTenon):
     """A mortise and tenon whose shoulders are partly mitred, e.g. in a frame
     of square-ish stock.
@@ -1280,6 +1464,12 @@ class HalfLap(Housing):
     rabbet at a corner) where it lands. With `over`, part b keeps the half at
     its reference face and lies over part a; by default it lies under it, so
     the reference face of part a stays whole.
+
+    With `proud`, part b stands that far out of part a beyond its flush side
+    (a face), so it is let in that much less deep: e.g. a square rail let in
+    half its thickness into a leg, standing out of it by the other half; with
+    `lap_thickness` its whole thickness, the rail isn't cut at all, only the
+    leg is notched.
     """
 
     lap: SideRef
@@ -1287,6 +1477,7 @@ class HalfLap(Housing):
     position: Position = CENTERED
     lap_thickness: float | None = None
     over: bool = False
+    proud: float = 0.0
     across: Position = FLUSH
     flush: tuple[SideRef, SideRef] | None = None
     clearance: float = 0.0
@@ -1296,7 +1487,31 @@ class HalfLap(Housing):
 
     def with_defaults(self) -> Self:
         thickness = self.lap_thickness or rules.lap_thickness(self.lap.part.thickness)
+        if self.proud:
+            if self._flush_face().axis != 2:
+                raise ValueError(f"a lap stands proud beyond a face, not {self._flush_face()}")
+            if not 0 < self.proud < thickness:
+                raise ValueError("a lap standing proud must still reach into the other part")
         return replace(self, lap_thickness=thickness)
+
+    def _flush_face(self) -> SideRef:
+        """The side of part b kept flush (before it stands proud)."""
+        return (self.flush or self.default_flush())[1]
+
+    def placement(self) -> bd.Location:
+        location = super().placement()
+        if not self.proud:
+            return location
+        return location * bd.Location(tuple(self._flush_face().normal * self.proud))
+
+    def inset_range(self) -> Range | None:
+        """The z range of part b's lap that lies in part a, if it stands proud."""
+        if not self.proud:
+            return None
+        z0, z1 = HalfLap.tenon_cut(self).tenon_box()[2]
+        if self._flush_face().side.sign > 0:
+            return z0, min(z1, -self.proud)
+        return max(z0, -self.lap.part.thickness + self.proud), z1
 
     def reach(self) -> float:
         return self.socket.depth
@@ -1318,6 +1533,10 @@ class DovetailHalfLap(HalfLap):
     shape. `sloped` are the edges of part b that slope: by default both,
     except one flush with an end of part a, i.e. at an L-shaped corner it is
     a half dovetail sloped at the inner edge.
+
+    With `proud` (see `HalfLap`), the tail is shaped only where part b lies
+    in the socket, e.g. on the inner half of a rail let in half its
+    thickness, not cut otherwise (`lap_thickness` its whole thickness).
     """
 
     slope: float = 7.0
@@ -1348,6 +1567,7 @@ class DovetailHalfLap(HalfLap):
             **{field.name: getattr(lap, field.name) for field in fields(lap)},
             slope=self.slope,
             sloped=self.sloped,
+            tail_z=self.inset_range(),
         )
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
