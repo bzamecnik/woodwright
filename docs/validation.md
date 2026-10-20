@@ -103,8 +103,9 @@ Done items name their example in `woodwright.examples`
     - [x] two boards with overlapping rabbets to make panel – `joints.shiplap_panel` (three boards)
     - [x] half-lap corner - two perpendicular boards with "endgrain rabbet" – `joints.half_lap_corner`
     - [x] half-lap T - one board with dado, other board with "endgrain rabbet" – `joints.half_lap_t`
-    - [x] a square rail let in half its thickness, uncut, standing proud of the leg by the other
-      half – `HalfLap(proud=...)`, `joints.let_in_rail`
+    - [x] partly let in: a square rail lapped to half its thickness across a leg of the same
+      section, the leg notched a quarter, the rail standing out by a quarter –
+      `HalfLap(proud=...)`, `joints.let_in_rail`
     - [x] picture frame – `frames.half_lap_frame`
     - [x] cross lap - two boards crossing, each with a dado – `joints.cross_lap`
     - [x] shoji frame – `frames.shoji_frame` (3 x 3 bars, 5 x 20 mm, nine cross laps)
@@ -158,8 +159,8 @@ Done items name their example in `woodwright.examples`
     - [x] like a half-lap T-joint, but the open tenon side is dovetailed out, not straight –
       `DovetailHalfLap`, `joints.dovetail_half_lap` (at a corner a half dovetail, sloped at
       the inner edge)
-    - [x] let in half its thickness, the inner half a half dovetail (flat at the bottom, sloped
-      at the top), in a notch open at the end of the leg – `joints.let_in_dovetail_rail`
+    - [x] partly let in, the lap a half dovetail (flat at the bottom, sloped at the top), in a
+      notch open at the end of the leg – `joints.let_in_dovetail_rail`
   - wedged mortise and tenon
     - [x] through half-dovetail mortise with edges angled outward – `WedgedMortiseTenon`,
       `joints.wedged_through_tenon`
@@ -178,8 +179,9 @@ Done items name their example in `woodwright.examples`
     - [x] the wedge perpendicular to the stile (level, through the tenon's thickness) –
       `joints.tusk_tenon_flat`
     - the second mortise can go through the face or through the edge
-    - [x] dowel tusks (after Rex Krueger): dowels with a tapered flat through holes in the
-      tenon, bearing on half dowels glued on the leg – `DowelTuskTenon`,
+    - [x] dowel tusks (after Rex Krueger): dowels with a flat tapered over their tip half through
+      straight holes in the tenon, bearing on half dowels lying across them on the leg, rocking
+      on their round sides – `DowelTuskTenon`,
       `joints.dowel_tusk_tenon`
   - [x] stub tenon - L-joint, mortise offset from the endgrain, tenon has three shoulders –
     `joints.stub_tenon_corner` (no inner shoulder, a plain outer one, no haunch)
@@ -242,8 +244,9 @@ Done items name their example in `woodwright.examples`
     `projects.coat_rack`
   - [x] workbench, after Rex Krueger's Quick Stack – `projects.workbench`
     - two leg assemblies, beams glued up from boards, then half-laps (legs modelled as one
-      90 mm square piece; rails let in half their thickness, the upper ones half-dovetailed)
-    - stretchers with through tusk tenons (dowel tusks)
+      90 mm square piece; rails lapped and let in partly, the upper ones half-dovetailed)
+    - stretchers with through tusk tenons (dowel tusks, big chamfers at the tenons' corners –
+      `MortiseTenon(tenon_corner_chamfer=...)`)
     - desk (covering the front half) made of beams glued up by face
     - drawer (covering the back half): an open box (a tray), its walls butted on the bottom
-    - top and tray located on the legs by dowels
+    - top and tray located on the upper rails by dowels

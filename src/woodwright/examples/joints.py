@@ -334,26 +334,23 @@ def dovetail_half_lap(
 def let_in_rail(
     leg_length: float = 400, rail_length: float = 300, stock: Stock = POST_STOCK
 ) -> Assembly:
-    """A square rail let in half its thickness across a square leg, at its end:
-    the leg is notched a quarter of its thickness, the rail isn't cut and
-    stands out of the leg by the other half, towards the viewer (as the
-    rails of a workbench's legs). Its end is flush with the far edge of the
-    leg.
+    """A square rail lapped across a leg of the same section, at the rail's
+    end, partly let in (as the rails of a workbench's legs): the rail is
+    cut to half its thickness, the leg notched a quarter of its, so the rail
+    stands out of the leg by a quarter, towards the viewer. Its end is flush
+    with the far edge of the leg.
     """
     asm = Assembly("let_in_rail", root_location=STANDING)
     leg = asm.add(Board("leg", stock, length=leg_length, width=stock.thickness))
-    rail_stock = Stock.board(thickness=stock.thickness / 2, species=stock.species)
-    rail = asm.add(Board("rail", rail_stock, length=rail_length, width=rail_stock.thickness))
-    half = rail_stock.thickness / 2
+    rail = asm.add(Board("rail", stock, length=rail_length, width=stock.thickness))
     asm.join(
         HalfLap(
             lap=rail.left_end,
             socket=leg.back_edge,
             position=offset(100, ref=leg.left_end),
             flush=(leg.bottom_face, rail.top_face),
-            lap_thickness=rail_stock.thickness,
             over=True,
-            proud=half,
+            proud=stock.thickness / 4,
         )
     )
     return asm
@@ -362,24 +359,23 @@ def let_in_rail(
 def let_in_dovetail_rail(
     leg_length: float = 400, rail_length: float = 300, stock: Stock = POST_STOCK
 ) -> Assembly:
-    """A square rail let in half its thickness at the top of a square leg, its
-    inner half cut to a half dovetail: flat at the bottom, sloped 1:6 at the
-    top, so the rail can't be pulled out of the leg along its length. The
-    notch in the leg is open at its top end.
+    """A rail lapped across the top of a square leg as `let_in_rail`, its lap
+    cut to a half dovetail: flat at the bottom, sloped 1:6 at the top, so
+    the rail can't be pulled out of the leg along its length. The rail is
+    deeper than it is thick (2:3), flush with the top of the leg; the notch
+    in the leg is open at the top.
     """
     asm = Assembly("let_in_dovetail_rail", root_location=STANDING)
     leg = asm.add(Board("leg", stock, length=leg_length, width=stock.thickness))
-    rail_stock = Stock.board(thickness=stock.thickness / 2, species=stock.species)
-    rail = asm.add(Board("rail", rail_stock, length=rail_length, width=rail_stock.thickness))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=stock.thickness * 1.5))
     asm.join(
         DovetailHalfLap(
             lap=rail.left_end,
             socket=leg.back_edge,
             position=flush_with(leg.right_end),
             flush=(leg.bottom_face, rail.top_face),
-            lap_thickness=rail_stock.thickness,
             over=True,
-            proud=rail_stock.thickness / 2,
+            proud=stock.thickness / 4,
             slope=6,
             sloped=(rail.back_edge,),
         )
@@ -918,40 +914,40 @@ def dowel_tusk_tenon(
     stretcher_length: float = 400,
     width: float = 150,
     tusk_diameter: float = 20,
-    tusk_length: float = 96,
+    tusk_length: float = 120,
 ) -> Assembly:
-    """A tusk tenon held by dowels (after Rex Krueger's workbench): a
-    stretcher through a 70 mm square leg, held by two tapered dowels through
-    its tenon, level, their heads towards the viewer.
+    """A tusk tenon held by a dowel (after Rex Krueger's workbench): a
+    stretcher through a 70 mm square leg, held by a tapered dowel through
+    its tenon, level, its head towards the viewer.
 
-    The 45 x 150 mm stretcher's tenon is as thick as the stretcher, between
-    20 mm shoulders at its edges. Each tusk, a `tusk_diameter` dowel
-    `tusk_length` long, has a flat planed on it, tapering 1:12 to its tip,
-    and goes through a hole bored through the tenon; its flat bears on two
-    half dowels glued on the outer face of the leg, beside the tenon.
-    Knocked out, the tusks free the stretcher.
+    The 45 x 150 mm stretcher's tenon is as thick as the stretcher and a
+    third as wide, standing out of the leg by as much as the leg is wide,
+    with big chamfers at its corners. The tusk, a `tusk_diameter` dowel
+    `tusk_length` long, has a flat planed over its tip half, tapering 1:12,
+    and goes through a straight hole bored through the tenon; behind the
+    tenon its flat bears on a half dowel lying across it on the leg, rocking
+    on its round side. Knocked out, the tusk frees the stretcher.
     """
     asm = Assembly("dowel_tusk_tenon", root_location=orient(right_end=UP, back_edge=LEFT))
     leg = asm.add(Board("leg", POST_STOCK, length=leg_length, width=POST_STOCK.thickness))
     stretcher = asm.add(Board("stretcher", LEG_STOCK, length=stretcher_length, width=width))
     dowel = Stock.rod(diameter=tusk_diameter, species="oak")
-    tusks = tuple(asm.add(Rod(f"tusk_{i + 1}", dowel, length=tusk_length)) for i in range(2))
-    beside = (POST_STOCK.thickness - LEG_STOCK.thickness) / 2
-    bearings = tuple(
-        asm.add(Rod(f"bearing_{i + 1}", dowel, length=beside)) for i in range(2 * len(tusks))
-    )
+    tusk = asm.add(Rod("tusk", dowel, length=tusk_length))
+    bearing = asm.add(Rod("bearing", dowel, length=30))
     asm.join(
         DowelTuskTenon(
             tenon=stretcher.left_end,
             mortise=leg.back_edge,
             position=offset(80, ref=leg.right_end),
             across=CENTERED,
-            shoulder=20,
+            shoulder=width / 3,
             tenon_thickness=LEG_STOCK.thickness,
             tenon_chamfer=2,
-            tusks=tusks,
-            bearings=bearings,
+            tenon_corner_chamfer=15,
+            tusks=(tusk,),
+            bearings=(bearing,),
             tusk_head=leg.top_face,
+            protrusion=POST_STOCK.thickness,
         )
     )
     return asm
