@@ -470,7 +470,133 @@ def test_tenons_across_the_thickness_errors() -> None:
         ww.Tongue(rail.back_edge, length=10, thickness=10, thickness_count=2, thickness_gap=10)
 
 
+# --- Holes ------------------------------------------------------------------
+
+
+def test_through_hole() -> None:
+    board = ww.Board("b", OAK, length=300, width=60)
+    hole = ww.Hole(board.top_face, 8, at={board.left_end: 20})
+    assert hole.describe() == "through hole ø8, in b.top_face, 20 from b.left_end, centered"
+    shape = cut_part(board, hole)
+    assert 300 * 60 * 20 - shape.volume == pytest.approx(math.pi * 4**2 * 20)
+    design_box = bd.Box(300, 60, 20, align=(bd.Align.MIN, bd.Align.MIN, bd.Align.MAX))
+    lo, hi = bbox(hole.removal() & design_box)
+    assert lo == (16, 26, -20)
+    assert hi == (24, 34, 0)
+
+
+def test_blind_hole_in_an_edge_with_a_drill_point() -> None:
+    board = ww.Board("b", OAK, length=300, width=60)
+    hole = ww.Hole(board.back_edge, 8, depth=30, at={board.right_end: 50}, point=118)
+    assert hole.describe() == (
+        "hole ø8, 30 deep, drill point 118 deg, in b.back_edge, 50 from b.right_end, centered"
+    )
+    point = 4 / math.tan(math.radians(59))
+    removed = 300 * 60 * 20 - cut_part(board, hole).volume
+    assert removed == pytest.approx(math.pi * 16 * (30 + point / 3))
+    assert tuple(hole.center()) == pytest.approx((250, 60, -10))
+
+
+def test_counterbored_and_countersunk_holes() -> None:
+    board = ww.Board("b", OAK, length=300, width=60)
+    bored = ww.Hole(board.top_face, 5, at={board.left_end: 30}, counterbore=10, counterbore_depth=8)
+    sunk = ww.Hole(board.top_face, 5, at={board.right_end: 30}, countersink=10)
+    assert "counterbored ø10, 8 deep" in bored.describe()
+    assert "countersunk ø10, 90 deg" in sunk.describe()
+    assert sunk.countersink_depth == pytest.approx(2.5)
+    removed = 300 * 60 * 20 - cut_part(board, bored, sunk).volume
+    cone = math.pi * 2.5 / 3 * (5**2 + 5 * 2.5 + 2.5**2) - math.pi * 2.5**2 * 2.5
+    expected = 2 * math.pi * 2.5**2 * 20 + math.pi * (5**2 - 2.5**2) * 8 + cone
+    assert removed == pytest.approx(expected)
+
+
+def test_tapered_holes() -> None:
+    board = ww.Board("seat", ww.Stock.board(40, "elm"), length=400, width=400)
+    blind = ww.Hole(board.bottom_face, 20, depth=30, bottom_diameter=16, at={board.left_end: 100})
+    through = ww.Hole(board.bottom_face, 24, bottom_diameter=18, at={board.right_end: 100})
+    assert blind.describe().startswith("tapered hole ø20 to ø16, 30 deep, in seat.bottom_face")
+    assert through.describe().startswith("through tapered hole ø24 to ø18, in seat.bottom_face")
+
+    def frustum(r1: float, r2: float, h: float) -> float:
+        return math.pi * h / 3 * (r1 * r1 + r1 * r2 + r2 * r2)
+
+    removed = 400 * 400 * 40 - cut_part(board, blind, through).volume
+    assert removed == pytest.approx(frustum(10, 8, 30) + frustum(12, 9, 40))
+
+
+def test_hole_must_fit() -> None:
+    board = ww.Board("b", OAK, length=300, width=60)
+    with pytest.raises(ValueError, match="doesn't fit"):
+        ww.Hole(board.top_face, 10, at={board.left_end: 4})
+    with pytest.raises(ValueError, match="within 20 mm"):
+        ww.Hole(board.top_face, 10, depth=25)
+    with pytest.raises(ValueError, match="not adjacent"):
+        ww.Hole(board.top_face, 10, at={board.bottom_face: 4})
+    with pytest.raises(ValueError, match="either counterbored or countersunk"):
+        ww.Hole(board.top_face, 5, counterbore=10, counterbore_depth=2, countersink=10)
+    with pytest.raises(ValueError, match="no drill point"):
+        ww.Hole(board.top_face, 5, point=118)
+
+
+def test_holes_in_a_rod() -> None:
+    rod = ww.Rod("dowel", ww.Stock.rod(20, "beech"), length=100)
+    end = ww.Hole(rod.right_end, 6, depth=30)
+    cross = ww.Hole(rod.top_face, 6, at={rod.left_end: 20})
+    assert end.describe() == "hole ø6, 30 deep, in dowel.right_end, centered"
+    assert tuple(end.center()) == pytest.approx((100, 10, -10))
+    assert tuple(cross.center()) == pytest.approx((20, 10, 0))
+    shape = cut_part(rod, end)
+    assert shape.volume == pytest.approx(math.pi * (100 * 100 - 9 * 30))
+    with pytest.raises(ValueError, match="within the end of dowel"):
+        ww.Hole(rod.left_end, 6, depth=10, at={rod.front_edge: 2})
+
+
 # --- Rods -------------------------------------------------------------------
+
+
+def test_end_chamfers() -> None:
+    rod = ww.Rod("dowel", ww.Stock.rod(10, "beech"), length=40)
+    chamfer = ww.EndChamfer(rod.right_end, 1)
+    assert chamfer.describe() == "chamfer 1 mm around dowel.right_end"
+    # A ring of triangular section, 1 x 1, at radius 4 to 5 (Pappus).
+    ring = 0.5 * 2 * math.pi * (5 - 1 / 3)
+    assert cut_part(rod, chamfer).volume == pytest.approx(math.pi * 25 * 40 - ring)
+
+    leg = ww.Board("leg", ww.Stock.board(40, "oak"), length=400, width=40)
+    foot = ww.EndChamfer(leg.left_end, 3, length=6)
+    assert foot.describe() == "chamfer 3 x 6 mm around leg.left_end"
+    # Four chamfers, minus the overlaps at the corners counted twice.
+    removed = 4 * 40 * 3 * 6 / 2 - 4 * 3 * 3 * 6 / 3
+    assert cut_part(leg, foot).volume == pytest.approx(400 * 40 * 40 - removed)
+
+
+def test_round_taper_and_point() -> None:
+    rod = ww.Rod("leg", ww.Stock.rod(40, "oak"), length=450)
+    taper = ww.RoundTaper(rod.left_end, 28, length=300)
+    assert taper.describe() == "round taper to ø28 over 300 mm towards leg.left_end"
+    frustum = math.pi * 300 / 3 * (20**2 + 20 * 14 + 14**2)
+    assert cut_part(rod, taper).volume == pytest.approx(math.pi * 400 * 150 + frustum)
+
+    peg = ww.Rod("peg", ww.Stock.rod(10, "oak"), length=60)
+    point = ww.RoundTaper(peg.right_end, 0, length=15)
+    assert point.describe() == "point over 15 mm on peg.right_end"
+    assert cut_part(peg, point).volume == pytest.approx(math.pi * 25 * (45 + 15 / 3))
+
+    board = ww.Board("b", OAK, length=300, width=60)
+    with pytest.raises(ValueError, match="turned on a rod"):
+        ww.RoundTaper(board.left_end, 10)
+    with pytest.raises(ValueError, match="under ø10"):
+        ww.RoundTaper(peg.left_end, 12)
+
+
+def test_flat_on_a_rod() -> None:
+    rod = ww.Rod("half_dowel", ww.Stock.rod(20, "oak"), length=100)
+    flat = ww.Flat(rod.bottom_face, 10)
+    assert flat.describe() == "flat 20 mm wide, 10 deep, on half_dowel.bottom_face"
+    assert cut_part(rod, flat).volume == pytest.approx(math.pi * 100 * 100 / 2)
+    assert ww.Flat(rod.top_face, 2).width == pytest.approx(12)
+    with pytest.raises(ValueError, match="along a rod"):
+        ww.Flat(rod.left_end, 2)
 
 
 def test_rods_refuse_cuts_needing_planar_sides() -> None:

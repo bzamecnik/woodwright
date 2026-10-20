@@ -7,7 +7,8 @@ open on that side (it runs out of the board), so it also goes through any
 allowance there. The cut list names such cuts by their shape, whichever class
 made them: a `Groove` at the very edge of a board is listed as a rabbet.
 
-Cuts that need the planar sides of a board (grooves, dados,
+Round cuts (holes, end chamfers and tapers of rods) are built from cylinders
+and cones. Cuts that need the planar sides of a board (grooves, dados,
 rabbets, mortises, tenons, chamfers along an arris) refuse rods; a rod can
 be mitred at an end, tapered flat along a long side, flattened (`Flat`) or
 cut by a `Pocket`.
@@ -20,9 +21,10 @@ from dataclasses import dataclass
 
 import build123d as bd
 
-from woodwright.part import ArrisRef, Board, Part, Side, SideRef
+from woodwright.part import ArrisRef, Board, Part, Rod, Side, SideRef
 
 _MIN = (bd.Align.MIN, bd.Align.MIN, bd.Align.MIN)
+_AXIAL = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)  # a cylinder or a cone along z
 _EPS = 1e-6
 INF = math.inf
 
@@ -974,7 +976,7 @@ class Chamfer(Cut):
     run_out: bool = False
 
     def __post_init__(self) -> None:
-        _check_board(self.arris.a, "a chamfer along an arris ")
+        _check_board(self.arris.a, "a chamfer along an arris (use EndChamfer on a rod)")
 
     @property
     def part(self) -> Part:
@@ -1141,6 +1143,293 @@ class ShapeCut(Cut):
         return self.name
 
 
+# --- Round cuts -------------------------------------------------------------
+
+
+@dataclass
+class Hole(Cut):
+    """A round hole drilled into a side along its normal, `diameter` wide.
+
+    `at` gives the distance of the hole's center from sides of the part next
+    to `side`, e.g. `{board.left_end: 20, board.front_edge: 30}`; across an
+    axis not given it is centered (so into a rod's end, on its axis). From
+    a long side of a rod it is a cross hole, centered across the rod by
+    default.
+
+    Without `depth` it goes through the part. A blind hole is `depth` deep
+    with a flat bottom (Forstner, auger), or with `point`, the angle of a
+    drill's tip (118 degrees for a twist drill), a conical point below that.
+
+    With `bottom_diameter`, it is a tapered (reamed) hole, that wide at its
+    bottom (at the far side, if through), e.g. for the tapered tenon of a
+    Windsor chair's leg, or flared for a wedged round tenon.
+
+    With `counterbore` (a diameter) and `counterbore_depth`, a wider, shallow
+    hole over it, for a screw head or a plug; with `countersink` (the
+    diameter at the side), a cone at `countersink_angle` for a screw head.
+    """
+
+    side: SideRef
+    diameter: float
+    depth: float | None = None
+    at: dict[SideRef, float] | None = None
+    point: float | None = None
+    bottom_diameter: float | None = None
+    counterbore: float | None = None
+    counterbore_depth: float = 0.0
+    countersink: float | None = None
+    countersink_angle: float = 90.0
+
+    def __post_init__(self) -> None:
+        if self.diameter <= 0:
+            raise ValueError("a hole's diameter must be positive")
+        if self.depth is not None and not 0 < self.depth <= self.side.depth + _EPS:
+            raise ValueError(f"a hole's depth must be within {self.side.depth:g} mm, or None")
+        if self.point is not None:
+            if self.depth is None:
+                raise ValueError("a through hole has no drill point")
+            if not 0 < self.point < 180:
+                raise ValueError("a drill point's angle must be between 0 and 180 degrees")
+        if self.bottom_diameter is not None:
+            if self.bottom_diameter <= 0:
+                raise ValueError("a tapered hole's bottom diameter must be positive")
+            if self.point is not None:
+                raise ValueError("a tapered hole has a flat bottom")
+        if self.counterbore is not None and self.countersink is not None:
+            raise ValueError("a hole is either counterbored or countersunk")
+        if self.counterbore is not None:
+            if self.counterbore <= self.diameter:
+                raise ValueError("a counterbore must be wider than its hole")
+            if not 0 < self.counterbore_depth < self.length:
+                raise ValueError("a counterbore must be shallower than its hole")
+        if self.countersink is not None:
+            if self.countersink <= self.diameter:
+                raise ValueError("a countersink must be wider than its hole")
+            if not 0 < self.countersink_angle < 180:
+                raise ValueError("a countersink's angle must be between 0 and 180 degrees")
+            if self.countersink_depth >= self.length:
+                raise ValueError("a countersink must be shallower than its hole")
+        axes = set()
+        for ref, distance in (self.at or {}).items():
+            _check_adjacent(self.side, ref)
+            if ref.axis in axes:
+                raise ValueError(f"a hole is positioned from one side along each axis, not {ref}")
+            axes.add(ref.axis)
+            if distance < 0:
+                raise ValueError(f"a hole lies within the part, not {distance:g} beyond {ref}")
+        self._check_fits()
+
+    @property
+    def length(self) -> float:
+        """How deep the hole is: to its bottom, or through the part."""
+        return self.side.depth if self.depth is None else self.depth
+
+    @property
+    def countersink_depth(self) -> float:
+        if self.countersink is None:
+            return 0.0
+        half = math.radians(self.countersink_angle / 2)
+        return (self.countersink - self.diameter) / 2 / math.tan(half)
+
+    @property
+    def entry_diameter(self) -> float:
+        """The widest the hole is at the side."""
+        return max(self.diameter, self.counterbore or 0, self.countersink or 0)
+
+    def center(self) -> bd.Vector:
+        """The hole's center on the side, in the part frame."""
+        lo, hi = self.part.box
+        center = [(a + b) / 2 for a, b in zip(lo, hi, strict=True)]
+        center[self.side.axis] = self.side.coordinate
+        for ref, distance in (self.at or {}).items():
+            center[ref.axis] = ref.coordinate - ref.side.sign * distance
+        return bd.Vector(*center)
+
+    def _check_fits(self) -> None:
+        r = max(self.entry_diameter, self.bottom_diameter or 0) / 2
+        center = self.center()
+        part = self.part
+        if isinstance(part, Rod) and self.side.axis == 0:
+            y, z = part.axis
+            if math.hypot(center.Y - y, center.Z - z) + r > part.diameter / 2 + _EPS:
+                raise ValueError(f"the hole doesn't fit within the end of {part.name}")
+            return
+        lo, hi = part.box
+        for axis in range(3):
+            c = tuple(center)[axis]
+            if axis != self.side.axis and (c - r < lo[axis] - _EPS or c + r > hi[axis] + _EPS):
+                raise ValueError(f"the hole doesn't fit within {self.side}")
+
+    def removal(self) -> bd.Part:
+        # Built along z, the side's outward normal, from the side at z = 0.
+        m = _margin(self.part)
+        r, length = self.diameter / 2, self.length
+        bottom = length + m if self.depth is None else length
+        if self.bottom_diameter is None:
+            hole = _cylinder(r, -bottom, m)
+        else:
+            rb = self.bottom_diameter / 2
+            hole = bd.Pos(0, 0, -length) * bd.Cone(rb, r, length, align=_AXIAL)
+            hole += _cylinder(r, 0, m)
+            if self.depth is None:
+                hole += _cylinder(rb, -bottom, -length)
+        if self.point is not None:
+            height = r / math.tan(math.radians(self.point / 2))
+            hole += bd.Pos(0, 0, -length - height) * bd.Cone(0, r, height, align=_AXIAL)
+        if self.counterbore is not None:
+            hole += _cylinder(self.counterbore / 2, -self.counterbore_depth, m)
+        if self.countersink is not None:
+            rs, depth = self.countersink / 2, self.countersink_depth
+            hole += bd.Pos(0, 0, -depth) * bd.Cone(r, rs, depth, align=_AXIAL)
+            hole += _cylinder(rs, 0, m)
+        plane = bd.Plane(
+            self.center(), x_dir=_unit(self.side._plane_axes[0]), z_dir=self.side.normal
+        )
+        return bd.Location(plane) * hole
+
+    def describe(self) -> str:
+        kind = "hole" if self.bottom_diameter is None else "tapered hole"
+        if self.depth is None:
+            kind = f"through {kind}"
+        text = f"{kind} ø{self.diameter:g}"
+        if self.bottom_diameter is not None:
+            text += f" to ø{self.bottom_diameter:g}"
+        if self.depth is not None:
+            text += f", {self.depth:g} deep"
+        if self.point is not None:
+            text += f", drill point {self.point:g} deg"
+        if self.counterbore is not None:
+            text += f", counterbored ø{self.counterbore:g}, {self.counterbore_depth:g} deep"
+        if self.countersink is not None:
+            text += f", countersunk ø{self.countersink:g}, {self.countersink_angle:g} deg"
+        text += f", in {self.side}"
+        at = {ref.axis: (ref, distance) for ref, distance in (self.at or {}).items()}
+        for axis in self.side._plane_axes:
+            if axis in at:
+                ref, distance = at[axis]
+                text += f", {distance:g} from {ref}"
+        if len(at) < 2:
+            text += ", centered"
+        return text
+
+
+@dataclass
+class EndChamfer(Cut):
+    """A chamfer around an end: `size` wide on the end, `length` (by default
+    as much, at 45 degrees) along the part.
+
+    On a board, the four arrises around the end are chamfered, e.g. at the
+    foot of a leg so that it doesn't splinter. On a rod, the round arris: a
+    cone, e.g. at the ends of a dowel, so that it enters its hole.
+    """
+
+    side: SideRef
+    size: float
+    length: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.side.axis != 0:
+            raise ValueError(f"an end chamfer goes around an end, not around {self.side}")
+        part = self.part
+        if not 0 < self.size < min(part.width, part.thickness) / 2:
+            raise ValueError("an end chamfer must be narrower than half the part")
+        if not 0 < self.along <= part.length:
+            raise ValueError("an end chamfer must be shorter than the part")
+
+    @property
+    def along(self) -> float:
+        return self.size if self.length is None else self.length
+
+    def removal(self) -> bd.Part:
+        part = self.part
+        if isinstance(part, Rod):
+            return _cone_removal(self.side, part.diameter / 2 - self.size, self.along)
+        sides = (part.top_face, part.bottom_face, part.front_edge, part.back_edge)
+        chamfers = [
+            Chamfer(part.arris(self.side, side), size=self.size, size_b=self.along).removal()
+            for side in sides
+        ]
+        return functools.reduce(operator.add, chamfers)
+
+    def describe(self) -> str:
+        size = f"{self.size:g}" if self.length is None else f"{self.size:g} x {self.length:g}"
+        return f"chamfer {size} mm around {self.side}"
+
+
+@dataclass
+class RoundTaper(Cut):
+    """A rod turned (or shaved) to a cone towards `end`, `diameter` there.
+
+    The taper starts `length` from `end` (by default at the other end).
+    With `diameter` 0, it comes to a point, e.g. a peg or a stake.
+    """
+
+    end: SideRef
+    diameter: float
+    length: float | None = None
+
+    def __post_init__(self) -> None:
+        part = self.end.part
+        if not isinstance(part, Rod):
+            raise ValueError(f"a round taper is turned on a rod, {part.name} is a board")
+        if self.end.axis != 0:
+            raise ValueError(f"a round taper runs towards an end, not towards {self.end}")
+        if not 0 <= self.diameter < part.diameter:
+            raise ValueError(f"a round taper narrows the rod to under ø{part.diameter:g}")
+        if not 0 < self.along <= part.length:
+            raise ValueError("a round taper must not be longer than the rod")
+
+    @property
+    def part(self) -> Part:
+        return self.end.part
+
+    @property
+    def along(self) -> float:
+        return self.part.length if self.length is None else self.length
+
+    def removal(self) -> bd.Part:
+        return _cone_removal(self.end, self.diameter / 2, self.along)
+
+    def describe(self) -> str:
+        over = "" if self.length is None else f" over {self.length:g} mm"
+        if self.diameter == 0:
+            return f"point{over} on {self.end}"
+        return f"round taper to ø{self.diameter:g}{over} towards {self.end}"
+
+
+@dataclass
+class Flat(BoxCut):
+    """A flat planed (or ripped) along a rod, `depth` into it from one of its
+    long sides, e.g. where it lies on a board; a half dowel at half its diameter.
+
+    With `stopped`, it stops that far short of each of the given ends.
+    """
+
+    side: SideRef
+    depth: float
+    stopped: dict[SideRef, float] | None = None
+
+    def __post_init__(self) -> None:
+        if not self.side.virtual:
+            raise ValueError(f"a flat is cut along a rod, not into {self.side}")
+        if not 0 < self.depth < self.side.depth:
+            raise ValueError(f"a flat must be shallower than the rod, ø{self.side.depth:g}")
+        _check_stops(self.side, self.stopped, along=0)
+
+    def unstopped_ranges(self) -> tuple[Range, Range, Range]:
+        return _ranges(_into(self.side, self.depth))
+
+    @property
+    def width(self) -> float:
+        """Of the flat face: a chord of the rod's section."""
+        r = self.side.depth / 2
+        return 2 * math.sqrt(r * r - (r - min(self.depth, r)) ** 2)
+
+    def describe(self) -> str:
+        text = f"flat {round(self.width, 1):g} mm wide, {self.depth:g} deep, on {self.side}"
+        return _describe_stops(text, self.stopped)
+
+
 def side_box(
     side: SideRef, u: float, v: float, w: float, du: float, dv: float, dw: float
 ) -> bd.Part:
@@ -1279,6 +1568,27 @@ def _prism(part: Part, i: int, j: int, points: list[tuple[float, float]]) -> bd.
     plane = bd.Plane(tuple(origin), x_dir=x_dir, z_dir=x_dir.cross(y_dir))
     face = plane * bd.Polygon(*points)
     return bd.extrude(face, amount=(hi[t] - lo[t]) / 2 + _margin(part), both=True)
+
+
+def _cylinder(radius: float, z0: float, z1: float) -> bd.Part:
+    """A cylinder along z from z0 to z1, on the z axis."""
+    return bd.Pos(0, 0, z0) * bd.Cylinder(radius, z1 - z0, align=_AXIAL)
+
+
+def _cone_removal(end: SideRef, radius: float, length: float) -> bd.Part:
+    """Around a rod's end, outside a cone from its full radius `length` from
+    the end to `radius` at the end (and on beyond it, over any allowance)."""
+    part = end.part
+    assert isinstance(part, Rod)
+    m = _margin(part)
+    c, s, big = end.coordinate, end.side.sign, part.diameter / 2 + m
+    points = [(c - s * length, part.diameter / 2), (c, radius), (c + s * m, radius)]
+    points += [(c + s * m, big), (c - s * length, big)]
+    # In a plane through the rod's axis, (along the length, from the axis).
+    y, z = part.axis
+    plane = bd.Plane((0, y, z), x_dir=(1, 0, 0), z_dir=(0, 0, 1))
+    face = plane * bd.Polygon(*_dedup(points))
+    return bd.revolve(face, bd.Axis((0, y, z), (1, 0, 0)))
 
 
 def _describe_box(

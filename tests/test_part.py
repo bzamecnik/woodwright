@@ -125,6 +125,7 @@ def test_mirrored_board_swaps_the_names_of_its_ends() -> None:
         lambda b: ww.Mortise(b.back_edge, start=50, length=40, offset=6, width=8, depth=20),
         lambda b: ww.Tenon(b.front_edge, length=10, thickness=8, width=50, width_offset=30),
         lambda b: ww.Taper(b.top_face, end=b.left_end, amount=5, length=100),
+        lambda b: ww.Hole(b.top_face, 8, depth=10, at={b.left_end: 30, b.front_edge: 15}),
     ],
 )
 def test_cuts_on_a_mirrored_board_are_mirrored(cut) -> None:
