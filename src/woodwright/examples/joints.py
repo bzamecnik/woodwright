@@ -19,6 +19,7 @@ from woodwright.joints import (
     GrooveJoint,
     HalfBlindDovetail,
     HalfLap,
+    KeyedMitre,
     LooseTenon,
     LooseTongue,
     MitreCorner,
@@ -41,7 +42,7 @@ from woodwright.joints import (
     WedgedRoundMortiseTenon,
 )
 from woodwright.part import Board, Rod
-from woodwright.placement import CENTERED, FRONT, LEFT, UP, flush_with, offset, orient
+from woodwright.placement import CENTERED, FRONT, LEFT, RIGHT, UP, flush_with, offset, orient
 from woodwright.stock import Stock
 
 THICK_OAK = Stock.board(thickness=30, species="oak")  # also 30 x 45 mm (2:3) frame stock
@@ -49,6 +50,10 @@ LEG_STOCK = Stock.board(thickness=45, species="oak")
 POST_STOCK = Stock.board(thickness=70, species="oak")
 HOLLOW_LEG_OAK = Stock.board(thickness=15, species="oak")
 SPLINE_OAK = Stock.board(thickness=6, species="oak")  # for loose tongues
+# A stile standing up with its outside (front) edge to the right, so that
+# a frame corner at its top shows both outside edges.
+OUTSIDE_CORNER_UP = orient(right_end=UP, front_edge=RIGHT)
+KEY_WALNUT = Stock.board(thickness=3, species="walnut")  # for keys in mitres, a contrast
 ROD_OAK = Stock.rod(diameter=25, species="oak")  # rungs, stretchers
 ROUND_LEG_OAK = Stock.rod(diameter=40, species="oak")
 DOWEL_OAK = Stock.rod(diameter=8, species="oak")  # dowels and pegs
@@ -1159,6 +1164,113 @@ def mitre_corner(
     stile = asm.add(Board("stile", stock, length=stile_length, width=width))
     rail = asm.add(Board("rail", stock, length=rail_length, width=width))
     asm.join(MitreCorner(stile.right_end, rail.left_end, stile.back_edge, rail.back_edge))
+    return asm
+
+
+def keyed_mitre_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 40, stock: Stock = OAK
+) -> Assembly:
+    """A picture frame corner with a key (a slip feather) across the outside corner.
+
+    The kerf, 3 mm wide in the middle of the thickness, is sawn square to
+    the faces from the outside corner, a third of the way along the mitre
+    line. The key, a walnut offcut glued in proud, is shown trimmed flush
+    with the outside edges: a triangle.
+    """
+    asm = Assembly("keyed_mitre_corner", root_location=OUTSIDE_CORNER_UP)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    key = asm.add(Board("key", KEY_WALNUT, length=50, width=20))
+    asm.join(
+        KeyedMitre(stile.right_end, rail.left_end, stile.back_edge, rail.back_edge, keys=(key,))
+    )
+    return asm
+
+
+def dovetail_keyed_mitre_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 45, stock: Stock = THICK_OAK
+) -> Assembly:
+    """A frame corner with a dovetail key across the outside corner.
+
+    The kerf is cut with a 10 mm dovetail bit (sides at 8 degrees) with
+    the frame in a cradle on the router table, 15 mm deep: 10 mm wide at
+    its bottom, about 6 mm at the corner, so the key can't pull out
+    sideways. The key is a dovetail strip, trimmed flush.
+    """
+    asm = Assembly("dovetail_keyed_mitre_corner", root_location=OUTSIDE_CORNER_UP)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    key = asm.add(Board("key", Stock.board(thickness=10, species="walnut"), length=40, width=20))
+    asm.join(
+        KeyedMitre(
+            stile.right_end,
+            rail.left_end,
+            stile.back_edge,
+            rail.back_edge,
+            keys=(key,),
+            depth=15,
+            dovetail=8,
+        )
+    )
+    return asm
+
+
+def keyed_box_corner(
+    front_length: float = 300, side_length: float = 200, height: float = 120, stock: Stock = OAK
+) -> Assembly:
+    """A box corner mitred across the edges, with three keys across the
+    outside corner, spaced evenly up it, 8 mm deep along the mitre line.
+
+    The keys are 3 mm walnut, sawn on a cradle; lengths are to the outside.
+    """
+    return _keyed_box_corner(
+        "keyed_box_corner", front_length, side_length, height, 0, (8, 8, 8), stock
+    )
+
+
+def slanted_keys_box_corner(
+    front_length: float = 300,
+    side_length: float = 200,
+    height: float = 120,
+    angle: float = 15,
+    depths: tuple[float, ...] = (8, 12, 8),
+    stock: Stock = OAK,
+) -> Assembly:
+    """A keyed box corner, the kerfs tilted alternately up and down by
+    `angle` (the cradle set askew), so that the keys show as slanted lines
+    on both faces; the middle one deeper than the others."""
+    return _keyed_box_corner(
+        "slanted_keys_box_corner", front_length, side_length, height, angle, depths, stock
+    )
+
+
+def _keyed_box_corner(
+    name: str,
+    front_length: float,
+    side_length: float,
+    height: float,
+    angle: float,
+    depths: tuple[float, ...],
+    stock: Stock,
+) -> Assembly:
+    asm = Assembly(name, root_location=BOX_FRONT)
+    front = asm.add(Board("front", stock, length=front_length, width=height))
+    side = asm.add(Board("side", stock, length=side_length, width=height, mirror=True))
+    keys = tuple(
+        asm.add(Board(f"key_{i + 1}", KEY_WALNUT, length=40, width=15)) for i in range(len(depths))
+    )
+    angles = tuple(angle if i % 2 == 0 else -angle for i in range(len(depths)))
+    asm.join(
+        KeyedMitre(
+            front.right_end,
+            side.right_end,
+            front.bottom_face,
+            side.bottom_face,
+            keys=keys,
+            depth=depths,
+            angle=angles,
+        )
+    )
     return asm
 
 

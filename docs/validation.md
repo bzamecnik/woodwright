@@ -103,9 +103,11 @@ Done items name their example in `woodwright.examples`
       inside edges (the grooves run out at the mitres) – `frames.mitred_frame_and_panel`
     - keyed mitre (slip feathers) - kerfs across the outside corner, square to its arris, thin
       keys glued in and trimmed flush (showing as triangles)
-      - [ ] picture frame corner, one key; box corner, several keys
-      - [ ] kerfs tilted, of varying depths
-      - [ ] dovetail keys
+      - [x] picture frame corner, one key; box corner, several keys – `KeyedMitre`,
+        `joints.keyed_mitre_corner`, `joints.keyed_box_corner`
+      - [x] kerfs tilted, of varying depths – `joints.slanted_keys_box_corner` (tilted
+        alternately, a chevron round the corner; the middle key deeper)
+      - [x] dovetail keys – `joints.dovetail_keyed_mitre_corner`
     - splined mitre - a loose tongue across the mitre, in grooves square to the mitre faces
       - [ ] along the corner: through in a box corner, several in a row on a wide shelf corner
       - [ ] along the mitre line: hidden in a picture frame corner
