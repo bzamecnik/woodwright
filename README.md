@@ -146,14 +146,17 @@ What's there so far:
   tusk, pinned, drawbored); loose tenons and loose tongues; bridles (L and
   T); half laps (plain, dovetailed, mitred), cross laps, mitred face
   tenons; box joints; sliding, through, half-blind, mitred-corner and blind
-  mitred dovetails; mitre corners and splices; table-top buttons; round
+  mitred dovetails; mitre corners and splices, keyed mitres (straight,
+  dovetailed or slanted keys across the corner), splined mitres (along the
+  corner or the mitre line, through or stopped); butterfly keys across a
+  crack or the joint of two boards; table-top buttons; round
   tenons and whole rods in holes (blind, through, tapered, wedged, into
   square or round stock); dowels; screws (clearance and pilot holes,
   countersunk or counterbored).
 
 ## Example library
 
-`woodwright.examples` holds over 130 examples, from single cuts through
+`woodwright.examples` holds over 140 examples, from single cuts through
 joints to projects: a try square, a mallet, a bookshelf, a dovetailed drawer
 with a bottom, a dining table, a side table, a chair, a stool and a step
 stool on round legs wedged through their seats, a towel rail, a coat rack
