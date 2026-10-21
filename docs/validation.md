@@ -114,8 +114,8 @@ Done items name their example in `woodwright.examples`
         `joints.splined_shelf_corner` (three in stopped grooves)
       - [x] along the mitre line: hidden in a picture frame corner – `joints.splined_mitre_corner`
   - butterfly key (bow tie) - a shallow bow-tie mortise in a face, a key inlaid flush
-    - [ ] across a crack in a board
-    - [ ] across the joint of two boards
+    - [x] across a crack in a board – `Butterfly`, `joints.butterfly_crack` (the crack not modelled)
+    - [x] across the joint of two boards – `joints.butterfly_joint` (two slabs, three keys)
   - lap joint
     - [x] two boards with overlapping rabbets to make panel – `joints.shiplap_panel` (three boards)
     - [x] half-lap corner - two perpendicular boards with "endgrain rabbet" – `joints.half_lap_corner`

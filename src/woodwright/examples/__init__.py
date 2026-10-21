@@ -118,6 +118,8 @@ ALL: list[Example] = [
     joints.hollow_leg,
     joints.mitre_splice,
     joints.cross_lap,
+    joints.butterfly_crack,
+    joints.butterfly_joint,
     joints.rod_in_hole,
     joints.round_mortise_tenon,
     joints.round_tenon_in_round_leg,

@@ -11,6 +11,7 @@ from woodwright.joints import (
     BoxJoint,
     Bridle,
     Butt,
+    Butterfly,
     CrossLap,
     DadoJoint,
     DovetailHalfLap,
@@ -56,6 +57,7 @@ SPLINE_OAK = Stock.board(thickness=6, species="oak")  # for loose tongues
 OUTSIDE_CORNER_UP = orient(right_end=UP, front_edge=RIGHT)
 THIN_SPLINE_OAK = Stock.board(thickness=4, species="oak")  # for splines in mitres
 SPLINE_PLYWOOD = Stock.board(thickness=4, species="plywood")
+BUTTERFLY_WALNUT = Stock.board(thickness=8, species="walnut")
 KEY_WALNUT = Stock.board(thickness=3, species="walnut")  # for keys in mitres, a contrast
 ROD_OAK = Stock.rod(diameter=25, species="oak")  # rungs, stretchers
 ROUND_LEG_OAK = Stock.rod(diameter=40, species="oak")
@@ -1437,6 +1439,37 @@ def cross_lap(
     a = asm.add(Board("a", stock, length=length_a, width=width))
     b = asm.add(Board("b", stock, length=length_b, width=width))
     asm.join(CrossLap(a.back_edge, b.left_end))
+    return asm
+
+
+def butterfly_crack(length: float = 600, width: float = 300, stock: Stock = THICK_OAK) -> Assembly:
+    """Two butterfly keys holding a crack running in from the end of a slab.
+
+    The keys, walnut 90 x 45 mm at the ends, 15 mm at the waist, 8 mm
+    thick, lie across the grain (and the crack), inlaid flush into mortises
+    in the top face, 60 and 160 mm from the right end. The crack itself
+    isn't modelled.
+    """
+    asm = Assembly("butterfly_crack")
+    slab = asm.add(Board("slab", stock, length=length, width=width))
+    for i, distance in enumerate((60, 160)):
+        key = asm.add(Board(f"key_{i + 1}", BUTTERFLY_WALNUT, length=90, width=45))
+        asm.join(Butterfly(slab.top_face, key, at={slab.right_end: distance}))
+    return asm
+
+
+def butterfly_joint(length: float = 600, width: float = 200, stock: Stock = THICK_OAK) -> Assembly:
+    """Two slabs butted edge to edge, held by three butterfly keys across
+    the joint (as in a live-edge table top), inlaid flush into the top faces,
+    half of each key in each slab."""
+    asm = Assembly("butterfly_joint")
+    a = asm.add(Board("slab_1", stock, length=length, width=width))
+    b = asm.add(Board("slab_2", stock, length=length, width=width))
+    asm.join(Butt(a.back_edge, b.front_edge))
+    for i in range(3):
+        key = asm.add(Board(f"key_{i + 1}", BUTTERFLY_WALNUT, length=90, width=45))
+        at = {a.left_end: length * (i + 1) / 4, a.back_edge: 0}
+        asm.join(Butterfly(a.top_face, key, at=at, other=b.top_face))
     return asm
 
 

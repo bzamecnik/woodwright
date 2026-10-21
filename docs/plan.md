@@ -886,7 +886,7 @@ shallow counterbore as wide as the rail, so the flat shoulder seats on
 it), or the rail's shoulder coped, cut concave around the tenon to the
 leg's radius (scribed), so it wraps around the leg.
 
-### M9: Splines, keys and butterflies 🟡 started
+### M9: Splines, keys and butterflies ✅ mostly done
 
 Small inserted pieces that strengthen a mitre or hold a crack, glued in and
 trimmed flush. All of them are separate pieces (`Joint.pieces`), like loose
@@ -956,6 +956,33 @@ piece.
 3. `Butterfly`: across a crack in a board, across the joint of two boards.
 4. Examples in the projects: a keyed picture frame, a splined mitre box,
    butterflies in a glued-up top.
+
+**Status.** Steps 1–3 done on 2026-10-21:
+
+- `KeyedMitre`: kerfs as slabs square to the arris, cut from the outside
+  corner `depth` along the mitre line (by default a third of it,
+  `rules.key_depth`); keys placed seated at the bottom of their kerfs,
+  centered across the mitre, trimmed flush by a cut on each key (the cut
+  list gives the blank and "trimmed flush ..., to a triangle"); a key too
+  small for its kerf is refused. Per key `depth` and `angle`; `dovetail`.
+  `MitreCorner.mitre_frame()` (the mitre's arris, line and normal in part
+  a's frame) and `arris_ref()` are shared with `SplinedMitre`.
+- `SplinedMitre`: along the corner (splines with equal gaps, through when
+  one spans the corner, otherwise stopped) or along the mitre line (out at
+  the inside corner if it reaches it); grooves breaking out of a part are
+  refused.
+- `Butterfly`: on a face, across the grain or turned; across two boards
+  with `other`. For it, the assembly now places the pieces of joints that
+  don't place their parts.
+- Examples: `joints.keyed_mitre_corner`, `dovetail_keyed_mitre_corner`,
+  `keyed_box_corner`, `slanted_keys_box_corner`, `splined_mitre_corner`,
+  `splined_box_corner`, `splined_shelf_corner`, `butterfly_crack`,
+  `butterfly_joint`.
+
+Open: step 4 (keys, splines and butterflies in the projects); splines with
+their grain across the joint (short grain) as an option, with the
+cross-grain loose tongue; rounded ends of routed grooves and butterfly
+mortises; a modelled crack; keys proud before trimming as a process step.
 
 ### Next steps: backlog (to be prioritized)
 
