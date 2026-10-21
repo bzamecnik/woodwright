@@ -73,11 +73,22 @@ class Assembly:
                     raise ValueError(f"{piece.name} is joined but not added to {self.name}")
                 links.append(_Link(joint, a, piece, location))
         locations = self._place(links)
-        # The other joints cut the parts where the placing ones put them.
+        # The other joints cut the parts where the placing ones put them, and
+        # place their pieces (e.g. a butterfly key across two boards).
         for i, joint in enumerate(joints):
             if placements[i] is None:
                 a, b = joint.parts()
-                placements[i] = locations[a].inverse() * locations[b]
+                if a not in locations or b not in locations:
+                    continue
+                placement = placements[i] = locations[a].inverse() * locations[b]
+                for piece, location in joint.pieces(placement):
+                    if piece not in self.parts:
+                        raise ValueError(f"{piece.name} is joined but not added to {self.name}")
+                    locations[piece] = locations[a] * location
+        unplaced = [part.name for part in self.parts if part not in locations]
+        if unplaced:
+            root = self.parts[0].name
+            raise ValueError(f"not connected to {root} by joints: {', '.join(unplaced)}")
 
         cuts = {part: list(part.cuts) for part in self.parts}
         for joint, placement in zip(joints, placements, strict=True):
@@ -94,7 +105,8 @@ class Assembly:
         return ResolvedModel(self.name, parts, joints)
 
     def _place(self, links: list[_Link]) -> dict[Part, bd.Location]:
-        """Walk the joint graph from the root, then check joints closing loops."""
+        """Walk the joint graph from the root, then check joints closing loops.
+        Parts not connected to the root are left out."""
         root = self.parts[0]
         root_location = self.root_location
         if isinstance(root_location, Orientation):
@@ -116,9 +128,6 @@ class Assembly:
                 break
             else:
                 break  # no progress: the remaining joints are not connected to the root
-        unplaced = [part.name for part in self.parts if part not in locations]
-        if unplaced:
-            raise ValueError(f"not connected to {root.name} by joints: {', '.join(unplaced)}")
         return locations
 
 

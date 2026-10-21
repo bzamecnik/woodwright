@@ -45,6 +45,7 @@ __all__ = [
     "BoxJoint",
     "Bridle",
     "Butt",
+    "Butterfly",
     "Button",
     "CrossLap",
     "DadoJoint",
@@ -3209,6 +3210,134 @@ class Screw(Joint):
             note=self.screw,
         )
         return [clearance, pilot]
+
+
+@dataclass
+class Butterfly(Joint):
+    """A butterfly key (a bow tie, two dovetails tail to tail) inlaid into a
+    shallow mortise in a face, across a crack in a board or across the
+    joint of two boards, glued and flush with the face.
+
+    The `key` is a board as made: as long as the bow tie, as wide as its
+    ends and as thick as the mortise is deep, its grain along its length
+    (across the crack); the joint shapes it to its `waist` (by default a
+    third of its width). On `face` it is centered, or at `at` distances of
+    its center from sides of the part next to the face (as for `Hole`), its
+    length across the grain, or turned `angle` degrees from that.
+
+    With `other`, the face of a second board flush with `face` (e.g. two
+    slabs butted edge to edge), the mortise is cut into both. The joint
+    doesn't place the boards (`Joint.places`), only the key. The crack
+    itself isn't modelled: the board stays whole.
+    """
+
+    face: SideRef
+    key: Board
+    at: dict[SideRef, float] | None = None
+    angle: float = 0.0
+    waist: float | None = None
+    other: SideRef | None = None
+
+    places = False
+
+    def __post_init__(self) -> None:
+        if self.face.axis != 2:
+            raise ValueError(f"a butterfly key is inlaid into a face, not into {self.face}")
+        if self.other is not None and self.other.axis != 2:
+            raise ValueError(f"a butterfly key is inlaid into a face, not into {self.other}")
+        if self.key.thickness >= self.face.depth:
+            raise ValueError(f"a butterfly key is thinner than {self.face.part.name}")
+        for ref in self.at or {}:
+            if ref.part is not self.face.part or ref.axis == self.face.axis:
+                raise ValueError(f"{ref} is not next to {self.face}")
+
+    def parts(self) -> tuple[Part, Part]:
+        other = self.face.part if self.other is None else self.other.part
+        return self.face.part, other
+
+    def with_defaults(self) -> Self:
+        waist = rules.butterfly_waist(self.key.width) if self.waist is None else self.waist
+        if not 0 < waist < self.key.width:
+            raise ValueError("a butterfly key is narrower at its waist than at its ends")
+        return replace(self, waist=waist)
+
+    def center(self) -> bd.Vector:
+        """Of the key on the face, in the frame of its part."""
+        lo, hi = self.face.part.box
+        center = [(a + b) / 2 for a, b in zip(lo, hi, strict=True)]
+        center[2] = self.face.coordinate
+        for ref, distance in (self.at or {}).items():
+            center[ref.axis] = ref.coordinate - ref.side.sign * distance
+        return bd.Vector(*center)
+
+    def key_location(self) -> bd.Location:
+        """Of the key in the frame of the face's part, its top face flush with the face."""
+        key, normal = self.key, self.face.normal
+        c, s = math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))
+        x_dir = bd.Vector(s, c, 0)  # across the grain, turned by `angle`
+        y_dir = normal.cross(x_dir)
+        origin = self.center() - x_dir * (key.length / 2) - y_dir * (key.width / 2)
+        return bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=normal))
+
+    def outline(self, z0: float, z1: float) -> bd.Part:
+        """The bow tie in the frame of the key, from z0 to z1."""
+        length, width, waist = self.key.length, self.key.width, _require(self.waist)
+        points = [
+            (0, 0),
+            (length / 2, (width - waist) / 2),
+            (length, 0),
+            (length, width),
+            (length / 2, (width + waist) / 2),
+            (0, width),
+        ]
+        face = bd.Plane.XY.offset(z0) * bd.Polygon(*points)
+        return bd.extrude(face, amount=z1 - z0)
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        return [(self.key, self.key_location())]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a, b = self.parts()
+        key = self.key
+        if self.other is None:
+            lo, hi = a.box
+            corners = [
+                (self.key_location() * bd.Location((x, y, 0))).position
+                for x in (0, key.length)
+                for y in (0, key.width)
+            ]
+            inside = (lo[i] - _EPS <= tuple(p)[i] <= hi[i] + _EPS for p in corners for i in (0, 1))
+            if not all(inside):
+                raise ValueError(f"the butterfly key doesn't fit within {self.face}")
+        margin = a.thickness + b.thickness
+        mortise = self.key_location() * self.outline(-key.thickness, margin)
+        size = f"{key.length:g} x {key.width:g} mm, waist {self.waist:g}, {key.thickness:g} deep"
+        turned = f", turned {self.angle:g} deg" if self.angle else ""
+
+        def describe(face: SideRef, to_face: bd.Location, other: Part | None) -> str:
+            # The center's distances from the sides `at` is given from (or
+            # the sides of the other board facing the same ways).
+            center = tuple((to_face * bd.Location(tuple(self.center()))).position)
+            text = f"butterfly mortise {size}, in {face}"
+            for ref in sorted(self.at or {}, key=lambda ref: ref.axis):
+                side = _flush_side(face.part, ref, to_face.inverse())
+                distance = round((side.coordinate - center[side.axis]) * side.side.sign, 6) + 0.0
+                text += f", {distance:g} from {side}"
+            if len(self.at or {}) < 2:
+                text += ", centered"
+            text += turned
+            return text + (f", across the joint with {other.name}" if other else "")
+
+        cuts: list[Cut] = []
+        if self.other is None:
+            cuts.append(ShapeCut(a, mortise, describe(self.face, bd.Location(), None)))
+        else:
+            cuts.append(ShapeCut(a, mortise, describe(self.face, bd.Location(), b)))
+            to_b = placement.inverse()
+            cuts.append(ShapeCut(b, to_b * mortise, describe(self.other, to_b, a)))
+        shape = _design_box(key) - self.outline(-key.thickness, 0)
+        cuts.append(ShapeCut(key, shape, f"shaped to a butterfly, waist {self.waist:g} mm"))
+        return cuts
 
 
 def _hole_at(side: SideRef, point: bd.Vector) -> dict[SideRef, float]:

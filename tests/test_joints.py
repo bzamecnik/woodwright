@@ -1992,3 +1992,64 @@ def test_bore_and_gap_checks() -> None:
     asm.join(ww.Bore(seat, leg.top_face, diameter=25))
     with pytest.raises(ValueError, match=r"on an end, not on leg\.top_face"):
         asm.resolve()
+
+
+BUTTERFLY = ww.Stock.board(8, "walnut")
+
+
+def test_butterfly_across_a_crack() -> None:
+    asm = ww.Assembly("test")
+    slab = asm.add(ww.Board("slab", ww.Stock.board(30, "oak"), length=600, width=300))
+    key = asm.add(ww.Board("key", BUTTERFLY, length=90, width=45))
+    asm.join(ww.Butterfly(slab.top_face, key, at={slab.left_end: 150}))
+    model = asm.resolve()
+    assert cuts(model, slab) == [
+        "butterfly mortise 90 x 45 mm, waist 15, 8 deep, in slab.top_face, "
+        "150 from slab.left_end, centered"
+    ]
+    assert cuts(model, key) == ["shaped to a butterfly, waist 15 mm"]
+    # Across the grain, flush with the top face.
+    assert bbox(model[key].placed_shape) == (127.5, 105, -8, 172.5, 195, 0)
+    bow_tie = 8 * (90 * 45 - 90 * 15)  # less two triangles 90 long, 15 high
+    assert model[key].shape.volume == pytest.approx(bow_tie)
+    assert model[slab].shape.volume == pytest.approx(600 * 300 * 30 - bow_tie)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_butterflies_across_the_joint_of_two_boards() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=600, width=200))
+    b = asm.add(ww.Board("b", OAK, length=600, width=200))
+    asm.join(ww.Butt(a.back_edge, b.front_edge))
+    keys = [asm.add(ww.Board(f"key_{i}", BUTTERFLY, length=90, width=45)) for i in range(2)]
+    for i, key in enumerate(keys):
+        at = {a.left_end: 150 + 300 * i, a.back_edge: 0}
+        asm.join(ww.Butterfly(a.top_face, key, at=at, other=b.top_face, angle=10 * i))
+    model = asm.resolve()
+    assert cuts(model, b)[0] == (
+        "butterfly mortise 90 x 45 mm, waist 15, 8 deep, in b.top_face, "
+        "150 from b.left_end, 200 from b.back_edge, across the joint with a"
+    )
+    assert cuts(model, a)[1].endswith(", turned 10 deg, across the joint with b")
+    # Half of each key in each board.
+    assert bbox(model[keys[0]].placed_shape) == (127.5, 155, -8, 172.5, 245, 0)
+    total = 2 * 600 * 200 * 20
+    assert sum(part.shape.volume for part in model.parts) == pytest.approx(total)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_butterfly_checks() -> None:
+    board = ww.Board("board", OAK, length=300, width=100)
+    key = ww.Board("key", BUTTERFLY, length=90, width=45)
+    with pytest.raises(ValueError, match="into a face"):
+        ww.Butterfly(board.front_edge, key)
+    with pytest.raises(ValueError, match="thinner than board"):
+        ww.Butterfly(board.top_face, ww.Board("key", OAK, length=90, width=45))
+    with pytest.raises(ValueError, match="narrower at its waist"):
+        ww.Butterfly(board.top_face, key, waist=50).with_defaults()
+    asm = ww.Assembly("test")
+    asm.add(board)
+    asm.add(key)
+    asm.join(ww.Butterfly(board.top_face, key, at={board.left_end: 20}))
+    with pytest.raises(ValueError, match=r"doesn't fit within board\.top_face"):
+        asm.resolve()

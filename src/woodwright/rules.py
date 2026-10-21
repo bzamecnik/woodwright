@@ -55,6 +55,11 @@ def key_depth(mitre_length: float) -> float:
     return _round(mitre_length / 3)
 
 
+def butterfly_waist(width: float) -> float:
+    """Of a butterfly key at its narrowest: a third of its width at the ends."""
+    return _round(width / 3)
+
+
 def dovetail_lap(stock_thickness: float) -> float:
     """Of the pin board of half-blind dovetails, left in front of the tails: a quarter."""
     return _round(stock_thickness / 4)
