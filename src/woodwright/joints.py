@@ -10,7 +10,7 @@ import functools
 import math
 import operator
 from dataclasses import dataclass, fields, replace
-from typing import Self
+from typing import NamedTuple, Self
 
 import build123d as bd
 
@@ -56,6 +56,7 @@ __all__ = [
     "HalfLap",
     "Housing",
     "Joint",
+    "KeyedMitre",
     "LooseTenon",
     "LooseTongue",
     "MitreCorner",
@@ -2016,6 +2017,26 @@ class BlindMitredDovetail(ThroughDovetail):
         )
 
 
+class _MitreFrame(NamedTuple):
+    """A mitre corner in the frame of part a: `origin` on the corner's outer
+    arris (the long points) at the low end of `span`, `line` the unit mitre
+    line from there to the inner arris (the short points), `length` long,
+    `arris` the unit direction of the corner along an axis of the part frame,
+    `normal` the mitre's unit normal out of part a, and `span` the range of
+    the corner along `arris`."""
+
+    origin: bd.Vector
+    line: bd.Vector
+    length: float
+    arris: bd.Vector
+    normal: bd.Vector
+    span: Range
+
+    def point(self, at: float, inward: float = 0.0) -> bd.Vector:
+        """At coordinate `at` along the arris, `inward` from it along the mitre line."""
+        return self.origin + self.arris * (at - self.span[0]) + self.line * inward
+
+
 @dataclass
 class MitreCorner(Joint):
     """Two ends meeting at a right-angled corner, both mitred.
@@ -2067,6 +2088,28 @@ class MitreCorner(Joint):
                 "or turn the part over with `flush`"
             )
         return loc
+
+    def mitre_frame(self) -> _MitreFrame:
+        """The mitre in the frame of part a."""
+        a, inside = self.a, self.a_inside
+        lo, hi = a.part.box
+        e, i = a.axis, inside.axis
+        d = 3 - e - i
+        long_point = [0.0, 0.0, 0.0]
+        long_point[e] = a.coordinate
+        long_point[i] = (lo if inside.side.sign > 0 else hi)[i]  # the outside
+        long_point[d] = lo[d]
+        short_point = list(long_point)
+        short_point[e] -= a.side.sign * self.b_inside.depth  # as shortened by the mitre
+        short_point[i] = inside.coordinate
+        line = bd.Vector(*short_point) - bd.Vector(*long_point)
+        arris = _unit_vector(d)
+        normal = line.normalized().cross(arris)
+        if normal.dot(a.normal) < 0:
+            normal = -normal
+        return _MitreFrame(
+            bd.Vector(*long_point), line.normalized(), line.length, arris, normal, (lo[d], hi[d])
+        )
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         a_width, b_width = self.a_inside.depth, self.b_inside.depth
@@ -2211,6 +2254,146 @@ class MitredFaceTenon(MitredHalfLap):
         rabbet = ShapeCut(b, lap.removal() - tenon, description)
         mortise = Pocket(self.a_inside, _socket(self.a_inside, placement, box, self.clearance))
         return [mitre_a, mortise, mitre_b, rabbet]
+
+
+@dataclass
+class KeyedMitre(MitreCorner):
+    """A mitre corner with keys (slip feathers) glued into kerfs across its
+    outside corner.
+
+    Placed and mitred as `MitreCorner`, in either orientation: a picture
+    frame (edges inside the corner) or a carcase (faces inside). Each kerf
+    is a slab square to the corner's arris, sawn from the outside corner in
+    along the mitre line, `depth` deep (by default a third of the mitre
+    line), on a cradle on the table saw. The `keys` are thin boards as made,
+    as thick as the kerf, their grain across the mitre line, glued in proud
+    and trimmed flush with both outside faces: the model shows them trimmed,
+    as triangles. They are spaced evenly along the corner, or centered at
+    `offsets` from part a's left end, front edge or top face (whichever the
+    corner runs from); `depth` and `angle` may be given per key.
+
+    With `angle`, the kerf is turned that many degrees about the mitre line
+    (the cradle set askew), so that a key shows as a slanted line on each
+    face, a chevron round the corner. With `dovetail` (the slope of its
+    sides, in degrees), the kerf is cut with a dovetail bit: as wide as the
+    key is thick at its bottom, narrower towards the corner, and the key is
+    a dovetail strip.
+    """
+
+    keys: tuple[Board, ...] = ()
+    depth: float | tuple[float, ...] | None = None
+    offsets: tuple[float, ...] | None = None
+    angle: float | tuple[float, ...] = 0.0
+    dovetail: float | None = None
+
+    def __post_init__(self) -> None:
+        if not self.keys:
+            raise ValueError("a keyed mitre needs keys")
+        n = len(self.keys)
+        for name, value in [("offset", self.offsets), ("depth", self.depth), ("angle", self.angle)]:
+            if isinstance(value, tuple) and len(value) != n:
+                raise ValueError(f"give one {name} for each key")
+        if self.dovetail is not None and not 0 < self.dovetail < 45:
+            raise ValueError("a dovetail key's sides slope between 0 and 45 degrees")
+
+    def with_defaults(self) -> Self:
+        frame = self.mitre_frame()
+        n = len(self.keys)
+        depth = self.depth if self.depth is not None else rules.key_depth(frame.length)
+        depths = depth if isinstance(depth, tuple) else (depth,) * n
+        if any(not 0 < d < frame.length for d in depths):
+            raise ValueError(f"a key's kerf stops short of the inside corner, {frame.length:g} in")
+        start, end = frame.span
+        offsets = self.offsets or tuple((end - start) * (i + 1) / (n + 1) for i in range(n))
+        angles = self.angle if isinstance(self.angle, tuple) else (self.angle,) * n
+        return replace(self, depth=depths, offsets=offsets, angle=angles)
+
+    def _ref(self) -> SideRef:
+        """The side of part a the offsets are measured from."""
+        part = self.a.part
+        axis = _axis(self.mitre_frame().arris)
+        return (part.left_end, part.front_edge, part.top_face)[axis]
+
+    def _kerfs(self) -> list[tuple[Board, float, float, float]]:
+        """Each key with its kerf's depth, the coordinate of its center along
+        the arris and its angle."""
+        depths, angles = _require(self.depth), self.angle
+        assert isinstance(depths, tuple) and isinstance(angles, tuple)
+        ref = self._ref()
+        centers = [ref.coordinate - ref.side.sign * offset for offset in _require(self.offsets)]
+        return list(zip(self.keys, depths, centers, angles, strict=True))
+
+    def _axes(self, angle: float) -> tuple[bd.Vector, bd.Vector]:
+        """Across the kerf (its thickness) and along the key, turned by `angle`
+        about the mitre line."""
+        frame = self.mitre_frame()
+        c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+        return frame.arris * c + frame.normal * s, frame.normal * c - frame.arris * s
+
+    def kerf(self, key: Board, depth: float, center: float, angle: float) -> bd.Part:
+        """The kerf for `key` in the frame of part a, through both parts."""
+        frame = self.mitre_frame()
+        _, along = self._axes(angle)
+        reach = sum(p.length + p.width + p.thickness for p in self.parts())
+        bottom = key.thickness
+        slope = math.tan(math.radians(self.dovetail or 0.0))
+        out = 1.0  # beyond the outer arris
+        top = bottom - 2 * (depth + out) * slope
+        if top <= 0:
+            raise ValueError(f"the dovetail kerf for {key.name} closes before the corner")
+        # In the plane of the mitre line and `across`, through both parts along the key.
+        plane = bd.Plane(frame.point(center), x_dir=frame.line, z_dir=along)
+        points = [(-out, -top / 2), (depth, -bottom / 2), (depth, bottom / 2), (-out, top / 2)]
+        return bd.extrude(plane * bd.Polygon(*points), amount=reach, both=True)
+
+    def key_location(self, key: Board, depth: float, center: float, angle: float) -> bd.Location:
+        """Of `key` in the frame of part a: its front edge on the bottom of the
+        kerf, centered on the mitre, its length along the key, across the mitre."""
+        frame = self.mitre_frame()
+        _, along = self._axes(angle)
+        z_dir = frame.line.cross(along)
+        origin = frame.point(center, depth) - along * (key.length / 2) + z_dir * (key.thickness / 2)
+        return bd.Location(bd.Plane(origin, x_dir=along, z_dir=z_dir))
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        return [(kerf[0], self.key_location(*kerf)) for kerf in self._kerfs()]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a, b = self.parts()
+        ref = self._ref()
+        b_ref = _flush_side(b, ref, placement)
+        corner = _design_box(a) + placement * _design_box(b)
+        mitres = super().cuts(placement)
+        kerfs: list[Cut] = []
+        trims: list[Cut] = []
+        for key, depth, center, angle in self._kerfs():
+            kerf = self.kerf(key, depth, center, angle)
+            offset = abs(ref.coordinate - center)
+            kind = "dovetail key kerf" if self.dovetail else "key kerf"
+            width = f"{key.thickness:g} mm wide"
+            if self.dovetail:
+                width += f" at its bottom, its sides at {self.dovetail:g} deg"
+            turned = f", turned {angle:g} deg" if angle else ""
+            for part, other, side, kerf_in in [
+                (a, b, ref, kerf),
+                (b, a, b_ref, placement.inverse() * kerf),
+            ]:
+                text = f"{kind} {width}, {depth:g} deep across the corner with {other.name}"
+                text += f", {offset:g} from {side}{turned}"
+                kerfs.append(ShapeCut(part, kerf_in, text))
+            # The key as glued in and trimmed flush.
+            location = self.key_location(key, depth, center, angle)
+            kept = location.inverse() * (kerf & corner)
+            box = kept.bounding_box()
+            lo, hi = key.box
+            low, high = tuple(box.min), tuple(box.max)
+            if any(low[i] < lo[i] - 1e-3 or high[i] > hi[i] + 1e-3 for i in range(3)):
+                size = " x ".join(f"{x:.1f}" for x in tuple(box.size))
+                raise ValueError(f"{key.name} is too small to fill its kerf: {size} mm")
+            shape = "a dovetail" if self.dovetail else "a triangle"
+            trim = f"trimmed flush with {a.name} and {b.name}, to {shape}"
+            trims.append(ShapeCut(key, _design_box(key) - kept, trim))
+        return [*mitres, *kerfs, *trims]
 
 
 @dataclass
@@ -2901,6 +3084,12 @@ def _rod_location(rod: Rod, start: bd.Vector, direction: bd.Vector) -> bd.Locati
     r = rod.diameter / 2
     origin = start - y_dir * r + z_dir * r
     return bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=z_dir))
+
+
+def _design_box(part: Part) -> bd.Part:
+    lo, hi = part.box
+    size = (hi[i] - lo[i] for i in range(3))
+    return bd.Pos(*lo) * bd.Box(*size, align=(bd.Align.MIN,) * 3)
 
 
 def _unit_vector(axis: int) -> bd.Vector:

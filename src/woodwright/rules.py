@@ -50,6 +50,11 @@ def dovetail_thickness(stock_thickness: float) -> float:
     return _round(stock_thickness / 2)
 
 
+def key_depth(mitre_length: float) -> float:
+    """Of a key's kerf across a mitred corner: a third of the mitre line."""
+    return _round(mitre_length / 3)
+
+
 def dovetail_lap(stock_thickness: float) -> float:
     """Of the pin board of half-blind dovetails, left in front of the tails: a quarter."""
     return _round(stock_thickness / 4)

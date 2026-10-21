@@ -401,6 +401,95 @@ def test_mitre_corner_with_unequal_widths() -> None:
     assert model[a].shape.volume + model[b].shape.volume == pytest.approx(volume)
 
 
+KEY = ww.Stock.board(3, "walnut")
+
+
+def keyed_frame_corner(**kwargs) -> tuple[ww.ResolvedModel, ww.Board, ww.Board, ww.Board]:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    key = asm.add(ww.Board("key", kwargs.pop("stock", KEY), length=50, width=20))
+    asm.join(
+        ww.KeyedMitre(a.right_end, b.left_end, a.back_edge, b.back_edge, keys=(key,), **kwargs)
+    )
+    return asm.resolve(), a, b, key
+
+
+def test_keyed_mitre() -> None:
+    model, a, b, key = keyed_frame_corner()
+    # A third of the mitre line (40 * sqrt(2)), in the middle of the thickness.
+    assert cuts(model, a) == [
+        "mitre 45 deg on a.right_end, a.back_edge inside",
+        "key kerf 3 mm wide, 19 deep across the corner with b, 10 from a.top_face",
+    ]
+    assert cuts(model, b)[1] == (
+        "key kerf 3 mm wide, 19 deep across the corner with a, 10 from b.top_face"
+    )
+    assert cuts(model, key) == ["trimmed flush with a and b, to a triangle"]
+    # Trimmed to a right triangle with legs of 19 * sqrt(2) along the outside edges.
+    leg = 19 * math.sqrt(2)
+    assert bbox(model[key].placed_shape) == (300 - leg, 0, -11.5, 300, leg, -8.5)
+    assert model[key].shape.volume == pytest.approx(19 * 19 * 3)
+    assert model[a].shape.volume == pytest.approx(300 * 40 * 20 - 40 * 40 * 10 - 19 * 19 * 1.5)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "volume"),
+    [
+        ({"angle": 15.0}, 19 * 19 * 3 / math.cos(math.radians(15))),
+        ({"depth": 14.0, "dovetail": 8.0, "stock": ww.Stock.board(10, "walnut")}, None),
+    ],
+)
+def test_keyed_mitre_variants(kwargs: dict, volume: float | None) -> None:
+    model, *_, key = keyed_frame_corner(**kwargs)
+    if volume is None:  # a dovetail 10 mm wide at its bottom, 14 deep
+        top = 10 - 2 * 14 * math.tan(math.radians(8))
+        volume = 14 * 14 * (2 * 10 + top) / 3  # a triangle, thinner towards its apex
+    assert model[key].shape.volume == pytest.approx(volume, rel=1e-6)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    total = 300 * 40 * 20 + 200 * 40 * 20 - 40 * 40 * 20
+    assert sum(part.shape.volume for part in model.parts) == pytest.approx(total)
+
+
+def test_keyed_box_corner_with_keys_of_varying_depths() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=120))
+    b = asm.add(ww.Board("b", OAK, length=200, width=120))
+    keys = tuple(asm.add(ww.Board(f"key_{i}", KEY, length=30, width=12)) for i in range(3))
+    joint = ww.KeyedMitre(
+        a.right_end, b.left_end, a.bottom_face, b.bottom_face, keys=keys, depth=(6.0, 9.0, 6.0)
+    )
+    asm.join(joint)
+    model = asm.resolve()
+    for cut, depth, y in zip(cuts(model, a)[1:], (6, 9, 6), (30, 60, 90), strict=True):
+        assert cut.endswith(f"{depth} deep across the corner with b, {y} from a.front_edge")
+    for key, depth, y in zip(keys, (6, 9, 6), (30, 60, 90), strict=True):
+        leg = depth * math.sqrt(2)
+        assert bbox(model[key].placed_shape) == (300 - leg, y - 1.5, -leg, 300, y + 1.5, 0)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_keyed_mitre_checks_its_keys() -> None:
+    with pytest.raises(ValueError, match="too small to fill its kerf"):
+        keyed_frame_corner(depth=25.0)
+    with pytest.raises(ValueError, match="closes before the corner"):
+        keyed_frame_corner(dovetail=10.0)
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    key = ww.Board("key", KEY, length=50, width=20)
+    with pytest.raises(ValueError, match="one depth for each key"):
+        ww.KeyedMitre(
+            a.right_end, b.left_end, a.back_edge, b.back_edge, keys=(key,), depth=(5.0, 6.0)
+        )
+    joint = ww.KeyedMitre(
+        a.right_end, b.left_end, a.back_edge, b.back_edge, keys=(key,), depth=60.0
+    )
+    with pytest.raises(ValueError, match="short of the inside corner"):
+        joint.with_defaults()
+
+
 @pytest.mark.parametrize("face", ["top_face", "bottom_face"])
 def test_mitred_half_lap(face: str) -> None:
     asm = ww.Assembly("test")
