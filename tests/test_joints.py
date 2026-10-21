@@ -490,6 +490,90 @@ def test_keyed_mitre_checks_its_keys() -> None:
         joint.with_defaults()
 
 
+SPLINE = ww.Stock.board(4, "plywood")
+
+
+def box_corner(width: float) -> tuple[ww.Assembly, ww.Board, ww.Board]:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=width))
+    b = asm.add(ww.Board("b", OAK, length=200, width=width))
+    return asm, a, b
+
+
+def test_splined_mitre_through_a_box_corner() -> None:
+    asm, a, b = box_corner(120)
+    spline = asm.add(ww.Board("spline", SPLINE, length=120, width=16))
+    asm.join(
+        ww.SplinedMitre(a.right_end, b.left_end, a.bottom_face, b.bottom_face, splines=(spline,))
+    )
+    model = asm.resolve()
+    assert cuts(model, a)[1] == (
+        "spline groove 4 mm, 9 deep, square to the mitre with b, along the corner, through"
+    )
+    # In the middle of the mitre line, square to it: half of 16 mm into each part.
+    r = (8 + 2) / math.sqrt(2)  # from the middle of the mitre to the spline's corners
+    mid = 10
+    assert bbox(model[spline].placed_shape) == (
+        300 - mid - r,
+        0,
+        -mid - r,
+        300 - mid + r,
+        120,
+        -mid + r,
+    )
+    removed = 20 * 20 * 120 / 2 + 120 * 4 * 9
+    assert model[a].shape.volume == pytest.approx(300 * 120 * 20 - removed)
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_splined_mitre_in_a_row_along_a_wide_corner() -> None:
+    asm, a, b = box_corner(250)
+    splines = tuple(asm.add(ww.Board(f"s{i}", SPLINE, length=50, width=16)) for i in range(3))
+    asm.join(
+        ww.SplinedMitre(a.right_end, b.left_end, a.bottom_face, b.bottom_face, splines=splines)
+    )
+    model = asm.resolve()
+    # Equal gaps: 25 mm between the splines and at the edges.
+    assert [cut.split(", stopped, ")[1] for cut in cuts(model, b)[1:]] == [
+        f"{start} to {start + 50} from b.front_edge" for start in (25, 100, 175)
+    ]
+    for s, y in zip(splines, (25, 100, 175), strict=True):
+        box = model[s].placed_shape.bounding_box()
+        low, high = box.min.Y, box.max.Y
+        assert (low, high) == pytest.approx((y, y + 50))
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+
+
+def test_splined_mitre_along_the_mitre_line() -> None:
+    asm = ww.Assembly("test")
+    a = asm.add(ww.Board("a", OAK, length=300, width=40))
+    b = asm.add(ww.Board("b", OAK, length=200, width=40))
+    spline = asm.add(ww.Board("spline", SPLINE, length=40, width=12))
+    joint = ww.SplinedMitre(
+        a.right_end, b.left_end, a.back_edge, b.back_edge, splines=(spline,), along="mitre"
+    )
+    asm.join(joint)
+    model = asm.resolve()
+    assert cuts(model, a)[1] == (
+        "spline groove 4 mm, 7 deep, square to the mitre with b, along the mitre line, "
+        "10 from a.top_face"
+    )
+    box = model[spline].placed_shape.bounding_box()
+    low, high = box.min.Z, box.max.Z
+    assert (low, high) == pytest.approx((-12, -8))
+    assert interference(model) == pytest.approx(0, abs=1e-6)
+    # Reaching the inside corner, the groove runs out there.
+    joint = replace(joint, spline_offset=40 * math.sqrt(2) - 20)
+    assert (
+        ", out at the inside corner, "
+        in joint.with_defaults().cuts(joint.placement())[2].describe()
+    )
+    # Towards the outside corner, it would break out of the outside edges.
+    joint = replace(joint, spline_offset=20)
+    with pytest.raises(ValueError, match="breaks out of"):
+        joint.with_defaults().cuts(joint.placement())
+
+
 @pytest.mark.parametrize("face", ["top_face", "bottom_face"])
 def test_mitred_half_lap(face: str) -> None:
     asm = ww.Assembly("test")

@@ -10,7 +10,7 @@ import functools
 import math
 import operator
 from dataclasses import dataclass, fields, replace
-from typing import NamedTuple, Self
+from typing import Literal, NamedTuple, Self
 
 import build123d as bd
 
@@ -71,6 +71,7 @@ __all__ = [
     "RoundMortiseTenon",
     "Screw",
     "SlidingDovetail",
+    "SplinedMitre",
     "TeeBridle",
     "ThroughDovetail",
     "TongueAndGroove",
@@ -80,6 +81,7 @@ __all__ = [
 ]
 
 _EPS = 1e-6
+_MIN = (bd.Align.MIN,) * 3
 
 
 class Joint:
@@ -2111,6 +2113,12 @@ class MitreCorner(Joint):
             bd.Vector(*long_point), line.normalized(), line.length, arris, normal, (lo[d], hi[d])
         )
 
+    def arris_ref(self) -> SideRef:
+        """The side of part a that positions along the corner are measured from:
+        its left end, front edge or top face."""
+        part = self.a.part
+        return (part.left_end, part.front_edge, part.top_face)[_axis(self.mitre_frame().arris)]
+
     def cuts(self, placement: bd.Location) -> list[Cut]:
         a_width, b_width = self.a_inside.depth, self.b_inside.depth
         return [
@@ -2308,18 +2316,12 @@ class KeyedMitre(MitreCorner):
         angles = self.angle if isinstance(self.angle, tuple) else (self.angle,) * n
         return replace(self, depth=depths, offsets=offsets, angle=angles)
 
-    def _ref(self) -> SideRef:
-        """The side of part a the offsets are measured from."""
-        part = self.a.part
-        axis = _axis(self.mitre_frame().arris)
-        return (part.left_end, part.front_edge, part.top_face)[axis]
-
     def _kerfs(self) -> list[tuple[Board, float, float, float]]:
         """Each key with its kerf's depth, the coordinate of its center along
         the arris and its angle."""
         depths, angles = _require(self.depth), self.angle
         assert isinstance(depths, tuple) and isinstance(angles, tuple)
-        ref = self._ref()
+        ref = self.arris_ref()
         centers = [ref.coordinate - ref.side.sign * offset for offset in _require(self.offsets)]
         return list(zip(self.keys, depths, centers, angles, strict=True))
 
@@ -2360,7 +2362,7 @@ class KeyedMitre(MitreCorner):
 
     def cuts(self, placement: bd.Location) -> list[Cut]:
         a, b = self.parts()
-        ref = self._ref()
+        ref = self.arris_ref()
         b_ref = _flush_side(b, ref, placement)
         corner = _design_box(a) + placement * _design_box(b)
         mitres = super().cuts(placement)
@@ -2394,6 +2396,158 @@ class KeyedMitre(MitreCorner):
             trim = f"trimmed flush with {a.name} and {b.name}, to {shape}"
             trims.append(ShapeCut(key, _design_box(key) - kept, trim))
         return [*mitres, *kerfs, *trims]
+
+
+@dataclass
+class SplinedMitre(MitreCorner):
+    """A mitre corner with loose splines (tongues) across the mitre, glued
+    into grooves cut square into both mitre faces.
+
+    Placed and mitred as `MitreCorner`, in either orientation: a picture
+    frame (edges inside the corner) or a carcase or a shelf (faces inside).
+    The `splines` are thin boards, as thick as the grooves are wide, their
+    grain along their length (as `LooseTongue`). Their width crosses the
+    mitre, reaching `depth` into part a (by default half the width) and the
+    rest into part b; each groove is `clearance` deeper.
+
+    `along` gives the direction of their length:
+
+    - "corner" (the default): parallel to the corner's arris, e.g. one
+      spline through the whole length of a box corner, or several shorter
+      ones in a row in stopped grooves on a wide board;
+    - "mitre": along the mitre line, from the outside corner towards the
+      inside, e.g. a spline hidden in a picture frame's mitre, or several
+      side by side across a wide board.
+
+    Along the corner, the splines are spaced with equal gaps, or centered at
+    `offsets` from part a's left end, front edge or top face (whichever the
+    corner runs from). Across the mitre line, they are centered on it, or at
+    `spline_offset` from the outside corner along it. A groove reaching the
+    end of the mitre runs out there (through); grooves breaking out of the
+    outside of a part are refused.
+    """
+
+    splines: tuple[Board, ...] = ()
+    along: Literal["corner", "mitre"] = "corner"
+    depth: float | None = None
+    offsets: tuple[float, ...] | None = None
+    spline_offset: float | None = None
+    clearance: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.splines:
+            raise ValueError("a splined mitre needs splines")
+        first = self.splines[0]
+        if any((s.width, s.thickness) != (first.width, first.thickness) for s in self.splines):
+            raise ValueError("the splines must be equally wide and thick")
+        if self.offsets is not None and len(self.offsets) != len(self.splines):
+            raise ValueError("give an offset for each spline")
+        if self.along not in ("corner", "mitre"):
+            raise ValueError("splines run along the corner or along the mitre")
+
+    def with_defaults(self) -> Self:
+        frame = self.mitre_frame()
+        width = self.splines[0].width
+        depth = width / 2 if self.depth is None else self.depth
+        if not 0 < depth < width:
+            raise ValueError("a spline must reach into both parts")
+        start, end = frame.span
+        sizes = [self._size(spline) for spline in self.splines]
+        gap = (end - start - sum(sizes)) / (len(sizes) + 1)
+        if gap < -_EPS:
+            raise ValueError("the splines don't fit along the corner")
+        offsets = self.offsets or tuple(
+            gap * (i + 1) + sum(sizes[:i]) + size / 2 for i, size in enumerate(sizes)
+        )
+        across = frame.length / 2 if self.spline_offset is None else self.spline_offset
+        return replace(self, depth=depth, offsets=offsets, spline_offset=across)
+
+    def _size(self, spline: Board) -> float:
+        """Of a spline along the corner."""
+        return spline.length if self.along == "corner" else spline.thickness
+
+    def spline_location(self, spline: Board, center: float) -> bd.Location:
+        """Of `spline` in the frame of part a, centered at coordinate `center`
+        along the arris, its back edge `depth` inside part a."""
+        frame = self.mitre_frame()
+        x_dir = frame.arris if self.along == "corner" else frame.line
+        x_center = frame.point(center, _require(self.spline_offset))
+        y_dir = -frame.normal  # across the mitre, into part a
+        z_dir = x_dir.cross(y_dir)
+        back = _require(self.depth)
+        origin = (
+            x_center
+            - x_dir * (spline.length / 2)
+            - y_dir * (spline.width - back)
+            + z_dir * (spline.thickness / 2)
+        )
+        return bd.Location(bd.Plane(origin, x_dir=x_dir, z_dir=z_dir))
+
+    def _splines(self) -> list[tuple[Board, float]]:
+        """Each spline with the coordinate of its center along the arris."""
+        ref = self.arris_ref()
+        offsets = _require(self.offsets)
+        return [
+            (spline, ref.coordinate - ref.side.sign * offset)
+            for spline, offset in zip(self.splines, offsets, strict=True)
+        ]
+
+    def pieces(self, placement: bd.Location) -> list[tuple[Part, bd.Location]]:
+        return [(spline, self.spline_location(spline, c)) for spline, c in self._splines()]
+
+    def cuts(self, placement: bd.Location) -> list[Cut]:
+        a, b = self.parts()
+        frame = self.mitre_frame()
+        ref = self.arris_ref()
+        b_ref = _flush_side(b, ref, placement)
+        depth, c = _require(self.depth), self.clearance
+        grooves: list[Cut] = []
+        for spline, center in self._splines():
+            location = self.spline_location(spline, center)
+            # Along its length, out through the end of the mitre it reaches.
+            if self.along == "corner":
+                start, (low, high) = center - spline.length / 2, frame.span
+            else:
+                start, low, high = _require(self.spline_offset) - spline.length / 2, 0, frame.length
+            end = start + spline.length
+            x0 = -INF if start <= low + _EPS else 0.0
+            x1 = INF if end >= high - _EPS else spline.length
+            width, t = spline.width, spline.thickness
+            for part, bottom in [(b, -c), (a, width + c)]:
+                to_part = location if part is a else placement.inverse() * location
+                lo, hi = part.box
+                for x in (0.0, spline.length):
+                    for z in (-t, 0.0):
+                        p = tuple((to_part * bd.Location((x, bottom, z))).position)
+                        if any(p[i] < lo[i] - _EPS or p[i] > hi[i] + _EPS for i in range(3)):
+                            raise ValueError(
+                                f"the groove for {spline.name} breaks out of {part.name}; "
+                                "use a narrower or a shorter spline, or move it"
+                            )
+            margin = sum(p.length + p.width + p.thickness for p in self.parts())
+            x0, x1 = max(x0, -margin), min(x1, spline.length + margin)
+            groove = location * bd.Pos(x0, -c, -t) * bd.Box(x1 - x0, width + 2 * c, t, align=_MIN)
+            if self.along == "corner":
+                if (x0, x1) == (-margin, spline.length + margin):
+                    extent = ", through"
+                else:
+                    near, far = sorted(abs(ref.coordinate - x) for x in (start, end))
+                    extent = f", stopped, {near:g} to {far:g} from {{side}}"
+                if abs(_require(self.spline_offset) - frame.length / 2) > _EPS:
+                    extent += f", {self.spline_offset:g} from the outside corner along the mitre"
+            else:
+                extent = ", out at the inside corner" if x1 > spline.length else ""
+                extent += f", {abs(ref.coordinate - center):g} from {{side}}"
+            direction = "along the corner" if self.along == "corner" else "along the mitre line"
+            for part, other, side, solid in [
+                (a, b, ref, groove),
+                (b, a, b_ref, placement.inverse() * groove),
+            ]:
+                reach = (depth if part is a else width - depth) + c
+                text = f"spline groove {t:g} mm, {reach:g} deep, square to the mitre with "
+                text += f"{other.name}, {direction}" + extent.format(side=side)
+                grooves.append(ShapeCut(part, solid, text))
+        return [*super().cuts(placement), *grooves]
 
 
 @dataclass
