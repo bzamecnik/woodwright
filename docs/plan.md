@@ -924,6 +924,14 @@ the corner (a picture frame or a carcase / a shelf):
   short spline hidden in the mitre, open at most at the inside corner, e.g.
   in a picture frame; several side by side across a wide board.
 
+Terminology (with the user, 2026-10-21): a *spline* is a small loose tenon
+in mortises or grooves in both parts, usually hidden; so a splined mitre
+runs along the mitre line where the boards meet by their edges (a picture
+frame) and along the corner where they meet by their faces (a shelf), the
+default of `along`. A *key* sits in an open notch running across the arris
+where the boards meet, slid in along its grain or across it, depending on
+the notch's profile.
+
 `SplinedMitre(MitreCorner)`: `splines` (boards, their grain along their
 length, as `LooseTongue`; short-grain or plywood splines later), `along`,
 `offsets` along the corner, `spline_offset` across the mitre (centered by

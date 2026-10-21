@@ -2270,6 +2270,11 @@ class KeyedMitre(MitreCorner):
     """A mitre corner with keys (slip feathers) glued into kerfs across its
     outside corner.
 
+    A key is a small piece slid into an open notch running across the arris
+    where the boards meet (unlike a spline, `SplinedMitre`, hidden in the
+    mitre): a straight key goes in from the outside, a dovetail key only
+    along its grain, across the corner.
+
     Placed and mitred as `MitreCorner`, in either orientation: a picture
     frame (edges inside the corner) or a carcase (faces inside). Each kerf
     is a slab square to the corner's arris, sawn from the outside corner in
@@ -2401,8 +2406,12 @@ class KeyedMitre(MitreCorner):
 
 @dataclass
 class SplinedMitre(MitreCorner):
-    """A mitre corner with loose splines (tongues) across the mitre, glued
-    into grooves cut square into both mitre faces.
+    """A mitre corner with loose splines across the mitre, glued into
+    grooves cut square into both mitre faces.
+
+    A spline is a small loose tenon (or tongue) in mortises or grooves in
+    both parts, usually hidden; unlike a key (`KeyedMitre`), slid into an
+    open notch across the corner's arris.
 
     Placed and mitred as `MitreCorner`, in either orientation: a picture
     frame (edges inside the corner) or a carcase or a shelf (faces inside).
@@ -2411,14 +2420,16 @@ class SplinedMitre(MitreCorner):
     mitre, reaching `depth` into part a (by default half the width) and the
     rest into part b; each groove is `clearance` deeper.
 
-    `along` gives the direction of their length:
+    `along` gives the direction of their length, by default depending on
+    how the boards meet:
 
-    - "corner" (the default): parallel to the corner's arris, e.g. one
-      spline through the whole length of a box corner, or several shorter
-      ones in a row in stopped grooves on a wide board;
-    - "mitre": along the mitre line, from the outside corner towards the
-      inside, e.g. a spline hidden in a picture frame's mitre, or several
-      side by side across a wide board.
+    - "corner" (the default for faces inside the corner, a carcase or a
+      shelf): parallel to the corner's arris, e.g. one spline through the
+      whole length of a box corner, or several shorter ones in a row in
+      stopped grooves on a wide board;
+    - "mitre" (the default for edges inside, a picture frame): along the
+      mitre line, from the outside corner towards the inside, e.g. a spline
+      hidden in a frame's mitre.
 
     Along the corner, the splines are spaced with equal gaps, or centered at
     `offsets` from part a's left end, front edge or top face (whichever the
@@ -2429,7 +2440,7 @@ class SplinedMitre(MitreCorner):
     """
 
     splines: tuple[Board, ...] = ()
-    along: Literal["corner", "mitre"] = "corner"
+    along: Literal["corner", "mitre"] | None = None
     depth: float | None = None
     offsets: tuple[float, ...] | None = None
     spline_offset: float | None = None
@@ -2443,10 +2454,13 @@ class SplinedMitre(MitreCorner):
             raise ValueError("the splines must be equally wide and thick")
         if self.offsets is not None and len(self.offsets) != len(self.splines):
             raise ValueError("give an offset for each spline")
-        if self.along not in ("corner", "mitre"):
+        if self.along not in ("corner", "mitre", None):
             raise ValueError("splines run along the corner or along the mitre")
 
     def with_defaults(self) -> Self:
+        if self.along is None:
+            along = "mitre" if self.a_inside.axis == 1 else "corner"
+            return replace(self, along=along).with_defaults()
         frame = self.mitre_frame()
         width = self.splines[0].width
         depth = width / 2 if self.depth is None else self.depth

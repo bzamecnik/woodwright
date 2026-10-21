@@ -549,9 +549,8 @@ def test_splined_mitre_along_the_mitre_line() -> None:
     a = asm.add(ww.Board("a", OAK, length=300, width=40))
     b = asm.add(ww.Board("b", OAK, length=200, width=40))
     spline = asm.add(ww.Board("spline", SPLINE, length=40, width=12))
-    joint = ww.SplinedMitre(
-        a.right_end, b.left_end, a.back_edge, b.back_edge, splines=(spline,), along="mitre"
-    )
+    # Edges inside the corner: along the mitre line by default.
+    joint = ww.SplinedMitre(a.right_end, b.left_end, a.back_edge, b.back_edge, splines=(spline,))
     asm.join(joint)
     model = asm.resolve()
     assert cuts(model, a)[1] == (

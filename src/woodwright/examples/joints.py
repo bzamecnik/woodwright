@@ -1299,7 +1299,6 @@ def splined_mitre_corner(
             stile.back_edge,
             rail.back_edge,
             splines=(spline,),
-            along="mitre",
         )
     )
     return asm
