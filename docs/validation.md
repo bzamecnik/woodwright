@@ -101,6 +101,17 @@ Done items name their example in `woodwright.examples`
     - [x] four pieces - picture frame – `projects.picture_frame`
     - [x] mitred frame with a panel glued up from boards, tongued into a groove along the
       inside edges (the grooves run out at the mitres) – `frames.mitred_frame_and_panel`
+    - keyed mitre (slip feathers) - kerfs across the outside corner, square to its arris, thin
+      keys glued in and trimmed flush (showing as triangles)
+      - [ ] picture frame corner, one key; box corner, several keys
+      - [ ] kerfs tilted, of varying depths
+      - [ ] dovetail keys
+    - splined mitre - a loose tongue across the mitre, in grooves square to the mitre faces
+      - [ ] along the corner: through in a box corner, several in a row on a wide shelf corner
+      - [ ] along the mitre line: hidden in a picture frame corner
+  - butterfly key (bow tie) - a shallow bow-tie mortise in a face, a key inlaid flush
+    - [ ] across a crack in a board
+    - [ ] across the joint of two boards
   - lap joint
     - [x] two boards with overlapping rabbets to make panel – `joints.shiplap_panel` (three boards)
     - [x] half-lap corner - two perpendicular boards with "endgrain rabbet" – `joints.half_lap_corner`

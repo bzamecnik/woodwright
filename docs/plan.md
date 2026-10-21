@@ -886,6 +886,77 @@ shallow counterbore as wide as the rail, so the flat shoulder seats on
 it), or the rail's shoulder coped, cut concave around the tenon to the
 leg's radius (scribed), so it wraps around the leg.
 
+### M9: Splines, keys and butterflies 🟡 started
+
+Small inserted pieces that strengthen a mitre or hold a crack, glued in and
+trimmed flush. All of them are separate pieces (`Joint.pieces`), like loose
+tenons and dowels; the sockets are derived from where the pieces land.
+
+#### Keyed mitre (slip feathers)
+
+A mitre corner with thin keys glued into saw kerfs across its outside
+corner: each kerf is a slab square to the corner's arris (parallel to the
+faces of a picture frame, across the edge of a box corner), cut from the
+outside corner in along the mitre line, `depth` deep, on a cradle on the
+table saw. The key is a small rectangle of thin stock (its grain across the
+mitre line) glued in proud and trimmed flush with both outside faces, so it
+shows as a triangle.
+
+- `KeyedMitre(MitreCorner)`: `keys` (boards as made, as thick as the kerf),
+  spaced evenly along the corner or at `offsets`; `depth` (one, or one per
+  key: varying depths); the model shows the keys trimmed flush (a cut on
+  each key), and checks that a key is big enough to fill its kerf.
+- Variants: kerfs tilted (`angle`, turned about the mitre line: on the faces
+  they show as slanted lines, a chevron round the corner); dovetail keys
+  (`dovetail`, the slope of the kerf's sides: narrow at the corner, wide at
+  the bottom, cut with a dovetail bit; the key a dovetail strip).
+
+#### Splined mitre (loose tongue in the mitre)
+
+A loose tongue (spline) across the mitre, in grooves cut square into both
+mitre faces, as `LooseTongue` across a butt joint. In either orientation of
+the corner (a picture frame or a carcase / a shelf):
+
+- along the corner (parallel to its arris): one spline through the whole
+  length of the joint, or several shorter ones in a row in stopped grooves
+  on a wide board (a shelf, a box);
+- along the mitre line (from the outside corner towards the inside): a
+  short spline hidden in the mitre, open at most at the inside corner, e.g.
+  in a picture frame; several side by side across a wide board.
+
+`SplinedMitre(MitreCorner)`: `splines` (boards, their grain along their
+length, as `LooseTongue`; short-grain or plywood splines later), `along`,
+`offsets` along the corner, `spline_offset` across the mitre (centered by
+default), `depth` into part a (by default half the spline's width). The
+joint refuses grooves that would break out of the outside of a part.
+
+#### Butterfly key (bow tie, butterfly spline)
+
+A bow-tie-shaped key (two dovetails tail to tail) inlaid into a shallow
+mortise in a face, across a crack in a board or across the joint of two
+boards (slabs), glued and trimmed flush with the face; its grain along its
+length, across the crack. Topologically a dowel in a hole: one part and a
+piece.
+
+- `Butterfly(face, key, at=..., other=None)`: the key (a board as long and
+  wide as the bow tie, its thickness the mortise's depth) shaped by the
+  joint to its `waist`; on `face`, centered or at `at` distances (as
+  `Hole`), across the grain by default (`angle` to turn it). With `other`
+  (the face of a second board flush with it), the mortise is cut into both;
+  the joint then doesn't place the boards (`Joint.places`), only the key.
+- A crack itself isn't modelled (the board stays whole).
+
+#### Steps
+
+1. `KeyedMitre`: straight keys in a picture frame and a box corner; tilted
+   and of varying depths; dovetail keys.
+2. `SplinedMitre`: along the corner (a through spline in a box corner,
+   several in a row on a wide shelf corner), along the mitre line (hidden
+   splines in a picture frame).
+3. `Butterfly`: across a crack in a board, across the joint of two boards.
+4. Examples in the projects: a keyed picture frame, a splined mitre box,
+   butterflies in a glued-up top.
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
