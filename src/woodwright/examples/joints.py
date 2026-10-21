@@ -34,6 +34,7 @@ from woodwright.joints import (
     RoundMortiseTenon,
     Screw,
     SlidingDovetail,
+    SplinedMitre,
     TeeBridle,
     ThroughDovetail,
     TongueAndGroove,
@@ -53,6 +54,8 @@ SPLINE_OAK = Stock.board(thickness=6, species="oak")  # for loose tongues
 # A stile standing up with its outside (front) edge to the right, so that
 # a frame corner at its top shows both outside edges.
 OUTSIDE_CORNER_UP = orient(right_end=UP, front_edge=RIGHT)
+THIN_SPLINE_OAK = Stock.board(thickness=4, species="oak")  # for splines in mitres
+SPLINE_PLYWOOD = Stock.board(thickness=4, species="plywood")
 KEY_WALNUT = Stock.board(thickness=3, species="walnut")  # for keys in mitres, a contrast
 ROD_OAK = Stock.rod(diameter=25, species="oak")  # rungs, stretchers
 ROUND_LEG_OAK = Stock.rod(diameter=40, species="oak")
@@ -1269,6 +1272,74 @@ def _keyed_box_corner(
             keys=keys,
             depth=depths,
             angle=angles,
+        )
+    )
+    return asm
+
+
+def splined_mitre_corner(
+    stile_length: float = 300, rail_length: float = 200, width: float = 45, stock: Stock = OAK
+) -> Assembly:
+    """A picture frame corner with a spline hidden in the mitre.
+
+    The spline, 4 mm oak, 40 mm long, runs along the mitre line in the
+    middle of the thickness, 6 mm into each part, in grooves cut square to
+    the mitre faces (with a slot cutter), stopped short of both edges.
+    """
+    asm = Assembly("splined_mitre_corner", root_location=OUTSIDE_CORNER_UP)
+    stile = asm.add(Board("stile", stock, length=stile_length, width=width))
+    rail = asm.add(Board("rail", stock, length=rail_length, width=width))
+    spline = asm.add(Board("spline", THIN_SPLINE_OAK, length=40, width=12))
+    asm.join(
+        SplinedMitre(
+            stile.right_end,
+            rail.left_end,
+            stile.back_edge,
+            rail.back_edge,
+            splines=(spline,),
+            along="mitre",
+        )
+    )
+    return asm
+
+
+def splined_box_corner(
+    front_length: float = 300, side_length: float = 200, height: float = 120, stock: Stock = OAK
+) -> Assembly:
+    """A box corner mitred across the edges, with a plywood spline through
+    the whole height of the corner, in grooves sawn square to the mitre
+    faces (the blade tilted 45 degrees); lengths to the outside.
+
+    Plywood, as a spline with its grain along the corner would split easily.
+    """
+    asm = Assembly("splined_box_corner", root_location=BOX_FRONT)
+    front = asm.add(Board("front", stock, length=front_length, width=height))
+    side = asm.add(Board("side", stock, length=side_length, width=height, mirror=True))
+    spline = asm.add(Board("spline", SPLINE_PLYWOOD, length=height, width=16))
+    asm.join(
+        SplinedMitre(
+            front.right_end, side.right_end, front.bottom_face, side.bottom_face, splines=(spline,)
+        )
+    )
+    return asm
+
+
+def splined_shelf_corner(
+    side_height: float = 400, top_length: float = 500, depth: float = 250, stock: Stock = OAK
+) -> Assembly:
+    """The top corner of a shelf, mitred across the edges, with three short
+    oak splines in a row along the corner, in stopped grooves (routed) with
+    equal gaps between them, so the joint doesn't show at the front or the
+    back. Lengths to the outside."""
+    asm = Assembly("splined_shelf_corner", root_location=CASE_SIDE)
+    side = asm.add(Board("side", stock, length=side_height, width=depth))
+    top = asm.add(Board("top", stock, length=top_length, width=depth))
+    splines = tuple(
+        asm.add(Board(f"spline_{i + 1}", THIN_SPLINE_OAK, length=50, width=16)) for i in range(3)
+    )
+    asm.join(
+        SplinedMitre(
+            side.right_end, top.left_end, side.bottom_face, top.bottom_face, splines=splines
         )
     )
     return asm

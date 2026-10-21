@@ -109,8 +109,10 @@ Done items name their example in `woodwright.examples`
         alternately, a chevron round the corner; the middle key deeper)
       - [x] dovetail keys – `joints.dovetail_keyed_mitre_corner`
     - splined mitre - a loose tongue across the mitre, in grooves square to the mitre faces
-      - [ ] along the corner: through in a box corner, several in a row on a wide shelf corner
-      - [ ] along the mitre line: hidden in a picture frame corner
+      - [x] along the corner: through in a box corner, several in a row on a wide shelf corner –
+        `SplinedMitre`, `joints.splined_box_corner` (a plywood spline),
+        `joints.splined_shelf_corner` (three in stopped grooves)
+      - [x] along the mitre line: hidden in a picture frame corner – `joints.splined_mitre_corner`
   - butterfly key (bow tie) - a shallow bow-tie mortise in a face, a key inlaid flush
     - [ ] across a crack in a board
     - [ ] across the joint of two boards
