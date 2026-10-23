@@ -40,6 +40,8 @@ LABEL_GAP = 4.0  # between a view's outline (or its dimensions below) and its la
 MIN_FLEXIBLE = 40.0  # the width of a flexible plot when there's no room left
 SPAN = -1  # the row of a plot spanning all rows of its column, from the top
 LEADER_RING = 10.0  # from a view's outline to the balloons around it
+THIN_EDGES = 3.0  # the median length of edges on paper for thin lines, below it
+MEDIUM_EDGES = 8.0  # for medium lines
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,7 @@ class Plot:
     flexible: bool = False  # as wide as the other plots leave room for (an isometric view)
     origin: Point2 = (0.0, 0.0)  # on the sheet, of the drawing coordinates (0, 0)
     scale: float = 1.0
+    lines: str | None = None  # the line weight, if not the view's own (see `weight`)
 
     def at(self, p: Point2) -> Point2:
         """A point in drawing coordinates on the sheet."""
@@ -158,11 +161,23 @@ class Plot:
         if len(values) >= 2 and Row(values) not in self.rows.get(opposite, []):
             self.rows.setdefault(side, []).append(Row(values))
 
+    def weight(self) -> str:
+        """The line weight of the view (a suffix of the style): thinner where
+        its edges are short on paper, so that small details don't fill in."""
+        if self.lines is not None:
+            return self.lines
+        lengths = sorted(
+            sum(math.dist(a, b) for a, b in pairwise(line)) * self.scale for line in self.visible
+        )
+        median = lengths[len(lengths) // 2] if lengths else math.inf
+        return "-s" if median < THIN_EDGES else "-m" if median < MEDIUM_EDGES else ""
+
     def draw(self, sheet: Sheet) -> None:
+        weight = self.weight()
         for line in self.hidden:
-            sheet.line([self.at(p) for p in line], "hidden")
+            sheet.line([self.at(p) for p in line], "hidden-s" if weight == "-s" else "hidden")
         for line in self.visible:
-            sheet.line([self.at(p) for p in line], "visible")
+            sheet.line([self.at(p) for p in line], "visible" + weight)
         for (u, v), radius in self.centres:
             arm = radius + 2 / self.scale
             sheet.line([self.at((u - arm, v)), self.at((u + arm, v))], "center")
@@ -269,6 +284,17 @@ class Plot:
                 points = (edge, a), (edge, b), (line, a), (line, b)
                 text_at = (text_line, self.at((centre, centre))[1])
             sheet.dimension(*points, text, text_at=text_at)
+
+
+WEIGHTS = ["-s", "-m", ""]  # thin to thick
+
+
+def _same_weight(plots: list[Plot]) -> None:
+    """Draw the orthographic views of a sheet with the same lines: the
+    thinnest any of them needs."""
+    weight = min((p.weight() for p in plots), key=WEIGHTS.index)
+    for plot in plots:
+        plot.lines = weight
 
 
 def _levels(row: Row, scale: float) -> int:
@@ -687,6 +713,7 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
         iso.origin = (right - u1 * iso.scale, bottom - v0 * iso.scale)
         layout.plots.append(iso)
     sheet = Sheet(*size)
+    _same_weight(views)
     for plot in layout.plots:
         plot.draw(sheet)
     _notes(sheet, notes)
@@ -806,6 +833,7 @@ def assembly_sheet(model: ResolvedModel) -> Sheet:
 
     layout = Layout([*plots.values(), iso], strip=(0.0, TITLE_ROWS * 6.0 + 4))
     sheet = Sheet(*layout.fit())
+    _same_weight(list(plots.values()))
     for plot in layout.plots:
         plot.draw(sheet)
     _title_block(sheet, _assembly_title(model, lo, hi), front.scale)
@@ -828,17 +856,22 @@ def parts_sheet(model: ResolvedModel) -> Sheet:
     rows = [_part_row(i, part) for i, part in enumerate(model.parts, 1)]
     widths = _column_widths(rows)
     list_width = sum(widths)
-    title = TITLE_ROWS * 6.0
-    layout = Layout([blown], strip=(0.0, title + 4))
-    width, height = layout.fit(page=(A4[0] - list_width - MARGIN, A4[1]))
     list_height = (len(rows) + 1) * NOTE_LINE
-    sheet = Sheet(
-        max(A4[0], width + list_width + MARGIN),
-        max(height, 3 * MARGIN + list_height + title),
+    title = TITLE_ROWS * 6.0
+    sheet = Sheet(A4[0], max(A4[1], 3 * MARGIN + list_height + title))
+    # not to scale: as large as fits left of the parts list and the title block
+    width = sheet.width - 2 * MARGIN - max(list_width, TITLE_WIDTH) - VIEW_GAP
+    height = sheet.height - 2 * MARGIN
+    (u0, v0), (u1, v1) = blown.bounds
+    band = blown.band("left")
+    blown.scale = min(
+        (width - 2 * band) / (u1 - u0),
+        (height - 2 * band - LABEL_GAP - LABEL) / (v1 - v0),
     )
-    for plot in layout.plots:  # to the top of a taller sheet
-        plot.origin = (plot.origin[0], plot.origin[1] + sheet.height - height)
-        plot.draw(sheet)
+    left = MARGIN + (width - blown.size[0]) / 2
+    top = sheet.height - MARGIN - band
+    blown.origin = (left - u0 * blown.scale, top - v1 * blown.scale)
+    blown.draw(sheet)
     _parts_list(sheet, rows, widths, (sheet.width - MARGIN - list_width, sheet.height - MARGIN))
     shape_box = model.compound().bounding_box()
     _title_block(sheet, _assembly_title(model, tuple(shape_box.min), tuple(shape_box.max)), None)

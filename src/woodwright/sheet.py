@@ -12,10 +12,14 @@ from xml.sax.saxutils import escape
 
 Point2 = tuple[float, float]
 
-# Line styles: stroke width and dash pattern in mm (ISO 128 line types).
+# Line styles: stroke width and dash pattern in mm (ISO 128 line types),
+# visible and hidden lines also in thinner weights for dense views.
 STYLES = {
     "visible": "stroke-width:0.5",
+    "visible-m": "stroke-width:0.35",
+    "visible-s": "stroke-width:0.25",
     "hidden": "stroke-width:0.25;stroke-dasharray:2,1",
+    "hidden-s": "stroke-width:0.18;stroke-dasharray:1.5,0.75",
     "center": "stroke-width:0.18;stroke-dasharray:6,1,1,1",
     "thin": "stroke-width:0.18",
     "frame": "stroke-width:0.35",
