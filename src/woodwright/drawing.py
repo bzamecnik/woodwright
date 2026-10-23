@@ -18,6 +18,7 @@ from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
 import build123d as bd
+from OCP.Standard import Standard_Failure
 
 from woodwright.assembly import ResolvedModel, ResolvedPart
 from woodwright.part import Rod, Side, SideRef
@@ -315,11 +316,14 @@ def _unique(values: list[float], eps: float = 0.05) -> list[float]:
 
 
 def _polyline(edge: bd.Edge) -> Polyline:
-    if edge.geom_type == bd.GeomType.LINE:
-        points = [edge.position_at(0), edge.position_at(1)]
-    else:
-        n = int(min(128, max(16, edge.length)))
-        points = [edge.position_at(i / n) for i in range(n + 1)]
+    try:
+        if edge.geom_type == bd.GeomType.LINE:
+            points = [edge.position_at(0), edge.position_at(1)]
+        else:
+            n = int(min(128, max(16, edge.length)))
+            points = [edge.position_at(i / n) for i in range(n + 1)]
+    except Standard_Failure:  # a degenerate edge from the projection
+        points = [bd.Vector(*v) for v in edge.vertices()]
     return [(p.X, p.Y) for p in points]
 
 
