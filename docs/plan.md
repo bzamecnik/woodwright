@@ -992,6 +992,132 @@ their grain across the joint (short grain) as an option, with the
 cross-grain loose tongue; rounded ends of routed grooves and butterfly
 mortises; a modelled crack; keys proud before trimming as a process step.
 
+### M10: Shop drawings (E1) 🟡 planned
+
+So far the outputs are a 3D model, hidden-line isometric pictures and a
+text cut list. To build from them, a woodworker still has to measure the
+model. A shop drawing gives the numbers where they're needed: one sheet per
+part to mark it out and cut it, and one sheet for the assembly to see how
+the parts go together.
+
+#### Which drawings
+
+1. **Part sheet** (one per part): orthographic views of the part lying on
+   the bench as in its frame (reference face up, reference edge towards the
+   woodworker), its overall (cut) dimensions, every feature dimensioned once,
+   the features numbered and listed with their cut-list descriptions, a small
+   isometric view for orientation, and a title block (name, cut size,
+   species, scale, mirror image).
+2. **Assembly sheet**: front, top and side views of the whole piece with its
+   overall dimensions, an exploded isometric view with the parts numbered,
+   and a parts list (number, name, cut size, species).
+3. Later: subassemblies (with A2, components), sections, details at a
+   larger scale, a sheet per *group* of identical parts (with A3).
+
+#### Drawing conventions
+
+- Units mm, numbers without units, rounded to 0.1 mm (`46.1`, `120`).
+- Views in third-angle projection, folded around the top and front views,
+  each labelled with the side it shows (TOP FACE, FRONT EDGE, RIGHT END...),
+  so the projection method needn't be known to read them:
+
+  ```
+              BACK EDGE
+              TOP FACE                ISOMETRIC
+  LEFT END    FRONT EDGE   RIGHT END
+              BOTTOM FACE             notes  |  title block
+  ```
+
+  The top face and the front edge are always drawn (a rod: the front and
+  an end); the other views only when a feature is best seen there. The
+  length runs left to right in all the long views, so their dimensions
+  line up.
+- Visible lines thick, hidden lines thin and dashed, centre lines of holes
+  thin dash-dot, dimensions thin with oblique tick marks (as in
+  architectural and woodworking drawings; arrows as an option).
+- Scale chosen from the standard ones (1:1, 1:2, 1:5, 1:10, 1:20...) to fit
+  an A4 landscape sheet; text 3 mm high on paper whatever the scale. Long
+  parts (legs) still end up small; broken views later.
+
+#### Which dimensions
+
+The rules follow how a part is marked out: a square and a rule from the
+end, a marking gauge from the reference face and the reference edge.
+
+1. **Overall dimensions** of the blank, outermost: the length and width on
+   the top face, the thickness on the front edge.
+2. **Each feature dimensioned once**, in the view that shows its shape: the
+   view onto the side it's cut into (a mortise on the edge it's in, the
+   cheeks of a tenon on its end), its depth in a view where the feature
+   opens (the shoulder of a tenon on the top face, the depth of a dado on
+   the front edge). Only when no view shows it (the bottom of a blind
+   mortise) is it dimensioned to hidden lines.
+3. **Chained from the reference sides**: per view and axis, all feature
+   lines in one chain between the ends of the board, inside the overall
+   dimension (the "story stick": 20 | 50 | 530). Equal positions from
+   several features (mortise and haunch cheeks set with one gauge setting)
+   merge into one.
+4. Holes by their **centres** (two positions) with the diameter in a note;
+   slanted features (mitres, dovetails, chamfers) by where their lines meet
+   the faces of the board.
+5. Sizes that the cut list already states and that would only repeat the
+   chain (a mortise's width when its two cheeks are dimensioned) are left
+   to the notes: each feature gets a number in a circle in its view and a
+   line in the notes with its description ("mortise 50 x 8 mm, 42 deep, in
+   stile.back_edge").
+
+Assembly sheets get only the overall dimensions at first: the positions of
+parts follow from the joints, which the part sheets dimension.
+
+#### How it works
+
+Kernel-based and generic, so every cut and joint, including user-written
+ones, is dimensioned without extra code:
+
+- For each cut of a resolved part, its removal is intersected with the
+  blank. The faces of that solid lying inside the blank are the surfaces
+  the cut leaves on the part. Axis-aligned planes give one coordinate each
+  (a shoulder, a cheek), slanted planes the coordinates of their corners,
+  cylinders and cones their axis (a hole's centre) and their ends.
+- The sides of the blank that this solid reaches are the sides where the
+  feature opens; with the cut's own side first, they choose the view for
+  each coordinate (rule 2 above).
+- Views are hidden-line projections (`project_to_viewport`) of the part in
+  its frame along the frame's axes, so model coordinates map directly to
+  drawing coordinates and dimensions are placed exactly.
+- A small 2D sheet layer (lines, ticks, text, circles) writes plain SVG in
+  paper millimetres, independent of build123d's SVG exporter, which has no
+  text or dimensions.
+- `Cut.dimensions()` may later let a cut name its own important dimensions
+  (a dovetail's slope instead of every corner), overriding the generic
+  ones where they read badly.
+
+Outputs: `drawings/assembly.svg` and `drawings/<part>.svg` next to the
+other exports (with `--no-views`, none).
+
+#### Steps
+
+1. Sheet layer and views: a part sheet with its views, overall dimensions
+   and title block.
+2. Feature dimensions: cut surfaces, view choice, chains, numbered notes,
+   hole centre lines.
+3. Isometric view with overall dimensions along its axes.
+4. Assembly sheet: views, overall dimensions, exploded view with numbered
+   parts, parts list.
+5. Export and CLI, examples, tests; check by eye on joints and projects.
+
+Open:
+
+- First- or third-angle projection: third-angle (US, most woodworking
+  plans) with labelled views; ISO first-angle as an option if wanted.
+- Ordinate (story-stick) dimensions as an alternative to chains for parts
+  with many features.
+- Broken views for long parts, details at a larger scale, sections (a
+  mortise and tenon cut through).
+- Identical parts on one sheet ("2 x leg", A3), mirror pairs.
+- Positions of parts on the assembly sheet (shelf heights, rail positions).
+- PDF with all sheets, for printing.
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
