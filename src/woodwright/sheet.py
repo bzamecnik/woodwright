@@ -48,11 +48,13 @@ class Sheet:
         (x0, y0), (x1, y1) = lo, hi
         self.line([(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)], style)
 
-    def circle(self, center: Point2, radius: float, style: str = "thin") -> None:
+    def circle(
+        self, center: Point2, radius: float, style: str = "thin", fill: str = "white"
+    ) -> None:
         x, y = center
         self.items.append(
             f'<circle class="{style}" cx="{x:.2f}" cy="{self.height - y:.2f}" '
-            f'r="{radius:.2f}" fill="white"/>'
+            f'r="{radius:.2f}" style="fill:{fill}"/>'
         )
 
     def text(

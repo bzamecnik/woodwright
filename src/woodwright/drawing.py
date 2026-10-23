@@ -35,6 +35,8 @@ ROW_STEP = 7.0  # between rows of dimensions
 LEVEL_STEP = TEXT + 1.6  # a staggered text further out
 LABEL = 3.5  # height of view labels and titles
 LABEL_GAP = 4.0  # between a view's outline (or its dimensions below) and its label
+SPAN = -1  # the row of a plot spanning all rows of its column, from the top
+LEADER_RING = 10.0  # from a view's outline to the balloons around it
 
 
 @dataclass(frozen=True)
@@ -100,7 +102,11 @@ class Row:
 
 @dataclass
 class Plot:
-    """A view of a shape placed on a sheet, with its rows of dimensions."""
+    """A view of a shape placed on a sheet, with its rows of dimensions.
+
+    Its cell is the column and row of the layout grid it goes in, or the
+    column and `SPAN` to sit at the top of a column of its own beside the
+    rows."""
 
     view: View
     cell: tuple[int, int]
@@ -113,6 +119,10 @@ class Plot:
     rows: dict[str, list[Row]] = field(default_factory=dict)
     balloons: list[tuple[Point2, str]] = field(default_factory=list)  # drawing coordinates
     centres: list[tuple[Point2, float]] = field(default_factory=list)  # of holes, with radii
+    # dimensions along model directions (an isometric view): from, to, outwards, text
+    dims3d: list[tuple[Vec3, Vec3, Vec3, str]] = field(default_factory=list)
+    max_width: float | None = None  # on paper; drawn at a smaller scale if wider
+    leaders: bool = False  # balloons around the view, on leaders, rather than on it
     origin: Point2 = (0.0, 0.0)  # on the sheet, of the drawing coordinates (0, 0)
     scale: float = 1.0
 
@@ -131,11 +141,17 @@ class Plot:
         depth = 0.0
         for i, row in enumerate(rows):
             depth += (ROW_FIRST if i == 0 else ROW_STEP) + _levels(row, self.scale) * LEVEL_STEP
-        return depth + (2.0 if rows else 0.0)
+        extra = 12.0 if self.dims3d else 0.0
+        if self.leaders:
+            extra = LEADER_RING + 3.0
+        return depth + (2.0 if rows else 0.0) + extra
 
     def add_row(self, side: str, values: list[float]) -> None:
+        """Add a row of dimensions on a side, outside the ones there, unless
+        the same row is already on the opposite side."""
         values = _unique(values)
-        if len(values) >= 2:
+        opposite = {"above": "below", "below": "above", "left": "right", "right": "left"}[side]
+        if len(values) >= 2 and Row(values) not in self.rows.get(opposite, []):
             self.rows.setdefault(side, []).append(Row(values))
 
     def draw(self, sheet: Sheet) -> None:
@@ -147,14 +163,23 @@ class Plot:
             arm = radius + 2 / self.scale
             sheet.line([self.at((u - arm, v)), self.at((u + arm, v))], "center")
             sheet.line([self.at((u, v - arm)), self.at((u, v + arm))], "center")
+        if self.leaders:
+            self._draw_leaders(sheet)
         placed: list[Point2] = []
-        for centre, label in self.balloons:
+        for centre, label in [] if self.leaders else self.balloons:
             x, y = self.at(centre)
             while any(math.hypot(x - a, y - b) < 5.6 for a, b in placed):
                 x += 5.8
             placed.append((x, y))
             sheet.balloon((x, y), label)
         (x0, y0), (x1, y1) = self.at(self.bounds[0]), self.at(self.bounds[1])
+        for a, b, out, text in self.dims3d:
+            pa, pb = self.at(self.view.project(a)), self.at(self.view.project(b))
+            o = self.view.project(out)
+            k = ROW_FIRST / math.hypot(*o)
+            o = (o[0] * k, o[1] * k)
+            line_a, line_b = (pa[0] + o[0], pa[1] + o[1]), (pb[0] + o[0], pb[1] + o[1])
+            sheet.dimension(pa, pb, line_a, line_b, text)
         for side, rows in self.rows.items():
             offset = 0.0
             for i, row in enumerate(rows):
@@ -163,6 +188,59 @@ class Plot:
                 offset += _levels(row, self.scale) * LEVEL_STEP
         below = y0 - self.band("below") - LABEL_GAP - LABEL
         sheet.text(((x0 + x1) / 2, below), self.label.upper(), size=LABEL)
+
+    def _draw_leaders(self, sheet: Sheet) -> None:
+        """Balloons in a ring around the view, each on a leader to its point,
+        in the direction of that point from the view's centre, spread apart."""
+        (x0, y0), (x1, y1) = self.at(self.bounds[0]), self.at(self.bounds[1])
+        x0, y0, x1, y1 = x0 - LEADER_RING, y0 - LEADER_RING, x1 + LEADER_RING, y1 + LEADER_RING
+        w, h = x1 - x0, y1 - y0
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        perimeter = 2 * (w + h)
+
+        def where(t: float) -> Point2:  # along the ring, from its bottom left, anticlockwise
+            t %= perimeter
+            for length, start, step in (
+                (w, (x0, y0), (1, 0)),
+                (h, (x1, y0), (0, 1)),
+                (w, (x1, y1), (-1, 0)),
+                (h, (x0, y1), (0, -1)),
+            ):
+                if t <= length:
+                    return start[0] + step[0] * t, start[1] + step[1] * t
+                t -= length
+            return x0, y0
+
+        def param(p: Point2) -> float:
+            x, y = p
+            if abs(y - y0) < 1e-6:
+                return x - x0
+            if abs(x - x1) < 1e-6:
+                return w + y - y0
+            if abs(y - y1) < 1e-6:
+                return w + h + x1 - x
+            return 2 * w + h + y1 - y
+
+        marks = []
+        for centre, label in self.balloons:
+            ax, ay = self.at(centre)
+            dx, dy = ax - cx, ay - cy
+            if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+                dy = 1.0
+            k = min(
+                (w / 2) / abs(dx) if abs(dx) > 1e-9 else math.inf,
+                (h / 2) / abs(dy) if abs(dy) > 1e-9 else math.inf,
+            )
+            marks.append([param((cx + dx * k, cy + dy * k)), (ax, ay), label])
+        marks.sort(key=lambda m: m[0])
+        gap = 6.0
+        for prev, mark in pairwise(marks):
+            mark[0] = max(mark[0], prev[0] + gap)
+        for t, anchor, label in marks:
+            at = where(t)
+            sheet.line([anchor, at])
+            sheet.circle(anchor, 0.5, fill="black")
+            sheet.balloon(at, label)
 
     def _draw_row(
         self, sheet: Sheet, side: str, row: Row, offset: float, box: tuple[float, ...]
@@ -237,7 +315,7 @@ def _polyline(edge: bd.Edge) -> Polyline:
     if edge.geom_type == bd.GeomType.LINE:
         points = [edge.position_at(0), edge.position_at(1)]
     else:
-        n = int(min(64, max(8, edge.length / 2)))
+        n = int(min(128, max(16, edge.length)))
         points = [edge.position_at(i / n) for i in range(n + 1)]
     return [(p.X, p.Y) for p in points]
 
@@ -268,9 +346,11 @@ class Layout:
         """Choose the largest standard scale at which the plots fit the page;
         place them. Returns the size of the sheet (the page, or larger when
         even the smallest scale doesn't fit)."""
+        # a long list of notes may make the sheet taller, but not the views smaller
+        excess = max(0.0, self.strip[1] - 0.35 * page[1])
         for scale in SCALES:
             size = self._place(scale)
-            if size[0] <= page[0] and size[1] <= page[1]:
+            if size[0] <= page[0] and size[1] - excess <= page[1]:
                 break
         return max(size[0], page[0]), max(size[1], page[1])
 
@@ -279,8 +359,11 @@ class Layout:
         rows: dict[int, list[Plot]] = {}
         for plot in self.plots:
             plot.scale = scale
+            if plot.max_width and plot.size[0] > plot.max_width:
+                plot.scale *= plot.max_width / plot.size[0]
             cols.setdefault(plot.cell[0], []).append(plot)
-            rows.setdefault(plot.cell[1], []).append(plot)
+            if plot.cell[1] != SPAN:
+                rows.setdefault(plot.cell[1], []).append(plot)
         # each column: the widest left band, the widest view, the widest right band
         col_x, x = {}, MARGIN
         col_left = {}
@@ -301,14 +384,19 @@ class Layout:
             )
             row_top[r] = y
             y += row_above[r] + height + VIEW_GAP
+        for plot in [p for p in self.plots if p.cell[1] == SPAN]:
+            row_top[SPAN] = 0.0
+            tall = plot.band("above") + plot.size[1] + plot.band("below") + LABEL_GAP + LABEL
+            y = max(y, tall + VIEW_GAP)
         height = MARGIN + y + self.strip[1] + MARGIN
         width = max(x - VIEW_GAP + MARGIN, self.strip[0] + 2 * MARGIN)
         for plot in self.plots:
             c, r = plot.cell
             (u0, _), (_, v1) = plot.bounds
             left = col_x[c] + col_left[c]
-            top = height - MARGIN - row_top[r] - row_above[r]
-            plot.origin = (left - u0 * scale, top - v1 * scale)
+            above = plot.band("above") if r == SPAN else row_above[r]
+            top = height - MARGIN - row_top[r] - above
+            plot.origin = (left - u0 * plot.scale, top - v1 * plot.scale)
         return width, height
 
 
@@ -316,10 +404,10 @@ def _scale_text(scale: float) -> str:
     return f"1:{1 / scale:g}" if scale <= 1 else f"{scale:g}:1"
 
 
-def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float) -> None:
+def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float | None) -> None:
     """The title block in the bottom right corner: a title and labelled lines."""
     width, row = 90.0, 6.0
-    rows = [*lines, ("scale", f"{_scale_text(scale)}, mm")]
+    rows = [*lines, ("scale", f"{_scale_text(scale)}, mm" if scale else "not to scale, mm")]
     x0, y0 = sheet.width - MARGIN - width, MARGIN
     x1, y1 = sheet.width - MARGIN, MARGIN + row * len(rows)
     sheet.rect((x0, y0), (x1, y1))
@@ -334,7 +422,7 @@ def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float) -> No
         )
 
 
-TITLE_ROWS = 4  # in a part's title block: part, size, material, scale
+TITLE_ROWS = 5  # in a title block: name, assembly, size, material, scale
 
 
 # --- Features -------------------------------------------------------------------
@@ -513,7 +601,7 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     feats = features(part)
     chosen = _assign(feats, order, defaults)
     sides = [s for s in order if s in defaults or any(v == s for v, _ in chosen)]
-    plots = {side: _plot(part, side, shape) for side in sides}
+    plots: dict[Side | None, Plot] = {side: _plot(part, side, shape) for side in sides}
 
     # chains of feature dimensions, inside the overall ones: on the side of
     # the view nearest each feature, one chain per side
@@ -538,13 +626,13 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
         top.add_row("left", [top.bounds[0][1], top.bounds[1][1]])
         front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
 
-    # each feature numbered in the first view showing it; holes' centre lines
+    plots[None] = _iso(shape, part.blank, rod)
+
+    # each feature numbered in the first view dimensioning it (else showing
+    # it); holes' centre lines
     for feat in feats:
-        shown = [s for s in feat.opens if s in plots] or [
-            s
-            for (s, _), fs in chosen.items()
-            if s in plots and feat.number in {f.number for f in fs}
-        ]
+        dimensioned = {s for (s, _), fs in chosen.items() if feat.number in {f.number for f in fs}}
+        shown = [s for s in sides if s in dimensioned] or [s for s in feat.opens if s in plots]
         plot = plots[shown[0]] if shown else plots[defaults[0]]
         plot.balloons.append((plot.view.project(feat.centre), str(feat.number)))
         for axis, point, radius in feat.holes:
@@ -561,6 +649,28 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     _notes(sheet, notes)
     _title_block(sheet, _part_title(model, part), layout.plots[0].scale)
     return sheet
+
+
+def _iso(
+    shape: bd.Shape,
+    blank: tuple[Vec3, Vec3],
+    rod: bool = False,
+    cell: tuple[int, int] = (2, 1),
+    label: str = "isometric",
+) -> Plot:
+    """An isometric view (from the front right, above) with the overall
+    dimensions along its edges, by default in the top right corner."""
+    visible, _ = ISO.lines(shape)
+    lo, hi = blank
+    x0, y0, z0 = lo
+    x1, y1, z1 = hi
+    dims = [((x0, y0, z0), (x1, y0, z0), (0, -1, 0), _format(x1 - x0))]
+    if not rod:
+        dims.append(((x1, y0, z0), (x1, y1, z0), (1, 0, 0), _format(y1 - y0)))
+        dims.append(((x0, y0, z0), (x0, y0, z1), (-1, 0, 0), _format(z1 - z0)))
+    plot = Plot(ISO, cell, label, visible, [], _bounds(ISO, lo, hi), dims3d=dims)
+    plot.max_width = 80.0
+    return plot
 
 
 def _row_side(plot: Plot, i: int) -> str:
@@ -605,9 +715,122 @@ def _plot(part: ResolvedPart, side: Side, shape: bd.Shape) -> Plot:
 
 def _part_title(model: ResolvedModel, part: ResolvedPart) -> list[tuple[str, str]]:
     p = part.part
-    length, width, thickness = part.size
-    size = f"{length:g} x {width:g} x {thickness:g}"
-    if isinstance(p, Rod):
-        size = f"ø{p.diameter:g} x {length:g}"
+    size = _part_title_size(part)
     material = p.stock.species + (", mirror image" if p.mirror else "")
-    return [("part", p.name), ("cut size", size), ("material", material.strip(", "))]
+    return [
+        ("part", p.name),
+        ("of", model.name),
+        ("cut size", size),
+        ("material", material.strip(", ")),
+    ]
+
+
+# --- Assembly sheets ------------------------------------------------------------
+
+# Views of an assembly, Z up, the front towards -y, and their cells.
+ASSEMBLY_VIEWS = {
+    "top": (View("top", (0, 0, 1), (0, 1, 0)), (1, 0)),
+    "front": (View("front", (0, -1, 0), (0, 0, 1)), (1, 1)),
+    "right side": (View("right", (1, 0, 0), (0, 0, 1)), (2, 1)),
+}
+
+
+def assembly_sheet(model: ResolvedModel) -> Sheet:
+    """A drawing of the whole assembly: front, top and side views with the
+    overall dimensions (no hidden lines), and an isometric view."""
+    shape = model.compound()
+    box = shape.bounding_box()
+    lo, hi = tuple(box.min), tuple(box.max)
+    plots = {}
+    for label, (view, cell) in ASSEMBLY_VIEWS.items():
+        visible, _ = view.lines(shape)
+        plots[label] = Plot(view, cell, label, visible, [], _bounds(view, lo, hi))
+    front, side = plots["front"], plots["right side"]
+    front.add_row("below", [front.bounds[0][0], front.bounds[1][0]])
+    front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
+    side.add_row("below", [side.bounds[0][0], side.bounds[1][0]])
+    iso = _iso(shape, (lo, hi), cell=(3, SPAN))
+    iso.max_width = 110.0
+
+    layout = Layout([*plots.values(), iso], strip=(0.0, TITLE_ROWS * 6.0 + 4))
+    sheet = Sheet(*layout.fit())
+    for plot in layout.plots:
+        plot.draw(sheet)
+    _title_block(sheet, _assembly_title(model, lo, hi), front.scale)
+    return sheet
+
+
+def parts_sheet(model: ResolvedModel) -> Sheet:
+    """The parts of an assembly: an exploded isometric view with the parts
+    numbered, and a list of them with their cut sizes."""
+    from woodwright.export import exploded
+
+    apart = exploded(model)
+    visible, _ = ISO.lines(apart)
+    box = apart.bounding_box()
+    blown = Plot(ISO, (0, 0), "exploded", visible, [], _bounds(ISO, tuple(box.min), tuple(box.max)))
+    blown.leaders = True
+    for number, child in enumerate(apart.children, 1):
+        blown.balloons.append((ISO.project(tuple(child.bounding_box().center())), str(number)))
+
+    rows = [_part_row(i, part) for i, part in enumerate(model.parts, 1)]
+    widths = _column_widths(rows)
+    list_width = sum(widths)
+    title = TITLE_ROWS * 6.0
+    layout = Layout([blown], strip=(0.0, title + 4))
+    width, height = layout.fit(page=(A4[0] - list_width - MARGIN, A4[1]))
+    list_height = (len(rows) + 1) * NOTE_LINE
+    sheet = Sheet(
+        max(A4[0], width + list_width + MARGIN),
+        max(height, 3 * MARGIN + list_height + title),
+    )
+    for plot in layout.plots:  # to the top of a taller sheet
+        plot.origin = (plot.origin[0], plot.origin[1] + sheet.height - height)
+        plot.draw(sheet)
+    _parts_list(sheet, rows, widths, (sheet.width - MARGIN - list_width, sheet.height - MARGIN))
+    shape_box = model.compound().bounding_box()
+    _title_block(sheet, _assembly_title(model, tuple(shape_box.min), tuple(shape_box.max)), None)
+    return sheet
+
+
+def _assembly_title(model: ResolvedModel, lo: Vec3, hi: Vec3) -> list[tuple[str, str]]:
+    width, depth, height = (b - a for a, b in zip(lo, hi, strict=True))
+    return [
+        ("assembly", model.name),
+        ("parts", str(len(model.parts))),
+        ("overall", f"{_format(width)} x {_format(depth)} x {_format(height)} (W x D x H)"),
+        ("material", ", ".join(sorted({p.part.stock.species for p in model.parts}))),
+    ]
+
+
+def _part_row(number: int, part: ResolvedPart) -> list[str]:
+    size = _part_title_size(part)
+    note = "mirror image" if part.part.mirror else ""
+    return [str(number), part.part.name, size, part.part.stock.species, note]
+
+
+def _part_title_size(part: ResolvedPart) -> str:
+    if isinstance(part.part, Rod):
+        return f"ø{part.part.diameter:g} x {part.size[0]:g}"
+    return " x ".join(f"{x:g}" for x in part.size)
+
+
+PARTS_HEADER = ["no.", "part", "cut size (L x W x T)", "material", ""]
+
+
+def _column_widths(rows: list[list[str]]) -> list[float]:
+    columns = [PARTS_HEADER, *rows]
+    return [max(text_width(r[i], NOTE) for r in columns) + 4 for i in range(len(PARTS_HEADER))]
+
+
+def _parts_list(sheet: Sheet, rows: list[list[str]], widths: list[float], top_left: Point2) -> None:
+    """The parts list: a header and a line per part, down from `top_left`."""
+    x0, y = top_left
+    for i, row in enumerate([PARTS_HEADER, *rows]):
+        x = x0
+        for text, width in zip(row, widths, strict=True):
+            sheet.text((x, y - NOTE_LINE + 1), text, size=NOTE, anchor="start", bold=i == 0)
+            x += width
+        if i == 0:
+            sheet.line([(x0, y - NOTE_LINE), (x, y - NOTE_LINE)])
+        y -= NOTE_LINE
