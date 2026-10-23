@@ -7,6 +7,8 @@ from woodwright.drawing import (
     Row,
     Side,
     _assign,
+    _clip,
+    _ranges,
     _stagger,
     assembly_sheet,
     features,
@@ -133,3 +135,33 @@ def test_sheets_of_other_parts(name: str) -> None:
     model = get(name)().resolve()
     for part in model.parts:
         assert "<svg" in part_sheet(model, part).svg()
+
+
+def test_crowded_features_are_shown_in_details() -> None:
+    model, rail = _resolved("projects.chair", "back_rail_lower")
+    svg = part_sheet(model, rail).svg()
+
+    # the mortises across the thin back edge, enlarged, all three in one detail
+    assert ">BACK EDGE: 3-5  1:1<" in svg
+    assert ">LEFT END  1:2<" in svg  # the ends at their own scale
+    assert "1:4, mm" in svg  # the sheet's scale
+
+
+def test_a_rabbet_is_detailed_in_one_view() -> None:
+    model, bottom = _resolved("projects.drawer", "bottom")
+    svg = part_sheet(model, bottom).svg()
+
+    # width and depth of each rabbet together, one detail each
+    assert svg.count(": 1  2:1<") == svg.count(": 2  2:1<") == svg.count(": 3  2:1<") == 1
+
+
+def test_chamfers_are_called_out_not_dimensioned() -> None:
+    _, leg = _resolved("projects.chair", "leg_back_left")
+    chamfers = [f for f in features(leg) if f.text.startswith("chamfer")]
+    assert chamfers and all(not f.coords for f in chamfers)
+
+
+def test_clip_and_ranges() -> None:
+    pieces = _clip([(-10, 5), (5, 5), (5, 20)], ((0, 0), (10, 10)))
+    assert pieces == [[(0, 5), (5, 5), (5, 10)]]
+    assert _ranges([1, 3, 4, 5, 9, 10]) == "1, 3-5, 9, 10"

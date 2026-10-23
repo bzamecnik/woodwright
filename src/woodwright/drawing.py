@@ -37,8 +37,14 @@ ROW_STEP = 7.0  # between rows of dimensions
 LEVEL_STEP = TEXT + 1.6  # a staggered text further out
 LABEL = 3.5  # height of view labels and titles
 LABEL_GAP = 4.0  # between a view's outline (or its dimensions below) and its label
-MIN_FLEXIBLE = 40.0  # the width of a flexible plot when there's no room left
-SPAN = -1  # the row of a plot spanning all rows of its column, from the top
+ISO_SIZES = [110.0, 90.0, 70.0, 55.0, 40.0]  # the largest an isometric view is drawn, on paper
+END_ZOOM = (70.0, 50.0)  # the largest an end view is enlarged to, on paper
+DETAIL_ZOOM = (70.0, 45.0)  # the largest a detail is enlarged to, on paper
+MIN_SEGMENT = 2.5  # the shortest dimension on paper that reads well, else a detail
+DETAIL_MARGIN = 8.0  # around a feature in a detail, model units
+DETAIL_ENLARGES = 1.5  # at least, else the feature stays in its view
+DETAIL_ROUNDS = 4  # of choosing details and fitting the sheet, at most
+PACK_GAP = 8.0  # between the views placed in the space the grid leaves
 LEADER_RING = 10.0  # from a view's outline to the balloons around it
 THIN_EDGES = 3.0  # the median length of edges on paper for thin lines, below it
 MEDIUM_EDGES = 8.0  # for medium lines
@@ -109,12 +115,11 @@ class Row:
 class Plot:
     """A view of a shape placed on a sheet, with its rows of dimensions.
 
-    Its cell is the column and row of the layout grid it goes in, or the
-    column and `SPAN` to sit at the top of a column of its own beside the
-    rows."""
+    Its cell is the column and row of the layout grid it goes in, or None
+    for a view placed in the space the grid leaves (see `Layout`)."""
 
     view: View
-    cell: tuple[int, int]
+    cell: tuple[int, int] | None
     label: str
     visible: list[Polyline]
     hidden: list[Polyline]
@@ -126,9 +131,16 @@ class Plot:
     centres: list[tuple[Point2, float]] = field(default_factory=list)  # of holes, with radii
     # dimensions along model directions (an isometric view): from, to, outwards, text
     dims3d: list[tuple[Vec3, Vec3, Vec3, str]] = field(default_factory=list)
-    max_width: float | None = None  # on paper; drawn at a smaller scale if wider
     leaders: bool = False  # balloons around the view, on leaders, rather than on it
-    flexible: bool = False  # as wide as the other plots leave room for (an isometric view)
+    flexible: bool = False  # not to scale, as large as there is room for (an isometric view)
+    # the largest size on paper the view may be enlarged to, beyond the sheet's scale
+    zoom: Point2 | None = None
+    zoomed: bool = False  # drawn at a larger scale than the sheet's
+    crop: bool = False  # a detail: a part of a view, with break lines where it cuts the part
+    side: Side | None = None  # of a part shown in the view (or detailed)
+    numbers: list[int] = field(default_factory=list)  # of the features a detail shows
+    # for a detail, the plot it enlarges and the point it shows (drawing coordinates)
+    parent: tuple[Plot, Point2] | None = None
     origin: Point2 = (0.0, 0.0)  # on the sheet, of the drawing coordinates (0, 0)
     scale: float = 1.0
     lines: str | None = None  # the line weight, if not the view's own (see `weight`)
@@ -141,6 +153,24 @@ class Plot:
     def size(self) -> Point2:
         (u0, v0), (u1, v1) = self.bounds
         return (u1 - u0) * self.scale, (v1 - v0) * self.scale
+
+    def extent(self) -> tuple[float, float, float, float]:
+        """How far the plot reaches beyond its outline on paper, with its
+        dimensions and label: left, right, above, below."""
+        left, right = self.band("left"), self.band("right")
+        overhang = (text_width(self.title(), LABEL) - self.size[0] - left - right) / 2
+        if overhang > 0:
+            left, right = left + overhang, right + overhang
+        return left, right, self.band("above"), self.band("below") + LABEL_GAP + LABEL
+
+    def footprint(self) -> Point2:
+        left, right, above, below = self.extent()
+        return left + self.size[0] + right, above + self.size[1] + below
+
+    def title(self) -> str:
+        """The label, with the scale when it isn't the sheet's."""
+        label = self.label.upper()
+        return f"{label}  {_scale_text(self.scale)}" if self.zoom and self.zoomed else label
 
     def band(self, side: str) -> float:
         """The depth on paper of the dimensions on one side, from the outline."""
@@ -178,6 +208,8 @@ class Plot:
             sheet.line([self.at(p) for p in line], "hidden-s" if weight == "-s" else "hidden")
         for line in self.visible:
             sheet.line([self.at(p) for p in line], "visible" + weight)
+        if self.crop and self.parent:
+            self._draw_breaks(sheet)
         for (u, v), radius in self.centres:
             arm = radius + 2 / self.scale
             sheet.line([self.at((u - arm, v)), self.at((u + arm, v))], "center")
@@ -206,7 +238,23 @@ class Plot:
                 self._draw_row(sheet, side, row, offset, (x0, y0, x1, y1))
                 offset += _levels(row, self.scale) * LEVEL_STEP
         below = y0 - self.band("below") - LABEL_GAP - LABEL
-        sheet.text(((x0 + x1) / 2, below), self.label.upper(), size=LABEL)
+        sheet.text(((x0 + x1) / 2, below), self.title(), size=LABEL)
+
+    def _draw_breaks(self, sheet: Sheet) -> None:
+        """Break lines where a detail cuts the part: thin, with a zigzag."""
+        (u0, v0), (u1, v1) = self.bounds
+        (pu0, pv0), (pu1, pv1) = self.parent[0].bounds
+        eps = 1e-6
+        sides = [
+            (u0 > pu0 + eps, (u0, v0), (u0, v1)),
+            (u1 < pu1 - eps, (u1, v0), (u1, v1)),
+            (v0 > pv0 + eps, (u0, v0), (u1, v0)),
+            (v1 < pv1 - eps, (u0, v1), (u1, v1)),
+        ]
+        for cuts, a, b in sides:
+            if not cuts:
+                continue
+            sheet.line(_break_line(self.at(a), self.at(b)))
 
     def _draw_leaders(self, sheet: Sheet) -> None:
         """Balloons in a ring around the view, each on a leader to its point,
@@ -367,81 +415,195 @@ def _bounds(view: View, lo: Vec3, hi: Vec3) -> tuple[Point2, Point2]:
 # --- Layout -------------------------------------------------------------------
 
 
+Rect = tuple[float, float, float, float]  # left, top, right, bottom; y down from the top
+
+
 @dataclass
 class Layout:
-    """Plots arranged in a grid of cells on a sheet, above a strip for notes
-    and the title block."""
+    """Plots on a sheet: the orthographic views in a grid of cells (column,
+    row from the top) from the top left, above a strip for notes and the
+    title block; the others (`cell` None: an isometric view, details) in the
+    space left, each as near as can be to where it belongs."""
 
     plots: list[Plot]
-    strip: Point2  # width and height of the strip at the bottom, on paper
+    notes: Point2 = (0.0, 0.0)  # size on paper of the notes in the bottom left corner
     scale: float = 1.0  # the scale chosen by `fit`
 
     def fit(self, page: Point2 = A4) -> Point2:
-        """Choose the largest standard scale at which the plots fit the page;
-        place them. Returns the size of the sheet (the page, or larger when
-        even the smallest scale doesn't fit)."""
+        """Choose the largest standard scale at which the plots fit the page,
+        then the largest enlarged views and isometric views; place them.
+        Returns the size of the sheet: the page, or taller when even the
+        smallest scale doesn't fit."""
         # a long list of notes may make the sheet taller, but not the views smaller
-        excess = max(0.0, self.strip[1] - 0.35 * page[1])
-        sizes = {scale: self._place(scale, page) for scale in SCALES}
-        fits = [s for s, (w, h) in sizes.items() if w <= page[0] and h - excess <= page[1]]
-        # if the views are too tall at any scale (many rows of dimensions on a
-        # long part), the sheet grows taller rather than the part tiny
-        wide = [s for s, (w, _) in sizes.items() if w <= page[0]]
-        scale = self.scale = (fits or wide or SCALES[-1:])[0]
-        size = self._place(scale, page)
-        return max(size[0], page[0]), max(size[1], page[1])
+        height = page[1] + max(0.0, self._strip() - 0.35 * page[1])
+        for scale in SCALES:
+            for option in self._options(scale):
+                if self._place(scale, *option, (page[0], height)):
+                    return page[0], height
+        # too tall at any scale (many rows of dimensions on a long part): the
+        # sheet grows taller rather than the part tiny
+        wide = [s for s in SCALES if self._grid(s, 0, (0, 0))[0] + 2 * MARGIN <= page[0]]
+        scale = (wide or SCALES[-1:])[0]
+        *_, option = self._options(scale)
+        width = max(page[0], self._grid(scale, option[0], (0, 0))[0] + 2 * MARGIN)
+        while not self._place(scale, *option, (width, height)):
+            height += 10.0
+        return width, height
 
-    def _place(self, scale: float, page: Point2) -> Point2:
-        flexible = [p for p in self.plots if p.flexible]
-        if flexible:
-            # the width the other plots leave on the page
-            others = Layout([p for p in self.plots if not p.flexible], self.strip)
-            left = page[0] - others._place(scale, page)[0] - VIEW_GAP - 2 * 12.0
-            for plot in flexible:
-                plot.max_width = max(MIN_FLEXIBLE, left / len(flexible))
-        cols: dict[int, list[Plot]] = {}
-        rows: dict[int, list[Plot]] = {}
+    def _strip(self) -> float:
+        return max(TITLE_ROWS * 6.0, self.notes[1]) + 4
+
+    def _options(self, scale: float) -> list[tuple[int, float]]:
+        """Ways to draw the enlarged and isometric views, the largest first:
+        how many scales down from its largest each enlarged view is, the
+        size of the isometric views."""
+        steps = max((_zoom_steps(p, scale) for p in self.plots if p.zoom), default=0)
+        sizes = ISO_SIZES if any(p.flexible for p in self.plots) else ISO_SIZES[:1]
+        return [(step, size) for step in range(steps + 1) for size in sizes]
+
+    def _scales(self, scale: float, step: int, iso: float) -> None:
         for plot in self.plots:
             plot.scale = scale
-            if plot.max_width and plot.size[0] > plot.max_width:
-                plot.scale *= plot.max_width / plot.size[0]
+            if plot.zoom:
+                # a detail at least somewhat larger than its view (if there's
+                # no room for it, the sheet's scale gives way)
+                least = scale * (DETAIL_ENLARGES if plot.crop else 1)
+                smallest = max((i for i, s in enumerate(SCALES) if s >= least - 1e-9), default=0)
+                largest = min(SCALES.index(scale) - _zoom_steps(plot, scale), smallest)
+                plot.scale = SCALES[min(largest + step, smallest)]
+                plot.zoomed = plot.scale > scale
+            if plot.flexible:
+                plot.scale = 1.0
+                plot.scale = iso / max(plot.size)
+
+    def _grid(self, scale: float, step: int, at: Point2) -> tuple[float, float]:
+        """Place the grid's plots from `at`, top left (y down); returns the
+        width and height of the grid on paper."""
+        self._scales(scale, step, ISO_SIZES[0])
+        grid = [p for p in self.plots if p.cell is not None]
+        cols: dict[int, list[Plot]] = {}
+        rows: dict[int, list[Plot]] = {}
+        for plot in grid:
             cols.setdefault(plot.cell[0], []).append(plot)
-            if plot.cell[1] != SPAN:
-                rows.setdefault(plot.cell[1], []).append(plot)
-        # each column: the widest left band, the widest view, the widest right band
-        col_x, x = {}, MARGIN
-        col_left = {}
+            rows.setdefault(plot.cell[1], []).append(plot)
+        # each column: the widest left reach, the widest view, the widest right reach
+        col_x, col_left, col_width, x = {}, {}, {}, at[0]
         for c in sorted(cols):
-            plots = cols[c]
-            col_left[c] = max(p.band("left") for p in plots)
-            width = max(p.size[0] for p in plots) + max(p.band("right") for p in plots)
+            col_left[c] = max(p.extent()[0] for p in cols[c])
+            col_width[c] = max(p.size[0] for p in cols[c])
             col_x[c] = x
-            x += col_left[c] + width + VIEW_GAP
-        # rows from the top: the bands above, the views, the bands and labels below
-        row_top, y = {}, 0.0
-        row_above = {}
+            x += col_left[c] + col_width[c] + max(p.extent()[1] for p in cols[c]) + VIEW_GAP
+        # each row from the top: above, the views, below with the labels
+        row_y, row_above, row_height, y = {}, {}, {}, at[1]
         for r in sorted(rows):
-            plots = rows[r]
-            row_above[r] = max(p.band("above") for p in plots)
-            height = max(p.size[1] for p in plots) + max(
-                p.band("below") + LABEL_GAP + LABEL for p in plots
-            )
-            row_top[r] = y
-            y += row_above[r] + height + VIEW_GAP
-        for plot in [p for p in self.plots if p.cell[1] == SPAN]:
-            row_top[SPAN] = 0.0
-            tall = plot.band("above") + plot.size[1] + plot.band("below") + LABEL_GAP + LABEL
-            y = max(y, tall + VIEW_GAP)
-        height = MARGIN + y + self.strip[1] + MARGIN
-        width = max(x - VIEW_GAP + MARGIN, self.strip[0] + 2 * MARGIN)
-        for plot in self.plots:
+            row_above[r] = max(p.extent()[2] for p in rows[r])
+            row_height[r] = max(p.size[1] for p in rows[r])
+            row_y[r] = y
+            y += row_above[r] + row_height[r] + max(p.extent()[3] for p in rows[r]) + VIEW_GAP
+        for plot in grid:  # centred in its cell (views at another scale)
             c, r = plot.cell
+            w, h = plot.size
+            left = col_x[c] + col_left[c] + (col_width[c] - w) / 2
+            top = row_y[r] + row_above[r] + (row_height[r] - h) / 2
+            plot.origin = (left, top)  # for now, top left of the outline, y down
+        return (x - VIEW_GAP - at[0] if grid else 0.0), (y - VIEW_GAP - at[1] if grid else 0.0)
+
+    def _place(self, scale: float, step: int, iso: float, size: Point2) -> bool:
+        """Place the plots on a sheet of `size`, if they fit."""
+        width, height = self._grid(scale, step, (MARGIN, MARGIN))
+        if MARGIN + width > size[0] - MARGIN or MARGIN + height > size[1] - MARGIN - self._strip():
+            return False
+        self._scales(scale, step, iso)
+        grid = [p for p in self.plots if p.cell is not None]
+        taken = [_rect(p, p.origin) for p in grid]
+        bottom = size[1] - MARGIN
+        taken.append((MARGIN, bottom - self.notes[1], MARGIN + self.notes[0], bottom))
+        right = size[0] - MARGIN
+        taken.append((right - TITLE_WIDTH, bottom - TITLE_ROWS * 6.0, right, bottom))
+        area = (MARGIN, MARGIN, right, bottom)
+        loose = {}
+        for plot in sorted(self.plots, key=lambda p: -p.size[0] * p.size[1]):
+            if plot.cell is None:
+                if plot.parent:
+                    parent, point = plot.parent
+                    near = _paper(parent, point)
+                else:
+                    near = (area[2], area[1])  # the top right corner
+                at = _pack(plot, taken, area, near)
+                if at is None:
+                    return False
+                loose[id(plot)] = at
+                taken.append(_rect(plot, at))
+        for plot in self.plots:  # origins of the drawing coordinates, y up
+            left, top = loose.get(id(plot), plot.origin)
             (u0, _), (_, v1) = plot.bounds
-            left = col_x[c] + col_left[c]
-            above = plot.band("above") if r == SPAN else row_above[r]
-            top = height - MARGIN - row_top[r] - above
-            plot.origin = (left - u0 * plot.scale, top - v1 * plot.scale)
-        return width, height
+            plot.origin = (left - u0 * plot.scale, size[1] - top - v1 * plot.scale)
+        self.scale = scale
+        return True
+
+
+def _break_line(a: Point2, b: Point2) -> Polyline:
+    """A thin break line from `a` to `b`, a little beyond, with a zigzag in the middle."""
+    length = math.dist(a, b)
+    t = ((b[0] - a[0]) / length, (b[1] - a[1]) / length)
+    n = (-t[1], t[0])
+    m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+
+    def at(base: Point2, along: float, across: float = 0.0) -> Point2:
+        return base[0] + t[0] * along + n[0] * across, base[1] + t[1] * along + n[1] * across
+
+    zigzag = [at(m, -1.2), at(m, -0.4, 1.5), at(m, 0.4, -1.5), at(m, 1.2)]
+    return [at(a, -2.0), *zigzag, at(b, 2.0)]
+
+
+def _zoom_steps(plot: Plot, scale: float) -> int:
+    """How many standard scales above the sheet's an enlarged view can be."""
+    (u0, v0), (u1, v1) = plot.bounds
+    w, h = plot.zoom
+    fits = [s for s in SCALES if (u1 - u0) * s <= w and (v1 - v0) * s <= h]
+    return max(0, SCALES.index(scale) - SCALES.index(fits[0])) if fits else 0
+
+
+def _paper(plot: Plot, p: Point2) -> Point2:
+    """Where a point in drawing coordinates of a grid plot is (placed, not yet
+    with its origin: top left of the outline, y down)."""
+    (u0, _), (_, v1) = plot.bounds
+    return plot.origin[0] + (p[0] - u0) * plot.scale, plot.origin[1] + (v1 - p[1]) * plot.scale
+
+
+def _rect(plot: Plot, at: Point2) -> Rect:
+    """The space a plot takes with its outline's top left corner at `at` (y down)."""
+    left, right, above, below = plot.extent()
+    w, h = plot.size
+    return at[0] - left, at[1] - above, at[0] + w + right, at[1] + h + below
+
+
+def _pack(plot: Plot, taken: list[Rect], area: Rect, near: Point2) -> Point2 | None:
+    """Where to put a plot clear of the `taken` space in `area`, as near to
+    `near` as can be: the top left corner of its outline (y down), or None."""
+    left, _, above, _ = plot.extent()
+    w, h = plot.footprint()
+    xs = {area[0], area[2] - w}
+    ys = {area[1], area[3] - h}
+    for r in taken:
+        xs |= {r[2] + PACK_GAP, r[0] - PACK_GAP - w}
+        ys |= {r[3] + PACK_GAP, r[1] - PACK_GAP - h}
+    best, best_distance = None, math.inf
+    for x in xs:
+        for y in ys:
+            rect = (x, y, x + w, y + h)
+            inside = area[0] <= x and x + w <= area[2] and area[1] <= y and y + h <= area[3]
+            if not inside or any(_overlap(rect, r, PACK_GAP - 1e-6) for r in taken):
+                continue
+            distance = math.dist(((x + x + w) / 2, (y + y + h) / 2), near)
+            if distance < best_distance:
+                best, best_distance = (x + left, y + above), distance
+    return best
+
+
+def _overlap(a: Rect, b: Rect, gap: float = 0.0) -> bool:
+    """Whether two rectangles are nearer than `gap`."""
+    return a[0] < b[2] + gap and b[0] < a[2] + gap and a[1] < b[3] + gap and b[1] < a[3] + gap
 
 
 def _scale_text(scale: float) -> str:
@@ -467,7 +629,6 @@ def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float | None
 
 
 TITLE_WIDTH = 90.0
-STRIP_ISO = 70.0  # the widest isometric view of a part below its views
 TITLE_ROWS = 5  # in a title block: name, assembly, size, material, scale
 
 
@@ -551,6 +712,8 @@ def features(part: ResolvedPart) -> list[Feature]:
                 axis = next((a for a in range(3) if abs(abs(normal[a]) - 1) < 1e-6), None)
                 if axis is not None:
                     coords.append((axis, tuple(face.center())[axis], None))
+                elif _at_45(normal):
+                    pass  # a chamfer or a mitre: its size is in the note
                 else:
                     # seen edge-on (its slope showing) along an axis it doesn't face
                     seen = next((a for a in range(3) if abs(normal[a]) < 1e-6), None)
@@ -578,6 +741,12 @@ def features(part: ResolvedPart) -> list[Feature]:
         centre = tuple(box.center())
         result.append(Feature(len(result) + 1, cut.describe(), centre, opens, coords, holes))
     return result
+
+
+def _at_45(normal: Vec3) -> bool:
+    """Whether a plane is at 45 degrees to two axes of the part, along the third."""
+    small, a, b = sorted(abs(n) for n in normal)
+    return small < 1e-6 and abs(a - math.sqrt(0.5)) < 1e-6 and abs(b - math.sqrt(0.5)) < 1e-6
 
 
 def _slanted(corners: list[Vec3], own: Side | None, lo: Vec3, hi: Vec3) -> list[tuple[int, float]]:
@@ -648,30 +817,7 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     chosen = _assign(feats, order, defaults)
     sides = [s for s in order if s in defaults or any(v == s for v, _ in chosen)]
     plots: dict[Side | None, Plot] = {side: _plot(part, side, shape) for side in sides}
-
-    # chains of feature dimensions, inside the overall ones: on the side of
-    # the view nearest each feature, one chain per side
-    for (side, axis), shown in chosen.items():
-        plot = plots[side]
-        i, sign = plot.view.axis(axis)
-        bounds = [plot.bounds[0][i], plot.bounds[1][i]]
-        chains: dict[str, list[float]] = {}
-        for feat in shown:
-            near = _near_side(plot, i, plot.view.project(feat.centre))
-            chains.setdefault(near, []).extend(sign * v for _, v, _ in feat.coords)
-        for near, values in sorted(chains.items(), key=lambda c: c[0] != _row_side(plot, i)):
-            plot.add_row(near, bounds + values)
-    # overall dimensions, outermost
-    if rod:
-        front = plots[Side.FRONT_EDGE]
-        front.add_row("below", [front.bounds[0][0], front.bounds[1][0]])
-        front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
-    else:
-        top, front = plots[Side.TOP_FACE], plots[Side.FRONT_EDGE]
-        top.add_row("above", [top.bounds[0][0], top.bounds[1][0]])
-        top.add_row("left", [top.bounds[0][1], top.bounds[1][1]])
-        front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
-
+    _dimension(plots, chosen, rod)
     plots[None] = _iso(shape, part.blank, rod)
 
     # each feature numbered in the first view dimensioning it (else showing
@@ -686,32 +832,27 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
                 if p.view.axis(axis) is None:
                     p.centres.append((p.view.project(point), radius))
 
-    # the isometric view beside the others, unless it makes them smaller:
-    # then below them, left of the title block
     iso = plots.pop(None)
     views = list(plots.values())
-    texts = [f"{f.number}  {f.text}" for f in feats]
-    notes = _wrap(texts)
-    alone = Layout(views, strip=(0.0, _strip(notes)))
-    alone.fit()
-    layout = Layout([*views, iso], strip=alone.strip)
+    notes = _wrap([f"{f.number}  {f.text}" for f in feats])
+    layout = Layout([*views, iso], notes=_notes_size(notes))
     size = layout.fit()
-    if layout.scale < alone.scale:
-        iso.flexible = False
-        iso.scale = alone.scale
-        if iso.size[0] > STRIP_ISO:
-            iso.scale *= STRIP_ISO / iso.size[0]
-        band = iso.band("below")
-        notes = _wrap(texts, reserve=iso.size[0] + 2 * band + 10)
-        layout = Layout(
-            views, strip=(0.0, _strip(notes, iso.size[1] + 2 * band + LABEL_GAP + LABEL))
-        )
+    # features whose dimensions crowd at the scale of their view, enlarged;
+    # again at the scales the details lead to, until they settle, without
+    # those that can't be enlarged enough
+    details: list[Plot] = []
+    skip: set[tuple[Side, int]] = set()
+    for _ in range(DETAIL_ROUNDS):
+        found, moved = _details(plots, chosen, skip)
+        if [d.label for d in found] == [d.label for d in details]:
+            break
+        details = found
+        _dimension(plots, chosen, rod, moved)
+        layout = Layout([*views, *details, iso], notes=_notes_size(notes))
         size = layout.fit()
-        (_, v0), (u1, _) = iso.bounds
-        right = size[0] - MARGIN - TITLE_WIDTH - 10 - band
-        bottom = MARGIN + LABEL + LABEL_GAP + band
-        iso.origin = (right - u1 * iso.scale, bottom - v0 * iso.scale)
-        layout.plots.append(iso)
+        small = [d for d in details if d.scale < DETAIL_ENLARGES * d.parent[0].scale]
+        skip |= {(d.parent[0].side, n) for d in small for n in d.numbers}
+    views += details
     sheet = Sheet(*size)
     _same_weight(views)
     for plot in layout.plots:
@@ -721,20 +862,213 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     return sheet
 
 
-def _strip(notes: list[str], height: float = 0.0) -> float:
-    """The height of the strip at the bottom of a sheet for notes and the title block."""
-    return max(TITLE_ROWS * 6.0, len(notes) * NOTE_LINE, height) + 4
+def _dimension(
+    plots: dict[Side | None, Plot],
+    chosen: dict[tuple[Side, int], list[Feature]],
+    rod: bool,
+    moved: set[tuple[Side, int, int]] = frozenset(),
+) -> None:
+    """The rows of dimensions of a part's views: chains of the features'
+    coordinates (but those `moved` to details: side, feature, axis), inside
+    the overall dimensions."""
+    for plot in plots.values():
+        plot.rows = {}
+    # chains on the side of the view nearest each feature, one chain per side
+    for (side, axis), shown in chosen.items():
+        plot = plots[side]
+        i, sign = plot.view.axis(axis)
+        bounds = [plot.bounds[0][i], plot.bounds[1][i]]
+        chains: dict[str, list[float]] = {}
+        for feat in shown:
+            if (side, feat.number, axis) not in moved:
+                near = _near_side(plot, i, plot.view.project(feat.centre))
+                chains.setdefault(near, []).extend(sign * v for _, v, _ in feat.coords)
+        for near, values in sorted(chains.items(), key=lambda c: c[0] != _row_side(plot, i)):
+            plot.add_row(near, bounds + values)
+    # overall dimensions, outermost
+    if rod:
+        front = plots[Side.FRONT_EDGE]
+        front.add_row("below", [front.bounds[0][0], front.bounds[1][0]])
+        front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
+    else:
+        top, front = plots[Side.TOP_FACE], plots[Side.FRONT_EDGE]
+        top.add_row("above", [top.bounds[0][0], top.bounds[1][0]])
+        top.add_row("left", [top.bounds[0][1], top.bounds[1][1]])
+        front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
+
+
+def _details(
+    plots: dict[Side | None, Plot],
+    chosen: dict[tuple[Side, int], list[Feature]],
+    skip: set[tuple[Side, int]] = frozenset(),
+) -> tuple[list[Plot], set[tuple[Side, int, int]]]:
+    """Details: views of the parts of views around features whose dimensions
+    crowd at the scale of their view (a mortise across a thin edge), enlarged.
+
+    A feature's chain of dimensions along an axis crowds when it has a
+    dimension shorter than `MIN_SEGMENT` on paper; those chains go to a
+    detail of the region around it, in one view showing all of them if
+    there is one (a rabbet's width and depth together; features with the same such chains
+    sharing one, overlapping regions merged). A chain leaves its view when
+    the detail shows the end of the part it is measured from. Features in
+    `skip` (side, number) stay in their views. Returns the details and the
+    chains they took: side, feature, axis."""
+    entries: dict[int, list[tuple[Side, int, list[float]]]] = {}  # side, axis, values
+    centres: dict[int, Vec3] = {}
+    for (side, axis), shown in chosen.items():
+        plot = plots[side]
+        i, sign = plot.view.axis(axis)
+        lo, hi = plot.bounds[0][i], plot.bounds[1][i]
+        for feat in shown:
+            if (side, feat.number) in skip:
+                continue
+            values = [v for _, v, _ in feat.coords]
+            chain = _unique([lo, hi, *(sign * v for v in values)])
+            if min(b - a for a, b in pairwise(chain)) * plot.scale < MIN_SEGMENT:
+                entries.setdefault(feat.number, []).append((side, axis, values))
+                centres[feat.number] = feat.centre
+    # by the view each goes to: chains by drawing axis, and where they come from
+    crowded: dict[tuple[Side, int], dict[int, list[float]]] = {}
+    origins: dict[tuple[Side, int], dict[int, list[tuple[Side, int, int]]]] = {}
+    for number, found_in in entries.items():
+        axes = {axis for _, axis, _ in found_in}
+        showing = [s for s, _, _ in found_in if all(plots[s].view.axis(a) for a in axes)]
+        for side, axis, values in found_in:
+            target = showing[0] if showing else side
+            i, sign = plots[target].view.axis(axis)
+            crowded.setdefault((target, number), {})[i] = [sign * v for v in values]
+            origins.setdefault((target, number), {}).setdefault(i, []).append((side, number, axis))
+
+    # one region per side and the same crowded chains
+    regions: dict[tuple, list] = {}
+    for (side, number), chains in crowded.items():
+        key = (side, tuple(sorted((i, tuple(_unique(v))) for i, v in chains.items())))
+        regions.setdefault(key, [side, [], chains])[1].append(number)
+    found: list[list] = []  # side, window, numbers, chains by axis, their origins
+    for side, numbers, chains in regions.values():
+        plot = plots[side]
+        centre = plot.view.project(centres[numbers[0]])
+        window = [list(_window(plot, i, chains.get(i, []), centre[i])) for i in (0, 1)]
+        came = {}
+        for n in numbers:
+            for i, o in origins[(side, n)].items():
+                came.setdefault(i, []).extend(o)
+        found.append([side, window, numbers, {i: list(v) for i, v in chains.items()}, came])
+    merged: list[list] = []
+    for region in found:
+        for other in merged:
+            if other[0] == region[0] and all(
+                region[1][i][0] <= other[1][i][1] + 2 * DETAIL_MARGIN
+                and other[1][i][0] <= region[1][i][1] + 2 * DETAIL_MARGIN
+                for i in (0, 1)
+            ):
+                for i in (0, 1):
+                    other[1][i] = [
+                        min(other[1][i][0], region[1][i][0]),
+                        max(other[1][i][1], region[1][i][1]),
+                    ]
+                other[2] += region[2]
+                for i, values in region[3].items():
+                    other[3].setdefault(i, []).extend(values)
+                for i, o in region[4].items():
+                    other[4].setdefault(i, []).extend(o)
+                break
+        else:
+            merged.append(region)
+
+    details, moved = [], set()
+    for side, ((u0, u1), (v0, v1)), numbers, chains, came in merged:
+        parent = plots[side]
+        window = ((u0, v0), (u1, v1))
+        visible = [c for line in parent.visible for c in _clip(line, window)]
+        hidden = [c for line in parent.hidden for c in _clip(line, window)]
+        label = f"{parent.label}: {_ranges(numbers)}"
+        detail = Plot(parent.view, None, label, visible, hidden, window, side=side)
+        detail.numbers = sorted(numbers)
+        detail.zoom, detail.parent, detail.crop = DETAIL_ZOOM, (parent, ((u0 + u1) / 2, v1)), True
+        for i, values in sorted(chains.items()):
+            ends = [
+                b
+                for b in (parent.bounds[0][i], parent.bounds[1][i])
+                if window[0][i] <= b <= window[1][i]
+            ]
+            detail.add_row("below" if i == 0 else "left", ends + values)
+            if ends:
+                moved |= set(came[i])
+        for n in sorted(numbers):
+            point = parent.view.project(centres[n])
+            if u0 <= point[0] <= u1 and v0 <= point[1] <= v1:
+                detail.balloons.append((point, str(n)))
+        details.append(detail)
+    return details, moved
+
+
+def _ranges(numbers: list[int]) -> str:
+    """Numbers as a list of runs: 1, 3-5, 9."""
+    runs: list[list[int]] = []
+    for n in sorted(set(numbers)):
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    return ", ".join(
+        str(r[0]) if len(r) == 1 else f"{r[0]}, {r[1]}" if len(r) == 2 else f"{r[0]}-{r[-1]}"
+        for r in runs
+    )
+
+
+def _window(plot: Plot, i: int, values: list[float], centre: float) -> tuple[float, float]:
+    """The extent along drawing axis `i` of a detail around a feature: its
+    coordinates there (or its centre), with a margin, to the ends of the
+    part when they are near."""
+    lo, hi = plot.bounds[0][i], plot.bounds[1][i]
+    a, b = min([*values, centre]), max([*values, centre])
+    margin = max(DETAIL_MARGIN, (b - a) / 4)
+    a, b = a - margin, b + margin
+    if a - lo < 2 * margin:
+        a = lo
+    if hi - b < 2 * margin:
+        b = hi
+    return max(a, lo), min(b, hi)
+
+
+def _clip(line: Polyline, window: tuple[Point2, Point2]) -> list[Polyline]:
+    """The pieces of a polyline inside a window (Liang-Barsky, per segment)."""
+    (x0, y0), (x1, y1) = window
+    pieces: list[Polyline] = []
+    for (ax, ay), (bx, by) in pairwise(line):
+        dx, dy = bx - ax, by - ay
+        t0, t1 = 0.0, 1.0
+        for p, q in ((-dx, ax - x0), (dx, x1 - ax), (-dy, ay - y0), (dy, y1 - ay)):
+            if abs(p) < 1e-12:
+                if q < -1e-9:
+                    t0, t1 = 1.0, 0.0
+            elif p < 0:
+                t0 = max(t0, q / p)
+            else:
+                t1 = min(t1, q / p)
+        if t0 > t1:
+            continue
+        a, b = (ax + t0 * dx, ay + t0 * dy), (ax + t1 * dx, ay + t1 * dy)
+        if pieces and math.dist(pieces[-1][-1], a) < 1e-9:
+            pieces[-1].append(b)
+        else:
+            pieces.append([a, b])
+    return pieces
+
+
+def _notes_size(notes: list[str]) -> Point2:
+    return max((text_width(n, NOTE) for n in notes), default=0.0), len(notes) * NOTE_LINE
 
 
 def _iso(
     shape: bd.Shape,
     blank: tuple[Vec3, Vec3],
     rod: bool = False,
-    cell: tuple[int, int] = (2, 1),
     label: str = "isometric",
 ) -> Plot:
     """An isometric view (from the front right, above) with the overall
-    dimensions along its edges, by default in the top right corner."""
+    dimensions along its edges, placed in the space the other views leave."""
     visible, _ = ISO.lines(shape)
     lo, hi = blank
     x0, y0, z0 = lo
@@ -743,7 +1077,7 @@ def _iso(
     if not rod:
         dims.append(((x1, y0, z0), (x1, y1, z0), (1, 0, 0), _format(y1 - y0)))
         dims.append(((x0, y0, z0), (x0, y0, z1), (-1, 0, 0), _format(z1 - z0)))
-    plot = Plot(ISO, cell, label, visible, [], _bounds(ISO, lo, hi), dims3d=dims)
+    plot = Plot(ISO, None, label, visible, [], _bounds(ISO, lo, hi), dims3d=dims)
     plot.flexible = True
     return plot
 
@@ -769,10 +1103,9 @@ def _near_side(plot: Plot, i: int, p: Point2) -> str:
     return "right" if t > 0.5 else "left"
 
 
-def _wrap(notes: list[str], reserve: float = 0.0) -> list[str]:
-    """Notes wrapped to the width left of the title block on an A4 sheet
-    (and of `reserve` more)."""
-    chars = int((A4[0] - 2 * MARGIN - TITLE_WIDTH - 10 - reserve) / text_width("x", NOTE))
+def _wrap(notes: list[str]) -> list[str]:
+    """Notes wrapped to the width left of the title block on an A4 sheet."""
+    chars = int((A4[0] - 2 * MARGIN - TITLE_WIDTH - VIEW_GAP) / text_width("x", NOTE))
     return [line for note in notes for line in textwrap.wrap(note, chars, subsequent_indent="    ")]
 
 
@@ -790,7 +1123,10 @@ def _plot(part: ResolvedPart, side: Side, shape: bd.Shape) -> Plot:
     label = SideRef(part.part, side).name.replace("_", " ")
     if isinstance(part.part, Rod) and side.axis != 0:
         label = "side"
-    return Plot(view, cell, label, visible, hidden, _bounds(view, *part.blank))
+    plot = Plot(view, cell, label, visible, hidden, _bounds(view, *part.blank), side=side)
+    if side.axis == 0:
+        plot.zoom = END_ZOOM  # an end, small beside the length of the part
+    return plot
 
 
 def _part_title(model: ResolvedModel, part: ResolvedPart) -> list[tuple[str, str]]:
@@ -829,9 +1165,9 @@ def assembly_sheet(model: ResolvedModel) -> Sheet:
     front.add_row("below", [front.bounds[0][0], front.bounds[1][0]])
     front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
     side.add_row("below", [side.bounds[0][0], side.bounds[1][0]])
-    iso = _iso(shape, (lo, hi), cell=(3, SPAN))
+    iso = _iso(shape, (lo, hi))
 
-    layout = Layout([*plots.values(), iso], strip=(0.0, TITLE_ROWS * 6.0 + 4))
+    layout = Layout([*plots.values(), iso])
     sheet = Sheet(*layout.fit())
     _same_weight(list(plots.values()))
     for plot in layout.plots:
