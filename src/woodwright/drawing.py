@@ -13,7 +13,7 @@ scale chosen to fit an A4 sheet.
 """
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
 import build123d as bd
@@ -111,6 +111,8 @@ class Plot:
     # rows of dimensions by side of the view: "above", "below", "left", "right",
     # innermost first
     rows: dict[str, list[Row]] = field(default_factory=dict)
+    balloons: list[tuple[Point2, str]] = field(default_factory=list)  # drawing coordinates
+    centres: list[tuple[Point2, float]] = field(default_factory=list)  # of holes, with radii
     origin: Point2 = (0.0, 0.0)  # on the sheet, of the drawing coordinates (0, 0)
     scale: float = 1.0
 
@@ -141,6 +143,17 @@ class Plot:
             sheet.line([self.at(p) for p in line], "hidden")
         for line in self.visible:
             sheet.line([self.at(p) for p in line], "visible")
+        for (u, v), radius in self.centres:
+            arm = radius + 2 / self.scale
+            sheet.line([self.at((u - arm, v)), self.at((u + arm, v))], "center")
+            sheet.line([self.at((u, v - arm)), self.at((u, v + arm))], "center")
+        placed: list[Point2] = []
+        for centre, label in self.balloons:
+            x, y = self.at(centre)
+            while any(math.hypot(x - a, y - b) < 5.6 for a, b in placed):
+                x += 5.8
+            placed.append((x, y))
+            sheet.balloon((x, y), label)
         (x0, y0), (x1, y1) = self.at(self.bounds[0]), self.at(self.bounds[1])
         for side, rows in self.rows.items():
             offset = 0.0
@@ -324,16 +337,196 @@ def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float) -> No
 TITLE_ROWS = 4  # in a part's title block: part, size, material, scale
 
 
+# --- Features -------------------------------------------------------------------
+
+
+def _side(axis: int, sign: int) -> Side:
+    return next(s for s in Side if s.axis == axis and s.sign == sign)
+
+
+@dataclass
+class Feature:
+    """What a cut leaves on a part, for dimensioning.
+
+    `coords` are the positions (part frame, by axis) of the surfaces the cut
+    leaves inside the blank: the planes of shoulders and cheeks, the corners
+    of slanted faces, the axes of holes; for some, the axis of the view that
+    shows them best (along a hole, a slanted face edge-on). `opens` are the
+    sides of the blank the cut reaches, the side it is cut into first.
+    """
+
+    number: int
+    text: str
+    centre: Vec3
+    opens: list[Side]
+    coords: list[tuple[int, float, int | None]]  # axis, position, axis of a view to show it in
+    holes: list[tuple[int, Vec3, float]]  # axis, a point on it, radius
+
+
+def features(part: ResolvedPart) -> list[Feature]:
+    """The features of a part, one per cut that removes anything, numbered."""
+    from OCP.BRepAdaptor import BRepAdaptor_Surface
+    from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+    from OCP.TopAbs import TopAbs_IN
+
+    lo, hi = part.blank
+    blank = part.part.blank(lo, hi)
+    eps = 1e-3
+
+    def inside(p: bd.Vector) -> bool:
+        return BRepClass3d_SolidClassifier(blank.wrapped, p.to_pnt(), 1e-4).State() == TopAbs_IN
+
+    result = []
+    for cut in part.cuts:
+        removed = cut.removal() & blank
+        if removed.volume < eps:
+            continue
+        box = removed.bounding_box()
+        opens = [
+            _side(a, sign)
+            for a in range(3)
+            for sign, reaches in (
+                (1, tuple(box.max)[a] >= hi[a] - eps),
+                (-1, tuple(box.min)[a] <= lo[a] + eps),
+            )
+            if reaches
+        ]
+        own = getattr(cut, "side", None) or getattr(getattr(cut, "arris", None), "a", None)
+        if isinstance(own, SideRef) and own.side in opens:
+            own_side = own.side
+        elif opens:
+            # the side it goes into least deep, relative to the part (the end
+            # for dovetails, the face for a dado)
+            size = [b - a for a, b in zip(lo, hi, strict=True)]
+            extent = [b - a for a, b in zip(tuple(box.min), tuple(box.max), strict=True)]
+            own_side = min(opens, key=lambda s: extent[s.axis] / size[s.axis])
+        else:
+            own_side = None
+        if own_side is not None:
+            opens.remove(own_side)
+            opens.insert(0, own_side)
+
+        coords: list[tuple[int, float, int | None]] = []
+        holes = []
+        for face in removed.faces():
+            if not inside(face.position_at(0.5, 0.5)):
+                continue  # a face on the outside of the blank, not one the cut leaves
+            corners = [tuple(v) for v in face.vertices()]
+            if face.geom_type == bd.GeomType.PLANE:
+                normal = tuple(face.normal_at())
+                axis = next((a for a in range(3) if abs(abs(normal[a]) - 1) < 1e-6), None)
+                if axis is not None:
+                    coords.append((axis, tuple(face.center())[axis], None))
+                else:
+                    # seen edge-on (its slope showing) along an axis it doesn't face
+                    seen = next((a for a in range(3) if abs(normal[a]) < 1e-6), None)
+                    coords += [(a, v, seen) for a, v in _slanted(corners, own_side, lo, hi)]
+            elif face.geom_type in (bd.GeomType.CYLINDER, bd.GeomType.CONE):
+                surface = BRepAdaptor_Surface(face.wrapped)
+                is_cylinder = face.geom_type == bd.GeomType.CYLINDER
+                geometry = surface.Cylinder() if is_cylinder else surface.Cone()
+                location, direction = geometry.Axis().Location(), geometry.Axis().Direction()
+                d = (direction.X(), direction.Y(), direction.Z())
+                axis = next((a for a in range(3) if abs(abs(d[a]) - 1) < 1e-6), None)
+                if axis is None:
+                    continue
+                point = (location.X(), location.Y(), location.Z())
+                if is_cylinder:
+                    holes.append((axis, point, geometry.Radius()))
+                if not _on_rod_axis(part, axis, point):
+                    coords += [(a, point[a], axis) for a in range(3) if a != axis]
+                coords += [(axis, c[axis], None) for c in corners]
+            else:
+                face_box = face.bounding_box()
+                for a in range(3):
+                    coords += [(a, tuple(face_box.min)[a], None), (a, tuple(face_box.max)[a], None)]
+        coords = [(a, v, seen) for a, v, seen in coords if lo[a] + eps < v < hi[a] - eps]
+        centre = tuple(box.center())
+        result.append(Feature(len(result) + 1, cut.describe(), centre, opens, coords, holes))
+    return result
+
+
+def _slanted(corners: list[Vec3], own: Side | None, lo: Vec3, hi: Vec3) -> list[tuple[int, float]]:
+    """The positions dimensioning a slanted face: where it meets the side the
+    cut is made from (nearest the reference face), as a dovetail or a
+    chamfer is marked out; and how deep it goes into that side.
+    The slope itself is in the cut's description."""
+    if own is None:
+        return [(a, c[a]) for c in corners for a in range(3)]
+    k = own.axis
+    plane = hi[k] if own.sign > 0 else lo[k]
+    on_side = [c for c in corners if abs(c[k] - plane) < 1e-6] or corners
+    # nearest the reference face (for a cut into a face, the reference edge)
+    ref, sign = (2, 1) if k != 2 else (1, -1)
+    nearest = max(sign * c[ref] for c in on_side)
+    marked = [c for c in on_side if abs(sign * c[ref] - nearest) < 1e-6]
+    return [(a, c[a]) for c in marked for a in range(3) if a != k] + [(k, c[k]) for c in corners]
+
+
+def _on_rod_axis(part: ResolvedPart, axis: int, point: Vec3) -> bool:
+    """Whether a round feature is centred on a rod's axis (a round tenon)."""
+    if not isinstance(part.part, Rod) or axis != 0:
+        return False
+    y, z = part.part.axis
+    return abs(point[1] - y) < 1e-6 and abs(point[2] - z) < 1e-6
+
+
+def _assign(
+    feats: list[Feature], order: list[Side], defaults: list[Side]
+) -> dict[tuple[Side, int], list[Feature]]:
+    """Choose a view for each coordinate of each feature: the first side the
+    feature opens to whose view shows that axis (its own side first, but a
+    view showing a coordinate best before), else the first default view
+    showing it (dimensioned to hidden lines). Returns the features by view
+    and axis, with only the coordinates shown there."""
+    chosen: dict[tuple[Side, int], list[Feature]] = {}
+    for feat in feats:
+        candidates = feat.opens[:1] + [s for s in order if s in feat.opens[1:]]
+        shown: dict[tuple[Side, int], list] = {}
+        for axis, value, seen in feat.coords:
+            preferred = [s for s in candidates if s.axis == seen] + candidates
+            side = next((s for s in preferred if s.axis != axis), None)
+            side = side or next(s for s in defaults if s.axis != axis)
+            shown.setdefault((side, axis), []).append((axis, value, None))
+        for key, coords in shown.items():
+            chosen.setdefault(key, []).append(replace(feat, coords=coords))
+    return chosen
+
+
 # --- Part sheets ----------------------------------------------------------------
+
+NOTE = 3.0  # height of the text of notes
+NOTE_LINE = 4.6
 
 
 def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
-    """A shop drawing of one part: its views, dimensioned, and a title block."""
+    """A shop drawing of one part: its views with overall and feature
+    dimensions, the features numbered and described, and a title block."""
     shape = part.shape
     rod = isinstance(part.part, Rod)
-    sides = [Side.FRONT_EDGE, Side.RIGHT_END] if rod else [Side.TOP_FACE, Side.FRONT_EDGE]
+    if rod:
+        defaults = [Side.FRONT_EDGE, Side.RIGHT_END]
+        order = [*defaults, Side.LEFT_END, Side.TOP_FACE, Side.BOTTOM_FACE, Side.BACK_EDGE]
+    else:
+        defaults = [Side.TOP_FACE, Side.FRONT_EDGE]
+        order = [*defaults, Side.RIGHT_END, Side.LEFT_END, Side.BOTTOM_FACE, Side.BACK_EDGE]
+    feats = features(part)
+    chosen = _assign(feats, order, defaults)
+    sides = [s for s in order if s in defaults or any(v == s for v, _ in chosen)]
     plots = {side: _plot(part, side, shape) for side in sides}
 
+    # chains of feature dimensions, inside the overall ones: on the side of
+    # the view nearest each feature, one chain per side
+    for (side, axis), shown in chosen.items():
+        plot = plots[side]
+        i, sign = plot.view.axis(axis)
+        bounds = [plot.bounds[0][i], plot.bounds[1][i]]
+        chains: dict[str, list[float]] = {}
+        for feat in shown:
+            near = _near_side(plot, i, plot.view.project(feat.centre))
+            chains.setdefault(near, []).extend(sign * v for _, v, _ in feat.coords)
+        for near, values in sorted(chains.items(), key=lambda c: c[0] != _row_side(plot, i)):
+            plot.add_row(near, bounds + values)
     # overall dimensions, outermost
     if rod:
         front = plots[Side.FRONT_EDGE]
@@ -345,13 +538,60 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
         top.add_row("left", [top.bounds[0][1], top.bounds[1][1]])
         front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
 
-    layout = Layout(list(plots.values()), strip=(0.0, TITLE_ROWS * 6.0 + 4))
-    size = layout.fit()
-    sheet = Sheet(*size)
+    # each feature numbered in the first view showing it; holes' centre lines
+    for feat in feats:
+        shown = [s for s in feat.opens if s in plots] or [
+            s
+            for (s, _), fs in chosen.items()
+            if s in plots and feat.number in {f.number for f in fs}
+        ]
+        plot = plots[shown[0]] if shown else plots[defaults[0]]
+        plot.balloons.append((plot.view.project(feat.centre), str(feat.number)))
+        for axis, point, radius in feat.holes:
+            for p in plots.values():
+                if p.view.axis(axis) is None:
+                    p.centres.append((p.view.project(point), radius))
+
+    notes = [f"{f.number}  {f.text}" for f in feats]
+    strip = max(TITLE_ROWS * 6.0, len(notes) * NOTE_LINE) + 4
+    layout = Layout(list(plots.values()), strip=(0.0, strip))
+    sheet = Sheet(*layout.fit())
     for plot in layout.plots:
         plot.draw(sheet)
+    _notes(sheet, notes)
     _title_block(sheet, _part_title(model, part), layout.plots[0].scale)
     return sheet
+
+
+def _row_side(plot: Plot, i: int) -> str:
+    """Where a view's dimensions along drawing axis `i` go: outside the sheet's
+    middle (above the top views, on the right of the right ones)."""
+    col, row = plot.cell
+    if i == 0:
+        return "above" if row < 2 else "below"
+    return "right" if col > 1 else "left"
+
+
+def _near_side(plot: Plot, i: int, p: Point2) -> str:
+    """The side of a view across drawing axis `i` nearest to a point; the
+    outer side when it lies in the middle third."""
+    lo, hi = plot.bounds[0][1 - i], plot.bounds[1][1 - i]
+    t = (p[1 - i] - lo) / ((hi - lo) or 1)
+    if 1 / 3 <= t <= 2 / 3:
+        return _row_side(plot, i)
+    if i == 0:
+        return "above" if t > 0.5 else "below"
+    return "right" if t > 0.5 else "left"
+
+
+def _notes(sheet: Sheet, notes: list[str]) -> None:
+    """Numbered notes in the bottom left corner, from the top of the strip down."""
+    width = sheet.width - 2 * MARGIN - 90 - 10
+    chars = int(width / text_width("x", NOTE))
+    y = MARGIN + len(notes) * NOTE_LINE
+    for note in notes:
+        sheet.text((MARGIN, y - NOTE_LINE + 1), note[:chars], size=NOTE, anchor="start")
+        y -= NOTE_LINE
 
 
 def _plot(part: ResolvedPart, side: Side, shape: bd.Shape) -> Plot:
