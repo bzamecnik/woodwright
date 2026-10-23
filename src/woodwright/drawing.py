@@ -31,7 +31,7 @@ Polyline = list[Point2]
 SCALES = [2, 1, 1 / 2, 1 / 2.5, 1 / 4, 1 / 5, 1 / 8, 1 / 10, 1 / 15, 1 / 20, 1 / 25, 1 / 50]
 A4 = (297.0, 210.0)
 MARGIN = 10.0
-VIEW_GAP = 12.0  # between the bands of dimensions of neighbouring views
+VIEW_GAP = 10.0  # between the bands of dimensions of neighbouring views
 ROW_FIRST = 7.0  # from a view's outline to its first row of dimensions
 ROW_STEP = 7.0  # between rows of dimensions
 LEVEL_STEP = TEXT + 1.6  # a staggered text further out
@@ -44,6 +44,10 @@ MIN_SEGMENT = 2.5  # the shortest dimension on paper that reads well, else a det
 DETAIL_MARGIN = 8.0  # around a feature in a detail, model units
 DETAIL_ENLARGES = 1.5  # at least, else the feature stays in its view
 DETAIL_ROUNDS = 4  # of choosing details and fitting the sheet, at most
+BALLOON = 2.6  # radius of a balloon
+BALLOON_GAP = 3.0  # between the dimensions on a side and the balloons past them
+BALLOON_SPACING = 6.0  # between the centres of balloons in a line
+ROW_COST = 25.0  # of crossing a row of dimensions with a leader, as mm of leader across a view
 PACK_GAP = 8.0  # between the views placed in the space the grid leaves
 LEADER_RING = 10.0  # from a view's outline to the balloons around it
 THIN_EDGES = 3.0  # the median length of edges on paper for thin lines, below it
@@ -173,15 +177,38 @@ class Plot:
         return f"{label}  {_scale_text(self.scale)}" if self.zoom and self.zoomed else label
 
     def band(self, side: str) -> float:
-        """The depth on paper of the dimensions on one side, from the outline."""
+        """The depth on paper of the dimensions (and balloons) on one side,
+        from the outline."""
+        extra = 12.0 if self.dims3d else 0.0
+        if self.leaders:
+            extra = LEADER_RING + 3.0
+        if side in self.callouts():
+            extra += BALLOON_GAP + 2 * BALLOON
+        return self._rows_depth(side) + extra
+
+    def _rows_depth(self, side: str) -> float:
         rows = self.rows.get(side, [])
         depth = 0.0
         for i, row in enumerate(rows):
             depth += (ROW_FIRST if i == 0 else ROW_STEP) + _levels(row, self.scale) * LEVEL_STEP
-        extra = 12.0 if self.dims3d else 0.0
+        return depth + (2.0 if rows else 0.0)
+
+    def callouts(self) -> dict[str, list[tuple[Point2, str]]]:
+        """The balloons by the side of the view they go on, outside its
+        dimensions: the side cheapest to reach, crossing few rows of
+        dimensions and little of the view."""
         if self.leaders:
-            extra = LEADER_RING + 3.0
-        return depth + (2.0 if rows else 0.0) + extra
+            return {}
+        (u0, v0), (u1, v1) = self.bounds
+        sides: dict[str, list[tuple[Point2, str]]] = {}
+        for (u, v), label in self.balloons:
+            inside = {"above": v1 - v, "below": v - v0, "left": u - u0, "right": u1 - u}
+            side = min(
+                inside,
+                key=lambda s: len(self.rows.get(s, [])) * ROW_COST + 2 * inside[s] * self.scale,
+            )
+            sides.setdefault(side, []).append(((u, v), label))
+        return sides
 
     def add_row(self, side: str, values: list[float]) -> None:
         """Add a row of dimensions on a side, outside the ones there, unless
@@ -216,14 +243,9 @@ class Plot:
             sheet.line([self.at((u, v - arm)), self.at((u, v + arm))], "center")
         if self.leaders:
             self._draw_leaders(sheet)
-        placed: list[Point2] = []
-        for centre, label in [] if self.leaders else self.balloons:
-            x, y = self.at(centre)
-            while any(math.hypot(x - a, y - b) < 5.6 for a, b in placed):
-                x += 5.8
-            placed.append((x, y))
-            sheet.balloon((x, y), label)
         (x0, y0), (x1, y1) = self.at(self.bounds[0]), self.at(self.bounds[1])
+        for side, callouts in self.callouts().items():
+            self._draw_callouts(sheet, side, callouts, (x0, y0, x1, y1))
         for a, b, out, text in self.dims3d:
             pa, pb = self.at(self.view.project(a)), self.at(self.view.project(b))
             o = self.view.project(out)
@@ -306,6 +328,42 @@ class Plot:
         for t, anchor, label in marks:
             at = where(t)
             sheet.line([anchor, at])
+            sheet.circle(anchor, 0.5, fill="black")
+            sheet.balloon(at, label)
+
+    def _draw_callouts(
+        self,
+        sheet: Sheet,
+        side: str,
+        callouts: list[tuple[Point2, str]],
+        box: tuple[float, ...],
+    ) -> None:
+        """Balloons in a line beside one side of the view, past its
+        dimensions, each on a leader to a dot on its feature, spread apart."""
+        x0, y0, x1, y1 = box
+        horizontal = side in ("above", "below")
+        edge, out = {"above": (y1, 1), "below": (y0, -1), "left": (x0, -1), "right": (x1, 1)}[side]
+        line = edge + out * (self._rows_depth(side) + BALLOON_GAP + BALLOON)
+        marks = sorted(
+            ([self.at(c)[0 if horizontal else 1], self.at(c), label] for c, label in callouts),
+            key=lambda m: m[0],
+        )
+        # spread apart, then centred again on where they belong
+        spread = [m[0] for m in marks]
+        for i in range(1, len(spread)):
+            spread[i] = max(spread[i], spread[i - 1] + BALLOON_SPACING)
+        shift = sum(m[0] for m in marks) / len(marks) - sum(spread) / len(spread)
+        for along, (_, anchor, label) in zip(spread, marks, strict=True):
+            at = (along + shift, line) if horizontal else (line, along + shift)
+            d = math.dist(anchor, at)
+            if d > BALLOON:
+                k = (d - BALLOON) / d
+                sheet.line(
+                    [
+                        anchor,
+                        (anchor[0] + (at[0] - anchor[0]) * k, anchor[1] + (at[1] - anchor[1]) * k),
+                    ]
+                )
             sheet.circle(anchor, 0.5, fill="black")
             sheet.balloon(at, label)
 
@@ -440,15 +498,16 @@ class Layout:
             for option in self._options(scale):
                 if self._place(scale, *option, (page[0], height)):
                     return page[0], height
-        # too tall at any scale (many rows of dimensions on a long part): the
-        # sheet grows taller rather than the part tiny
+        # too tall at any scale (many views of a long thin part, many notes):
+        # the sheet grows taller, as little as it can
         wide = [s for s in SCALES if self._grid(s, 0, (0, 0))[0] + 2 * MARGIN <= page[0]]
-        scale = (wide or SCALES[-1:])[0]
-        *_, option = self._options(scale)
-        width = max(page[0], self._grid(scale, option[0], (0, 0))[0] + 2 * MARGIN)
-        while not self._place(scale, *option, (width, height)):
+        width = page[0] if wide else self._grid(SCALES[-1], 0, (0, 0))[0] + 2 * MARGIN
+        while True:
             height += 10.0
-        return width, height
+            for scale in wide or SCALES[-1:]:
+                for option in self._options(scale):
+                    if self._place(scale, *option, (width, height)):
+                        return width, height
 
     def _strip(self) -> float:
         return max(TITLE_ROWS * 6.0, self.notes[1]) + 4
