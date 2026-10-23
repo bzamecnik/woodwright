@@ -1,10 +1,12 @@
-"""Exporting resolved models: STEP, STL, hidden-line SVG views and the cut list."""
+"""Exporting resolved models: STEP, STL, hidden-line SVG views, shop drawings
+and the cut list."""
 
 from pathlib import Path
 
 import build123d as bd
 
 from woodwright.assembly import ResolvedModel
+from woodwright.drawing import assembly_sheet, part_sheet, parts_sheet
 
 VIEW_DIRECTION = (1, -1.6, 0.9)  # from the front right, a bit above
 
@@ -53,8 +55,11 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
     """Write the assembly (STEP, STL), each part (STL) and the cut list to `out_dir`.
 
     With `views`, also hidden-line SVG views of the assembly, its exploded
-    view and each part in its own frame.
+    view and each part in its own frame, and shop drawings in `drawings/`:
+    a dimensioned sheet per part and, for more than one part, the assembly
+    and its parts (see `woodwright.drawing`).
     """
+
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
 
@@ -74,5 +79,12 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
         bd.export_stl(part.shape, str(out(f"{part.part.name}.stl")), tolerance=0.01)
         if views:
             svg_view(part.shape, out(f"{part.part.name}.svg"))
+    if views:
+        (out_dir / "drawings").mkdir(exist_ok=True)
+        if len(model.parts) > 1:
+            assembly_sheet(model).write(out("drawings/assembly.svg"))
+            parts_sheet(model).write(out("drawings/parts.svg"))
+        for part in model.parts:
+            part_sheet(model, part).write(out(f"drawings/{part.part.name}.svg"))
     out("cut_list.txt").write_text(model.cut_list() + "\n")
     return written

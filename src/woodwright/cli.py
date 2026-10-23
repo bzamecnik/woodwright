@@ -109,7 +109,8 @@ def main(argv: list[str] | None = None, prog: str = "woodwright") -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("list", help="list the examples")
     export = commands.add_parser(
-        "export", help="export examples or your own designs to STEP, STL, SVG and cut lists"
+        "export",
+        help="export examples or your own designs to STEP, STL, SVG views, drawings and cut lists",
     )
     export.add_argument(
         "names",
@@ -118,7 +119,9 @@ def main(argv: list[str] | None = None, prog: str = "woodwright") -> int:
     )
     export.add_argument("--all", action="store_true", help="export all examples")
     export.add_argument("--out", type=Path, default=Path("output"), help="default: %(default)s")
-    export.add_argument("--no-views", action="store_true", help="skip the (slow) SVG views")
+    export.add_argument(
+        "--no-views", action="store_true", help="skip the (slow) SVG views and drawings"
+    )
     args = parser.parse_args(argv)
 
     if args.command == "list":

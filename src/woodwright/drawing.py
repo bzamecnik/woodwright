@@ -13,6 +13,7 @@ scale chosen to fit an A4 sheet.
 """
 
 import math
+import textwrap
 from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
@@ -35,6 +36,7 @@ ROW_STEP = 7.0  # between rows of dimensions
 LEVEL_STEP = TEXT + 1.6  # a staggered text further out
 LABEL = 3.5  # height of view labels and titles
 LABEL_GAP = 4.0  # between a view's outline (or its dimensions below) and its label
+MIN_FLEXIBLE = 40.0  # the width of a flexible plot when there's no room left
 SPAN = -1  # the row of a plot spanning all rows of its column, from the top
 LEADER_RING = 10.0  # from a view's outline to the balloons around it
 
@@ -123,6 +125,7 @@ class Plot:
     dims3d: list[tuple[Vec3, Vec3, Vec3, str]] = field(default_factory=list)
     max_width: float | None = None  # on paper; drawn at a smaller scale if wider
     leaders: bool = False  # balloons around the view, on leaders, rather than on it
+    flexible: bool = False  # as wide as the other plots leave room for (an isometric view)
     origin: Point2 = (0.0, 0.0)  # on the sheet, of the drawing coordinates (0, 0)
     scale: float = 1.0
 
@@ -341,6 +344,7 @@ class Layout:
 
     plots: list[Plot]
     strip: Point2  # width and height of the strip at the bottom, on paper
+    scale: float = 1.0  # the scale chosen by `fit`
 
     def fit(self, page: Point2 = A4) -> Point2:
         """Choose the largest standard scale at which the plots fit the page;
@@ -348,13 +352,23 @@ class Layout:
         even the smallest scale doesn't fit)."""
         # a long list of notes may make the sheet taller, but not the views smaller
         excess = max(0.0, self.strip[1] - 0.35 * page[1])
-        for scale in SCALES:
-            size = self._place(scale)
-            if size[0] <= page[0] and size[1] - excess <= page[1]:
-                break
+        sizes = {scale: self._place(scale, page) for scale in SCALES}
+        fits = [s for s, (w, h) in sizes.items() if w <= page[0] and h - excess <= page[1]]
+        # if the views are too tall at any scale (many rows of dimensions on a
+        # long part), the sheet grows taller rather than the part tiny
+        wide = [s for s, (w, _) in sizes.items() if w <= page[0]]
+        scale = self.scale = (fits or wide or SCALES[-1:])[0]
+        size = self._place(scale, page)
         return max(size[0], page[0]), max(size[1], page[1])
 
-    def _place(self, scale: float) -> Point2:
+    def _place(self, scale: float, page: Point2) -> Point2:
+        flexible = [p for p in self.plots if p.flexible]
+        if flexible:
+            # the width the other plots leave on the page
+            others = Layout([p for p in self.plots if not p.flexible], self.strip)
+            left = page[0] - others._place(scale, page)[0] - VIEW_GAP - 2 * 12.0
+            for plot in flexible:
+                plot.max_width = max(MIN_FLEXIBLE, left / len(flexible))
         cols: dict[int, list[Plot]] = {}
         rows: dict[int, list[Plot]] = {}
         for plot in self.plots:
@@ -406,7 +420,7 @@ def _scale_text(scale: float) -> str:
 
 def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float | None) -> None:
     """The title block in the bottom right corner: a title and labelled lines."""
-    width, row = 90.0, 6.0
+    width, row = TITLE_WIDTH, 6.0
     rows = [*lines, ("scale", f"{_scale_text(scale)}, mm" if scale else "not to scale, mm")]
     x0, y0 = sheet.width - MARGIN - width, MARGIN
     x1, y1 = sheet.width - MARGIN, MARGIN + row * len(rows)
@@ -422,6 +436,8 @@ def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float | None
         )
 
 
+TITLE_WIDTH = 90.0
+STRIP_ISO = 70.0  # the widest isometric view of a part below its views
 TITLE_ROWS = 5  # in a title block: name, assembly, size, material, scale
 
 
@@ -640,15 +656,43 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
                 if p.view.axis(axis) is None:
                     p.centres.append((p.view.project(point), radius))
 
-    notes = [f"{f.number}  {f.text}" for f in feats]
-    strip = max(TITLE_ROWS * 6.0, len(notes) * NOTE_LINE) + 4
-    layout = Layout(list(plots.values()), strip=(0.0, strip))
-    sheet = Sheet(*layout.fit())
+    # the isometric view beside the others, unless it makes them smaller:
+    # then below them, left of the title block
+    iso = plots.pop(None)
+    views = list(plots.values())
+    texts = [f"{f.number}  {f.text}" for f in feats]
+    notes = _wrap(texts)
+    alone = Layout(views, strip=(0.0, _strip(notes)))
+    alone.fit()
+    layout = Layout([*views, iso], strip=alone.strip)
+    size = layout.fit()
+    if layout.scale < alone.scale:
+        iso.flexible = False
+        iso.scale = alone.scale
+        if iso.size[0] > STRIP_ISO:
+            iso.scale *= STRIP_ISO / iso.size[0]
+        band = iso.band("below")
+        notes = _wrap(texts, reserve=iso.size[0] + 2 * band + 10)
+        layout = Layout(
+            views, strip=(0.0, _strip(notes, iso.size[1] + 2 * band + LABEL_GAP + LABEL))
+        )
+        size = layout.fit()
+        (_, v0), (u1, _) = iso.bounds
+        right = size[0] - MARGIN - TITLE_WIDTH - 10 - band
+        bottom = MARGIN + LABEL + LABEL_GAP + band
+        iso.origin = (right - u1 * iso.scale, bottom - v0 * iso.scale)
+        layout.plots.append(iso)
+    sheet = Sheet(*size)
     for plot in layout.plots:
         plot.draw(sheet)
     _notes(sheet, notes)
-    _title_block(sheet, _part_title(model, part), layout.plots[0].scale)
+    _title_block(sheet, _part_title(model, part), layout.scale)
     return sheet
+
+
+def _strip(notes: list[str], height: float = 0.0) -> float:
+    """The height of the strip at the bottom of a sheet for notes and the title block."""
+    return max(TITLE_ROWS * 6.0, len(notes) * NOTE_LINE, height) + 4
 
 
 def _iso(
@@ -669,7 +713,7 @@ def _iso(
         dims.append(((x1, y0, z0), (x1, y1, z0), (1, 0, 0), _format(y1 - y0)))
         dims.append(((x0, y0, z0), (x0, y0, z1), (-1, 0, 0), _format(z1 - z0)))
     plot = Plot(ISO, cell, label, visible, [], _bounds(ISO, lo, hi), dims3d=dims)
-    plot.max_width = 80.0
+    plot.flexible = True
     return plot
 
 
@@ -694,13 +738,18 @@ def _near_side(plot: Plot, i: int, p: Point2) -> str:
     return "right" if t > 0.5 else "left"
 
 
-def _notes(sheet: Sheet, notes: list[str]) -> None:
+def _wrap(notes: list[str], reserve: float = 0.0) -> list[str]:
+    """Notes wrapped to the width left of the title block on an A4 sheet
+    (and of `reserve` more)."""
+    chars = int((A4[0] - 2 * MARGIN - TITLE_WIDTH - 10 - reserve) / text_width("x", NOTE))
+    return [line for note in notes for line in textwrap.wrap(note, chars, subsequent_indent="    ")]
+
+
+def _notes(sheet: Sheet, lines: list[str]) -> None:
     """Numbered notes in the bottom left corner, from the top of the strip down."""
-    width = sheet.width - 2 * MARGIN - 90 - 10
-    chars = int(width / text_width("x", NOTE))
-    y = MARGIN + len(notes) * NOTE_LINE
-    for note in notes:
-        sheet.text((MARGIN, y - NOTE_LINE + 1), note[:chars], size=NOTE, anchor="start")
+    y = MARGIN + len(lines) * NOTE_LINE
+    for line in lines:
+        sheet.text((MARGIN, y - NOTE_LINE + 1), line, size=NOTE, anchor="start")
         y -= NOTE_LINE
 
 
@@ -750,7 +799,6 @@ def assembly_sheet(model: ResolvedModel) -> Sheet:
     front.add_row("left", [front.bounds[0][1], front.bounds[1][1]])
     side.add_row("below", [side.bounds[0][0], side.bounds[1][0]])
     iso = _iso(shape, (lo, hi), cell=(3, SPAN))
-    iso.max_width = 110.0
 
     layout = Layout([*plots.values(), iso], strip=(0.0, TITLE_ROWS * 6.0 + 4))
     sheet = Sheet(*layout.fit())

@@ -1,0 +1,135 @@
+from pathlib import Path
+
+import pytest
+
+import woodwright as ww
+from woodwright.drawing import (
+    Row,
+    Side,
+    _assign,
+    _stagger,
+    assembly_sheet,
+    features,
+    part_sheet,
+    parts_sheet,
+)
+from woodwright.examples import get
+from woodwright.export import export_model
+
+OAK = ww.Stock.board(20, "oak")
+BOARD_ORDER = [
+    Side.TOP_FACE,
+    Side.FRONT_EDGE,
+    Side.RIGHT_END,
+    Side.LEFT_END,
+    Side.BOTTOM_FACE,
+    Side.BACK_EDGE,
+]
+BOARD_DEFAULTS = [Side.TOP_FACE, Side.FRONT_EDGE]
+
+
+def _positions(feature, axis: int) -> list[float]:
+    return sorted({round(v, 2) for a, v, _ in feature.coords if a == axis})
+
+
+def _resolved(name: str, part: str):
+    model = get(name)().resolve()
+    return model, next(p for p in model.parts if p.part.name == part)
+
+
+def test_a_mortise_is_dimensioned_on_the_edge_it_is_cut_into() -> None:
+    _, stile = _resolved("joints.mortise_tenon", "stile")
+    (mortise,) = features(stile)
+
+    assert mortise.opens == [Side.BACK_EDGE]
+    assert _positions(mortise, 0) == [275, 325]  # its ends
+    assert _positions(mortise, 1) == [18]  # its bottom, 42 deep
+    assert _positions(mortise, 2) == [-14, -6]  # its cheeks
+
+    chosen = _assign([mortise], BOARD_ORDER, BOARD_DEFAULTS)
+    assert set(chosen) == {
+        (Side.BACK_EDGE, 0),
+        (Side.BACK_EDGE, 2),
+        (Side.TOP_FACE, 1),  # the depth, to hidden lines
+    }
+
+
+def test_a_tenon_shows_its_cheeks_on_its_end_and_its_shoulder_on_the_face() -> None:
+    _, rail = _resolved("joints.mortise_tenon", "rail")
+    (tenon,) = features(rail)
+
+    assert tenon.opens[0] == Side.LEFT_END
+    assert _positions(tenon, 0) == [0]  # the shoulder, 40 from the end of the blank
+    assert _positions(tenon, 1) == [5, 55]
+    assert _positions(tenon, 2) == [-14, -6]
+
+    chosen = _assign([tenon], BOARD_ORDER, BOARD_DEFAULTS)
+    assert set(chosen) == {(Side.TOP_FACE, 0), (Side.LEFT_END, 1), (Side.LEFT_END, 2)}
+
+
+def test_dovetails_are_dimensioned_where_they_are_marked_out() -> None:
+    _, top = _resolved("joints.dovetail_corner", "top")
+    (tails,) = features(top)
+
+    # on the face (the slope shows there), at the end of the board only
+    chosen = _assign([tails], BOARD_ORDER, BOARD_DEFAULTS)
+    (shown,) = chosen[(Side.TOP_FACE, 1)]
+    assert _positions(shown, 1) == [10, 49, 57, 96, 104, 143, 151, 190]
+    assert _positions(tails, 0) == [0]  # the baseline
+
+
+def test_holes_are_dimensioned_by_their_centres() -> None:
+    board = ww.Board("board", OAK, length=300, width=100)
+    board.cut(ww.Hole(board.top_face, 20, at={board.left_end: 80}))
+    asm = ww.Assembly("hole")
+    asm.add(board)
+    (hole,) = features(asm.resolve()[board])
+
+    assert _positions(hole, 0) == [80]
+    assert _positions(hole, 1) == [50]
+    assert _positions(hole, 2) == []  # through
+    ((axis, centre, radius),) = hole.holes
+    assert (axis, radius) == (2, pytest.approx(10))
+    assert centre[:2] == pytest.approx((80, 50))
+
+
+def test_text_that_does_not_fit_is_staggered() -> None:
+    texts = _stagger(Row([0, 2, 4, 100]), scale=1)
+    assert [level for _, level, _ in texts] == [0, 1, 0]
+    # beside the ticks at the end of a row
+    ((text, level, centre),) = _stagger(Row([0, 2]), scale=1)
+    assert (text, level) == ("2", 0) and centre > 2
+
+
+def test_part_sheet() -> None:
+    model, rail = _resolved("joints.mortise_tenon", "rail")
+    svg = part_sheet(model, rail).svg()
+
+    assert svg.startswith("<svg") and 'width="297.0mm"' in svg  # A4 landscape
+    for text in ("TOP FACE", "LEFT END", "340", "300", "tenon 50 x 8 mm", "1:2, mm"):
+        assert f">{text}" in svg or text in svg
+
+
+def test_assembly_and_parts_sheets() -> None:
+    model = get("projects.drawer")().resolve()
+    assembly = assembly_sheet(model).svg()
+    parts = parts_sheet(model).svg()
+
+    assert "FRONT" in assembly and "RIGHT SIDE" in assembly and "ISOMETRIC" in assembly
+    assert "EXPLODED" in parts
+    for part in model.parts:
+        assert f">{part.part.name}<" in parts
+
+
+def test_export_writes_drawings(tmp_path: Path) -> None:
+    model = get("joints.mortise_tenon")().resolve()
+    export_model(model, tmp_path)
+    drawings = sorted(p.name for p in (tmp_path / "drawings").iterdir())
+    assert drawings == ["assembly.svg", "parts.svg", "rail.svg", "stile.svg"]
+
+
+@pytest.mark.parametrize("name", ["cuts.dowel", "joints.butterfly_joint", "projects.coat_rack"])
+def test_sheets_of_other_parts(name: str) -> None:
+    model = get(name)().resolve()
+    for part in model.parts:
+        assert "<svg" in part_sheet(model, part).svg()
