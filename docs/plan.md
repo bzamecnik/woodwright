@@ -1123,28 +1123,49 @@ other exports (with `--no-views`, none).
   tails at the two ends of a drawer side get a chain each; a chain equal to
   one on the opposite side is left out.
 - The assembly has two sheets: *assembly* (front, top and side with the
-  overall dimensions, no hidden lines, and an isometric view, dimensioned,
-  in a column of its own) and *parts* (an exploded view with the parts
-  numbered on leaders around it, the parts list beside it).
-- The scale is the largest that fits A4; if a part's rows of dimensions
-  make it too tall at any scale, the largest that fits the width, the sheet
-  taller. A part's isometric view takes the width the other views leave,
-  or goes below them when it would make them smaller.
+  overall dimensions, no hidden lines, and an isometric view, dimensioned)
+  and *parts* (an exploded view, not to scale and as large as fits, with
+  the parts numbered on leaders around it, the parts list beside it).
+
+Readability, second pass (2026-10-23, after the user's review: drawings
+too small for the space, end views of thin parts unreadable, lines too
+thick for small details, balloons hiding joints):
+
+- Views have scales of their own. The orthographic views share the
+  sheet's scale (the largest standard one that fits A4); a part's ends are
+  enlarged up to 70 x 50 mm on paper, labelled with their scale
+  (`LEFT END  1:2`).
+- Details: a feature's chain of dimensions *crowds* when one of its
+  dimensions is shorter than 2.5 mm on paper. Its crowded chains go to a
+  detail, a clipped region of a view around it with break lines, at least
+  1.5 times larger (`BACK EDGE: 3-5  1:1`): in one view showing all of them
+  (a rabbet's width and depth together), shared by features with the same
+  chains and by nearby ones. A chain leaves its view when the detail shows
+  the end it is measured from. Details are chosen again at the scale they
+  lead to, until they settle.
+- Layout: the orthographic views in the grid as before; the isometric
+  view and the details packed into the space left (notes and the title
+  block taking only their own corners), each near where it belongs. A
+  sheet that fits A4 at no scale grows taller, as little as it can.
+- Line weights by the density of a view (0.5, 0.35 or 0.25 mm, by the
+  median length of its edges on paper); the orthographic views of a sheet
+  share the thinnest any of them needs.
+- Feature balloons go beside a view, past its dimensions, on the side
+  cheapest to reach, on leaders to a dot on the feature.
+- 45-degree faces (chamfers, mitres) are given by their notes only.
 
 Open:
 
-- Crowded cross dimensions of long, thin parts (the mortises in a chair's
-  back leg, 40 mm square at 1:8): end views as details at a larger scale.
-- Balloons of features sit on the feature; leaders and collision avoidance
-  as on the parts sheet would read better on busy parts.
+- Many identical features (24 shelf-pin holes) make a long list of notes
+  and a tall sheet: group them ("24 x hole ø5", A9).
 - Isometric dimensions run along the blank's bounding box, so they float
   off a part whose corner is cut away (a tenon).
 - First- or third-angle projection: third-angle (US, most woodworking
   plans) with labelled views; ISO first-angle as an option if wanted.
 - Ordinate (story-stick) dimensions as an alternative to chains for parts
   with many features.
-- Broken views for long parts, details at a larger scale, sections (a
-  mortise and tenon cut through).
+- Broken views for long parts, sections (a mortise and tenon cut through);
+  a detail's region marked on its view.
 - Identical parts on one sheet ("2 x leg", A3), mirror pairs.
 - Positions of parts on the assembly sheet (shelf heights, rail positions).
 - PDF with all sheets, for printing.
