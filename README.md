@@ -65,8 +65,11 @@ installs it with everything it needs, and you then type a few commands.
    terminal is in (your home folder, unless you moved with `cd`). In it:
    - `cut_list.txt` – each part with its size and its cuts (tenons, mortises,
      grooves...), a plain text file;
-   - `.svg` drawings of the whole thing, an exploded view and each part –
-     open them in a web browser;
+   - `drawings/` – shop drawings to build from, open them in a web browser
+     and print them (A4): a sheet for each part with its views, dimensions
+     in mm and its cuts numbered and described; the whole thing with its
+     overall size; its parts numbered on an exploded view, with a parts list;
+   - `.svg` pictures of the whole thing, an exploded view and each part;
    - `.stl` 3D models of the whole thing and each part – open them in any
      online STL viewer;
    - `assembled.step` – the 3D model for CAD programs such as the free
@@ -120,7 +123,7 @@ frame.join(ww.MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge))
 
 model = frame.resolve()
 print(model.cut_list())
-export_model(model, Path("output/corner"))  # STEP, STL, SVG views, cut list
+export_model(model, Path("output/corner"))  # STEP, STL, SVG views, drawings, cut list
 ```
 
 ```text

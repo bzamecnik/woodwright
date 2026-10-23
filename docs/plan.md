@@ -363,7 +363,9 @@ src/woodwright/
                    # dowels, pegged mortise and tenon, screws
   rules.py         # rules of thumb
   assembly.py      # Assembly, resolution, ResolvedModel, cut list
-  export.py        # STEP, STL, SVG views, exploded view
+  drawing.py       # shop drawings: dimensioned part, assembly and parts sheets
+  sheet.py         # a sheet of paper: lines, text, dimensions, written as SVG
+  export.py        # STEP, STL, SVG views, exploded view, drawings
   examples/        # the example library, `python -m woodwright.examples`
 tests/             # unit, geometry and example tests
 ```
@@ -604,7 +606,8 @@ groove (C2), grouping identical parts (A3).
 
 **Status.** Done: STEP and STL, hidden-line SVG views of the assembly, its
 exploded view and each part, a text cut list naming every cut, the export
-command line. Open: everything else above (backlog E).
+command line; since 2026-10-23 dimensioned shop drawings (M10). Open:
+everything else above (backlog E).
 
 ### M7: Furniture 🟡 started
 
@@ -992,7 +995,7 @@ their grain across the joint (short grain) as an option, with the
 cross-grain loose tongue; rounded ends of routed grooves and butterfly
 mortises; a modelled crack; keys proud before trimming as a process step.
 
-### M10: Shop drawings (E1) 🟡 planned
+### M10: Shop drawings (E1) ✅ first version
 
 So far the outputs are a 3D model, hidden-line isometric pictures and a
 text cut list. To build from them, a woodworker still has to measure the
@@ -1106,8 +1109,36 @@ other exports (with `--no-views`, none).
    parts, parts list.
 5. Export and CLI, examples, tests; check by eye on joints and projects.
 
+**Status.** Steps 1–5 done on 2026-10-23 (`woodwright.drawing`,
+`woodwright.sheet`), as planned, with these decisions on the way:
+
+- A cut without a side of its own (the solids of shared-region joints:
+  dovetails, box joints) is taken to be cut into the side it opens to and
+  goes least deep into, relative to the part (an end for dovetails).
+- A slanted face is dimensioned where it meets that side, nearest the
+  reference face (dovetails at the end of the board, not also at the
+  baseline: the slope is in the note), in the view that sees it edge-on
+  (tails on the face, sockets on the end).
+- Each feature's chain goes on the side of its view nearest to it, so the
+  tails at the two ends of a drawer side get a chain each; a chain equal to
+  one on the opposite side is left out.
+- The assembly has two sheets: *assembly* (front, top and side with the
+  overall dimensions, no hidden lines, and an isometric view, dimensioned,
+  in a column of its own) and *parts* (an exploded view with the parts
+  numbered on leaders around it, the parts list beside it).
+- The scale is the largest that fits A4; if a part's rows of dimensions
+  make it too tall at any scale, the largest that fits the width, the sheet
+  taller. A part's isometric view takes the width the other views leave,
+  or goes below them when it would make them smaller.
+
 Open:
 
+- Crowded cross dimensions of long, thin parts (the mortises in a chair's
+  back leg, 40 mm square at 1:8): end views as details at a larger scale.
+- Balloons of features sit on the feature; leaders and collision avoidance
+  as on the parts sheet would read better on busy parts.
+- Isometric dimensions run along the blank's bounding box, so they float
+  off a part whose corner is cut away (a tenon).
 - First- or third-angle projection: third-angle (US, most woodworking
   plans) with labelled views; ISO first-angle as an option if wanted.
 - Ordinate (story-stick) dimensions as an alternative to chains for parts
@@ -1203,7 +1234,7 @@ check as a library check; E2/E3, cut list formats and snapshots.
 
 **E. Outputs**
 
-- E1. Part drawings with dimensioned features.
+- E1. ✅ Part drawings with dimensioned features (M10, first version).
 - E2. Cut list as CSV and Markdown; a resolved-model dump (JSON/YAML).
 - E3. Cut list snapshots of the examples in the tests.
 - E4. Documentation: a user guide, rendered examples (e.g. on GitHub
