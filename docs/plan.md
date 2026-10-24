@@ -595,7 +595,7 @@ box, picture frames, frames with mortises, bridles and half laps, the
 dovetailed drawer boxes. Examples are functions returning assemblies,
 which is a first form of components. Open: nested assemblies and
 components exposing sides to join against (A2), a box with a bottom in a
-groove (C2), grouping identical parts (A3).
+groove (C2). Identical parts are grouped since M11 (A3).
 
 ### M6: Outputs for the shop 🟡 in part
 
@@ -606,7 +606,7 @@ groove (C2), grouping identical parts (A3).
 
 **Status.** Done: STEP and STL, hidden-line SVG views of the assembly, its
 exploded view and each part, a text cut list naming every cut, the export
-command line; since 2026-10-23 dimensioned shop drawings (M10). Open:
+command line; since 2026-10-23 dimensioned shop drawings (M10), since 2026-10-24 identical parts and cuts grouped (M11). Open:
 everything else above (backlog E).
 
 ### M7: Furniture 🟡 started
@@ -873,7 +873,7 @@ ladder, shelf-pin holes):
 
 Open (into the backlog below): splayed legs (F2), and with them the step
 stool's and the Windsor chair's real form; identical cuts aren't grouped in
-the cut list (24 shelf-pin holes are 24 lines; with A3); a flat at one end
+the cut list (24 shelf-pin holes are 24 lines; done in M11); a flat at one end
 is given as stopped short of the other end (a length from an end would read
 better); dowels through one part (an open hole); pegs in the projects
 (drawbored frames and doors); screws in the ledged and braced door (from the
@@ -1156,8 +1156,8 @@ thick for small details, balloons hiding joints):
 
 Open:
 
-- Many identical features (24 shelf-pin holes) make a long list of notes
-  and a tall sheet: group them ("24 x hole ø5", A9).
+- ✅ Many identical features (24 shelf-pin holes) make a long list of notes
+  and a tall sheet: group them ("24 x hole ø5", A9; done in M11).
 - Isometric dimensions run along the blank's bounding box, so they float
   off a part whose corner is cut away (a tenon).
 - First- or third-angle projection: third-angle (US, most woodworking
@@ -1166,11 +1166,11 @@ Open:
   with many features.
 - Broken views for long parts, sections (a mortise and tenon cut through);
   a detail's region marked on its view.
-- Identical parts on one sheet ("2 x leg", A3), mirror pairs.
+- ✅ Identical parts on one sheet ("2 x leg", A3), mirror pairs (M11).
 - Positions of parts on the assembly sheet (shelf heights, rail positions).
 - PDF with all sheets, for printing.
 
-### M11: Identical parts and cuts (A3, A9) 🟡 planned
+### M11: Identical parts and cuts (A3, A9) ✅ done
 
 A table has four legs cut the same way, a side table eight buttons, a case
 side 24 shelf-pin holes. The cut list and the drawings say each of them
@@ -1237,6 +1237,30 @@ from left_end; 37 from front_edge and back_edge"), else each position.
 4. Drawings: identical features under one number.
 5. Export the examples, check by eye, docs.
 
+**Status.** Steps 1–5 done on 2026-10-24, as planned. In the projects: the
+table's four legs and ten buttons, the stool's legs (two of them mirror
+images: the second hole is drilled a quarter turn the other way), the
+drawer's sides, the workbench's legs (glued up, two mirror images) and
+eight tusks. Decisions on the way:
+
+- Groups whose shared words would clash get the words that tell their
+  parts apart: `apron_front_back` and `apron_right_left`, `top_1_4`.
+- A part sheet keeps one title row more (`make 4 (2 mirror image)`), and
+  lists the members as the first note; the assembly's title block counts
+  the different parts (`22 (6 different)`).
+- A balloon of identical features has leaders to each of them, up to four;
+  for more, to the one nearest its side.
+
+Open:
+
+- A way to keep parts apart that happen to be identical (top boards
+  chosen for their grain), or to name a group (`Part.group`?).
+- Identical cuts at both ends ("haunched tenon ..., on left_end and
+  right_end"), the mirror-image cuts of a symmetric part.
+- A description naming another part (a tusk hole "parallel to
+  left_front_leg.top_face") is that of the first member of the group.
+- Identical subassemblies (doors of a cabinet, with A2).
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
@@ -1254,8 +1278,8 @@ check as a library check; E2/E3, cut list formats and snapshots.
   that the rules snap to, passed to `resolve()`.
 - A2. Components: nested assemblies, and functions returning assemblies
   that expose sides to join against (a drawer joined into a carcase).
-- A3. Identical parts: group them in the cut list ("4 x leg"), name them
-  in components (four legs, ten buttons).
+- A3. ✅ Identical parts: grouped in the cut list ("4 x leg") and the
+  drawings (M11). Open: name them in components (four legs, ten buttons).
 - A4. Outside dimensions: a helper or a switch for parts given by their
   overall length (dovetailed boards, drawers).
 - A5. The twelve named arrises (`top_right_arris`, ...).
@@ -1267,7 +1291,8 @@ check as a library check; E2/E3, cut list formats and snapshots.
   pilot), in the buttons and the ledged door. Open: the drawer bottom's
   slot screw, the ledged and braced door, screws as hardware parts (for
   the shopping list), nails.
-- A9. Grouping identical cuts in the cut list ("24 x hole ø5"), with A3.
+- A9. ✅ Grouping identical cuts in the cut list ("24 x hole ø5") and the
+  drawings (M11).
 
 **B. Joints on the existing machinery** ✅ all done on 2026-10-18 (see M3)
 
