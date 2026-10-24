@@ -7,6 +7,7 @@ from typing import NamedTuple
 import build123d as bd
 
 from woodwright.cuts import BoxCut, Cut
+from woodwright.grouping import PartGroup, group_parts
 from woodwright.joints import Joint
 from woodwright.part import Part, Point, Rod
 from woodwright.placement import Orientation
@@ -180,11 +181,17 @@ class ResolvedPart:
         return hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]
 
     @cached_property
-    def shape(self) -> bd.Part:
-        """Blank minus all cuts, in the part frame; a laminated board in its plies."""
+    def solid(self) -> bd.Part:
+        """Blank minus all cuts, in the part frame, in one piece."""
         shape = self.part.blank(*self.blank)
         for cut in self.cuts:
             shape -= cut.removal()
+        return shape
+
+    @cached_property
+    def shape(self) -> bd.Part:
+        """Blank minus all cuts, in the part frame; a laminated board in its plies."""
+        shape = self.solid
         plies = self.part.ply_boxes(*self.blank)
         if len(plies) > 1:
             solids = [
@@ -215,6 +222,12 @@ class ResolvedModel:
             if resolved.part is part:
                 return resolved
         raise KeyError(part.name)
+
+    @cached_property
+    def groups(self) -> list[PartGroup]:
+        """The parts grouped into identical ones and mirror pairs (see
+        `woodwright.grouping`)."""
+        return group_parts(self.parts)
 
     def cut_list(self) -> str:
         """Parts with their cut dimensions and the cuts made into them."""
