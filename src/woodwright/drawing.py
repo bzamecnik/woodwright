@@ -21,6 +21,7 @@ import build123d as bd
 from OCP.Standard import Standard_Failure
 
 from woodwright.assembly import ResolvedModel, ResolvedPart
+from woodwright.grouping import PartGroup, local
 from woodwright.part import Rod, Side, SideRef
 from woodwright.sheet import TEXT, TICK, Point2, Sheet, text_width
 
@@ -688,7 +689,7 @@ def _title_block(sheet: Sheet, lines: list[tuple[str, str]], scale: float | None
 
 
 TITLE_WIDTH = 90.0
-TITLE_ROWS = 5  # in a title block: name, assembly, size, material, scale
+TITLE_ROWS = 6  # in a title block, at most: name, assembly, quantity, size, material, scale
 
 
 # --- Features -------------------------------------------------------------------
@@ -798,7 +799,8 @@ def features(part: ResolvedPart) -> list[Feature]:
                     coords += [(a, tuple(face_box.min)[a], None), (a, tuple(face_box.max)[a], None)]
         coords = [(a, v, seen) for a, v, seen in coords if lo[a] + eps < v < hi[a] - eps]
         centre = tuple(box.center())
-        result.append(Feature(len(result) + 1, cut.describe(), centre, opens, coords, holes))
+        text = local(cut.describe(), part.part)
+        result.append(Feature(len(result) + 1, text, centre, opens, coords, holes))
     return result
 
 
@@ -863,7 +865,8 @@ NOTE_LINE = 4.6
 
 def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     """A shop drawing of one part: its views with overall and feature
-    dimensions, the features numbered and described, and a title block."""
+    dimensions, the features numbered and described, and a title block;
+    for a group of identical parts, with their number and names."""
     shape = part.shape
     rod = isinstance(part.part, Rod)
     if rod:
@@ -893,7 +896,11 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
 
     iso = plots.pop(None)
     views = list(plots.values())
-    notes = _wrap([f"{f.number}  {f.text}" for f in feats])
+    group = _group(model, part)
+    notes = [f"{f.number}  {f.text}" for f in feats]
+    if len(group) > 1:
+        notes.insert(0, f"{len(group)} pieces: {group.members()}")
+    notes = _wrap(notes)
     layout = Layout([*views, iso], notes=_notes_size(notes))
     size = layout.fit()
     # features whose dimensions crowd at the scale of their view, enlarged;
@@ -917,8 +924,12 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     for plot in layout.plots:
         plot.draw(sheet)
     _notes(sheet, notes)
-    _title_block(sheet, _part_title(model, part), layout.scale)
+    _title_block(sheet, _part_title(model, part, group), layout.scale)
     return sheet
+
+
+def _group(model: ResolvedModel, part: ResolvedPart) -> PartGroup:
+    return next(g for g in model.groups if any(p is part for p in g.parts))
 
 
 def _dimension(
@@ -1188,13 +1199,16 @@ def _plot(part: ResolvedPart, side: Side, shape: bd.Shape) -> Plot:
     return plot
 
 
-def _part_title(model: ResolvedModel, part: ResolvedPart) -> list[tuple[str, str]]:
+def _part_title(
+    model: ResolvedModel, part: ResolvedPart, group: PartGroup
+) -> list[tuple[str, str]]:
     p = part.part
     size = _part_title_size(part)
     material = p.stock.species + (", mirror image" if p.mirror else "")
     return [
-        ("part", p.name),
+        ("part", group.name),
         ("of", model.name),
+        ("make", _quantity(group)),
         ("cut size", size),
         ("material", material.strip(", ")),
     ]
@@ -1245,10 +1259,13 @@ def parts_sheet(model: ResolvedModel) -> Sheet:
     box = apart.bounding_box()
     blown = Plot(ISO, (0, 0), "exploded", visible, [], _bounds(ISO, tuple(box.min), tuple(box.max)))
     blown.leaders = True
-    for number, child in enumerate(apart.children, 1):
-        blown.balloons.append((ISO.project(tuple(child.bounding_box().center())), str(number)))
+    # each part numbered as its group
+    numbers = {p.part.name: i for i, group in enumerate(model.groups, 1) for p in group.parts}
+    for child in apart.children:
+        centre = ISO.project(tuple(child.bounding_box().center()))
+        blown.balloons.append((centre, str(numbers[child.label])))
 
-    rows = [_part_row(i, part) for i, part in enumerate(model.parts, 1)]
+    rows = [_part_row(i, group) for i, group in enumerate(model.groups, 1)]
     widths = _column_widths(rows)
     list_width = sum(widths)
     list_height = (len(rows) + 1) * NOTE_LINE
@@ -1277,16 +1294,34 @@ def _assembly_title(model: ResolvedModel, lo: Vec3, hi: Vec3) -> list[tuple[str,
     width, depth, height = (b - a for a, b in zip(lo, hi, strict=True))
     return [
         ("assembly", model.name),
-        ("parts", str(len(model.parts))),
+        ("parts", _parts_count(model)),
         ("overall", f"{_format(width)} x {_format(depth)} x {_format(height)} (W x D x H)"),
         ("material", ", ".join(sorted({p.part.stock.species for p in model.parts}))),
     ]
 
 
-def _part_row(number: int, part: ResolvedPart) -> list[str]:
+def _parts_count(model: ResolvedModel) -> str:
+    """'21', or with identical parts, '21 (12 different)'."""
+    different = len(model.groups)
+    return f"{len(model.parts)}" + (
+        f" ({different} different)" if different < len(model.parts) else ""
+    )
+
+
+def _quantity(group: PartGroup) -> str:
+    """'4', or with mirror images, '4 (2 mirror image)'."""
+    mirrored = f" ({len(group.mirrored)} mirror image)" if group.mirrored else ""
+    return f"{len(group)}{mirrored}"
+
+
+def _part_row(number: int, group: PartGroup) -> list[str]:
+    part = group.first
     size = _part_title_size(part)
-    note = "mirror image" if part.part.mirror else ""
-    return [str(number), part.part.name, size, part.part.stock.species, note]
+    notes = ["mirror image"] if part.part.mirror else []
+    if group.mirrored:
+        notes.append(f"{len(group.mirrored)} mirror image")
+    species = part.part.stock.species
+    return [str(number), group.name, str(len(group)), size, species, ", ".join(notes)]
 
 
 def _part_title_size(part: ResolvedPart) -> str:
@@ -1295,7 +1330,7 @@ def _part_title_size(part: ResolvedPart) -> str:
     return " x ".join(f"{x:g}" for x in part.size)
 
 
-PARTS_HEADER = ["no.", "part", "cut size (L x W x T)", "material", ""]
+PARTS_HEADER = ["no.", "part", "qty", "cut size (L x W x T)", "material", ""]
 
 
 def _column_widths(rows: list[list[str]]) -> list[float]:

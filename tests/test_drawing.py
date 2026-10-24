@@ -119,8 +119,9 @@ def test_assembly_and_parts_sheets() -> None:
 
     assert "FRONT" in assembly and "RIGHT SIDE" in assembly and "ISOMETRIC" in assembly
     assert "EXPLODED" in parts
-    for part in model.parts:
-        assert f">{part.part.name}<" in parts
+    for group in model.groups:
+        assert f">{group.name}<" in parts
+    assert ">left_right<" in parts and ">1 mirror image<" in parts
 
 
 def test_export_writes_drawings(tmp_path: Path) -> None:
@@ -128,6 +129,24 @@ def test_export_writes_drawings(tmp_path: Path) -> None:
     export_model(model, tmp_path)
     drawings = sorted(p.name for p in (tmp_path / "drawings").iterdir())
     assert drawings == ["assembly.svg", "parts.svg", "rail.svg", "stile.svg"]
+
+
+def test_identical_parts_share_a_sheet(tmp_path: Path) -> None:
+    model = get("projects.stool")().resolve()
+    export_model(model, tmp_path)
+    drawings = sorted(p.name for p in (tmp_path / "drawings").iterdir())
+    assert drawings == [
+        "assembly.svg",
+        "leg.svg",
+        "parts.svg",
+        "seat.svg",
+        "stretcher_front_back.svg",
+        "stretcher_right_left.svg",
+        "wedge.svg",
+    ]
+    leg = (tmp_path / "drawings" / "leg.svg").read_text()
+    assert ">4 (2 mirror image)<" in leg
+    assert "4 pieces: leg_front_left, leg_back_right; mirror image:" in leg
 
 
 @pytest.mark.parametrize("name", ["cuts.dowel", "joints.butterfly_joint", "projects.coat_rack"])

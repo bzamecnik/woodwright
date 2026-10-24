@@ -56,8 +56,8 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
 
     With `views`, also hidden-line SVG views of the assembly, its exploded
     view and each part in its own frame, and shop drawings in `drawings/`:
-    a dimensioned sheet per part and, for more than one part, the assembly
-    and its parts (see `woodwright.drawing`).
+    a dimensioned sheet per part (one per group of identical parts) and, for
+    more than one part, the assembly and its parts (see `woodwright.drawing`).
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
         if len(model.parts) > 1:
             assembly_sheet(model).write(out("drawings/assembly.svg"))
             parts_sheet(model).write(out("drawings/parts.svg"))
-        for part in model.parts:
-            part_sheet(model, part).write(out(f"drawings/{part.part.name}.svg"))
+        for group in model.groups:
+            part_sheet(model, group.first).write(out(f"drawings/{group.name}.svg"))
     out("cut_list.txt").write_text(model.cut_list() + "\n")
     return written
