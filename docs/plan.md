@@ -1261,6 +1261,65 @@ Open:
   left_front_leg.top_face") is that of the first member of the group.
 - Identical subassemblies (doors of a cabinet, with A2).
 
+### M12: Plans as one PDF (E6) 🟡 planned
+
+The drawings are a folder of SVG files: fine on screen, awkward to print,
+send or take to the shop. Hobby and semi-professional plans come as one
+document: a cover with the finished piece, contents, a description, the
+drawings, the cut list. M12 collates the sheets into `plans.pdf` next to
+them.
+
+#### Order of the pages
+
+1. **Cover**: the name, a large isometric view of the assembly (no
+   dimensions), its overall size, parts count, materials, the date and the
+   library version.
+2. **Contents**: every section and sheet with its page, as links; the same
+   as PDF bookmarks for the viewer's sidebar.
+3. **Description** (if the assembly has one): `Assembly(description=...)`
+   in Markdown (a subset: headings, paragraphs, lists, emphasis, code).
+4. **Drawings**: the assembly sheet, the parts sheet, then a sheet per
+   group of parts in the order of the parts list, so a balloon's number
+   leads to its sheet. Each page numbered.
+5. **Cut list**: the text of `cut_list.txt`.
+6. **Appendix** (if known): the Python source of the design (the design
+   file, or the example function) and the versions of woodwright, build123d
+   and Python, so the plans can be made again.
+
+All pages A4 landscape like the sheets (a taller sheet keeps its height).
+
+#### How
+
+- **reportlab** (BSD, pure Python wheels): its canvas draws the sheets,
+  Platypus flows the text pages, makes the contents (two passes for the
+  page numbers), bookmarks and links. Considered: fpdf2 (LGPL, weaker text
+  flow), converting the SVGs with cairosvg or rsvg (system libraries, bad
+  for `uvx` users), WeasyPrint (Pango system libraries), Typst (a second
+  language; Markdown and QR packages fetched at compile time).
+- The sheets are drawn natively, not converted from SVG: `Sheet` keeps its
+  items as data (lines, circles, texts) instead of SVG strings, and has two
+  renderers, SVG (unchanged output) and PDF (`woodwright.pdf`). Vector
+  lines and real, searchable text in Helvetica.
+- Text beyond Latin-1 (a Czech description) needs an embedded TrueType
+  font: found among the system fonts (Arial, DejaVu Sans...), else
+  Helvetica.
+- The export builds each sheet once, for its SVG and for the PDF;
+  `--no-views` skips both.
+
+#### Steps
+
+1. `Sheet` items as data, an SVG and a PDF renderer.
+2. `plans.pdf`: the drawings in order, page numbers, bookmarks.
+3. Cover and contents.
+4. The cut list pages.
+5. `Assembly(description=...)` in Markdown, with a Unicode font.
+6. Appendix: the design's source and the versions.
+7. Export the examples, check by eye, docs.
+
+Later: a link or QR code to a project page (reportlab draws QR codes),
+the author and a licence on the cover, a sheet's number in its title block
+("sheet 4 of 11"), assembly instructions as their own section.
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
@@ -1353,6 +1412,7 @@ check as a library check; E2/E3, cut list formats and snapshots.
 - E4. Documentation: a user guide, rendered examples (e.g. on GitHub
   Pages).
 - E5. First "build a real piece" attempt from the generated outputs only.
+- E6. 🟡 The plans as one PDF: cover, contents, drawings, cut list (M12).
 
 **F. New kinds of geometry** (see Later)
 
