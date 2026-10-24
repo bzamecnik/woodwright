@@ -3,7 +3,17 @@ from pathlib import Path
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 
-from woodwright.pdf import Page, Plans, _wrap, draw_sheet, write_plans
+from woodwright.pdf import (
+    STANDARD_FONTS,
+    Page,
+    Plans,
+    _inline,
+    _wrap,
+    draw_sheet,
+    fonts,
+    markdown,
+    write_plans,
+)
 from woodwright.sheet import Sheet
 
 
@@ -55,3 +65,43 @@ def test_wrap_long_lines_under_their_second_column() -> None:
         "        - dado 90 mm, 22.5",
         "          deep, in top_face",
     ]
+
+
+def test_markdown_subset() -> None:
+    text = """
+        # Table
+        A *solid* top on **wide** aprons, see `buttons` and
+        [the plans](https://example.com/?a=1&b=2).
+
+        - legs: 4
+          (glued up)
+        1. cut the mortises
+
+        ```
+        top = Board(...)
+        ```
+        """
+    flowables = markdown(text)
+    kinds = [type(f).__name__ for f in flowables]
+    assert kinds == ["Paragraph", "Paragraph", "Paragraph", "Paragraph", "Preformatted"]
+    heading, paragraph, item, numbered, code = flowables
+    assert heading.style.name == "h1"
+    assert paragraph.text == (
+        "A <i>solid</i> top on <b>wide</b> aprons, see "
+        f'<font face="{fonts().mono}">buttons</font> and '
+        '<a href="https://example.com/?a=1&amp;b=2" color="blue">the plans</a>.'
+    )
+    assert item.text == "legs: 4 (glued up)" and item.bulletText == "•"
+    assert numbered.bulletText == "1."
+    assert code.lines == ["top = Board(...)"]
+    assert _inline("snake_case_name and _x_") == "snake_case_name and <i>x</i>"
+
+
+def test_plans_with_a_description_beyond_latin_1(tmp_path: Path) -> None:
+    path = tmp_path / "plans.pdf"
+    plans = Plans("stůl", [Page("1  noha", _sheet())], description="Stůl z **dubu**, čep a dlab.")
+    write_plans(path, plans)
+    pdf = path.read_bytes()
+    assert b"(Description)" in pdf
+    if fonts() != STANDARD_FONTS:  # a TrueType font was found and embedded
+        assert b"/FontFile2" in pdf

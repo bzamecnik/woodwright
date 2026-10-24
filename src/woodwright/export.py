@@ -100,7 +100,13 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
         ]
         cover = cover_sheet(model, made)
         sheets = [page for _, page in pages]
-        plans = Plans(model.name, sheets, cover=cover, cut_list=model.cut_list())
+        plans = Plans(
+            model.name,
+            sheets,
+            cover=cover,
+            cut_list=model.cut_list(),
+            description=model.description,
+        )
         write_plans(out("plans.pdf"), plans)
     out("cut_list.txt").write_text(model.cut_list() + "\n")
     return written

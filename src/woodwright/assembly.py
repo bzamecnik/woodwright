@@ -17,12 +17,19 @@ class Assembly:
     """Parts and the joints between them. The first part added is the root.
 
     The root is placed by `root_location`: an `Orientation` (see `orient`)
-    or a build123d `Location` of its part frame.
+    or a build123d `Location` of its part frame. A `description` in Markdown
+    goes into the plans (see `woodwright.pdf`).
     """
 
-    def __init__(self, name: str, root_location: Orientation | bd.Location | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        root_location: Orientation | bd.Location | None = None,
+        description: str | None = None,
+    ) -> None:
         self.name = name
         self.root_location = root_location or bd.Location()
+        self.description = description
         self.parts: list[Part] = []
         self.joints: list[Joint] = []
 
@@ -103,7 +110,7 @@ class Assembly:
             ResolvedPart(part, (tuple(lo), tuple(hi)), cuts[part], locations[part])
             for part, (lo, hi) in blanks.items()
         ]
-        return ResolvedModel(self.name, parts, joints)
+        return ResolvedModel(self.name, parts, joints, self.description)
 
     def _place(self, links: list[_Link]) -> dict[Part, bd.Location]:
         """Walk the joint graph from the root, then check joints closing loops.
@@ -216,6 +223,7 @@ class ResolvedModel:
     name: str
     parts: list[ResolvedPart]
     joints: list[Joint]
+    description: str | None = None  # in Markdown
 
     def __getitem__(self, part: Part) -> ResolvedPart:
         for resolved in self.parts:
