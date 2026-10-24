@@ -1178,6 +1178,30 @@ def table_frame(
     return asm
 
 
+TABLE_DESCRIPTION = """
+    A dining or work table in solid oak: four square legs, wide aprons
+    tenoned into them, and a top glued up from boards edge to edge.
+
+    ## How it is built
+
+    - The aprons are joined to the legs with **haunched mortise and tenon**
+      joints, set down from the top of the legs so the legs keep their tops
+      whole. The two tenons meeting in a leg are mitred at their ends.
+    - The top is *not* glued to the frame: wooden **buttons**, screwed to its
+      underside, have tongues in short mortises in the aprons, so the top can
+      move across its grain with the seasons.
+
+    ## Order of work
+
+    1. Mill all the parts to their cut sizes (see the cut list).
+    2. Mark out and cut the mortises in the legs, then the tenons to fit them.
+    3. Cut the button mortises in the aprons, and dry-fit the frame.
+    4. Glue up the frame: first the two short sides, then join them with the
+       long aprons; check the diagonals.
+    5. Glue up the top, flatten it, and fix it with the buttons.
+    """
+
+
 def table(
     width: float = 1200,
     depth: float = 750,
@@ -1204,7 +1228,7 @@ def table(
     grain: in and out of the mortises at the front and back, along them at
     the sides, where they are longer.
     """
-    asm = Assembly("table", root_location=STANDING)
+    asm = Assembly("table", root_location=STANDING, description=TABLE_DESCRIPTION)
     _, aprons = _table_frame(
         asm,
         width,
