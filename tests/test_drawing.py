@@ -160,10 +160,22 @@ def test_crowded_features_are_shown_in_details() -> None:
     model, rail = _resolved("projects.chair", "back_rail_lower")
     svg = part_sheet(model, rail).svg()
 
-    # the mortises across the thin back edge, enlarged, all three in one detail
-    assert ">BACK EDGE: 3-5  1:1<" in svg
+    # the mortises across the thin back edge, enlarged, all three (identical,
+    # numbered alike) in one detail
+    assert ">BACK EDGE: 3  1:1<" in svg
+    assert ">3  3 x mortise 20 x 8 mm, 22 deep, in back_edge<" in svg
     assert ">LEFT END  1:2<" in svg  # the ends at their own scale
     assert "1:4, mm" in svg  # the sheet's scale
+
+
+def test_identical_features_share_a_number() -> None:
+    model = get("cuts.shelf_pin_holes")().resolve()
+    svg = part_sheet(model, model.parts[0]).svg()
+    assert ">1  24 x hole ø5, 12 deep, drill point 118 deg, in top_face<" in svg
+    # one balloon on the top face (on a leader to one of them) and one in the
+    # detail of the front edge, and "make 1"
+    assert svg.count(">1</text>") == 3
+    assert ">2</text>" not in svg
 
 
 def test_a_rabbet_is_detailed_in_one_view() -> None:

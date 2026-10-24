@@ -14,6 +14,7 @@ scale chosen to fit an A4 sheet.
 
 import math
 import textwrap
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
@@ -21,7 +22,7 @@ import build123d as bd
 from OCP.Standard import Standard_Failure
 
 from woodwright.assembly import ResolvedModel, ResolvedPart
-from woodwright.grouping import PartGroup, local
+from woodwright.grouping import PartGroup, cut_shape, local
 from woodwright.part import Rod, Side, SideRef
 from woodwright.sheet import TEXT, TICK, Point2, Sheet, text_width
 
@@ -48,6 +49,7 @@ DETAIL_ROUNDS = 4  # of choosing details and fitting the sheet, at most
 BALLOON = 2.6  # radius of a balloon
 BALLOON_GAP = 3.0  # between the dimensions on a side and the balloons past them
 BALLOON_SPACING = 6.0  # between the centres of balloons in a line
+MAX_LEADERS = 4  # from a balloon to identical features, else to one of them
 ROW_COST = 25.0  # of crossing a row of dimensions with a leader, as mm of leader across a view
 PACK_GAP = 8.0  # between the views placed in the space the grid leaves
 LEADER_RING = 10.0  # from a view's outline to the balloons around it
@@ -194,21 +196,33 @@ class Plot:
             depth += (ROW_FIRST if i == 0 else ROW_STEP) + _levels(row, self.scale) * LEVEL_STEP
         return depth + (2.0 if rows else 0.0)
 
-    def callouts(self) -> dict[str, list[tuple[Point2, str]]]:
+    def callouts(self) -> dict[str, list[tuple[list[Point2], str]]]:
         """The balloons by the side of the view they go on, outside its
         dimensions: the side cheapest to reach, crossing few rows of
-        dimensions and little of the view."""
+        dimensions and little of the view. Balloons with the same label
+        (identical features) are one, on leaders to each of them, or for
+        more than `MAX_LEADERS`, to the one nearest its side."""
         if self.leaders:
             return {}
         (u0, v0), (u1, v1) = self.bounds
-        sides: dict[str, list[tuple[Point2, str]]] = {}
-        for (u, v), label in self.balloons:
-            inside = {"above": v1 - v, "below": v - v0, "left": u - u0, "right": u1 - u}
-            side = min(
-                inside,
-                key=lambda s: len(self.rows.get(s, [])) * ROW_COST + 2 * inside[s] * self.scale,
-            )
-            sides.setdefault(side, []).append(((u, v), label))
+        anchors: dict[str, list[Point2]] = {}
+        for point, label in self.balloons:
+            anchors.setdefault(label, []).append(point)
+
+        def inside(p: Point2) -> dict[str, float]:
+            u, v = p
+            return {"above": v1 - v, "below": v - v0, "left": u - u0, "right": u1 - u}
+
+        def cost(side: str, points: list[Point2]) -> float:
+            depth = sum(inside(p)[side] for p in points) / len(points)
+            return len(self.rows.get(side, [])) * ROW_COST + 2 * depth * self.scale
+
+        sides: dict[str, list[tuple[list[Point2], str]]] = {}
+        for label, points in anchors.items():
+            side = min(("above", "below", "left", "right"), key=lambda s: cost(s, points))
+            if len(points) > MAX_LEADERS:
+                points = [min(points, key=lambda p: inside(p)[side])]
+            sides.setdefault(side, []).append((points, label))
         return sides
 
     def add_row(self, side: str, values: list[float]) -> None:
@@ -336,17 +350,25 @@ class Plot:
         self,
         sheet: Sheet,
         side: str,
-        callouts: list[tuple[Point2, str]],
+        callouts: list[tuple[list[Point2], str]],
         box: tuple[float, ...],
     ) -> None:
         """Balloons in a line beside one side of the view, past its
-        dimensions, each on a leader to a dot on its feature, spread apart."""
+        dimensions, each on leaders to dots on its features, spread apart."""
         x0, y0, x1, y1 = box
         horizontal = side in ("above", "below")
         edge, out = {"above": (y1, 1), "below": (y0, -1), "left": (x0, -1), "right": (x1, 1)}[side]
         line = edge + out * (self._rows_depth(side) + BALLOON_GAP + BALLOON)
+        k = 0 if horizontal else 1
         marks = sorted(
-            ([self.at(c)[0 if horizontal else 1], self.at(c), label] for c, label in callouts),
+            (
+                [
+                    sum(self.at(c)[k] for c in points) / len(points),
+                    [self.at(c) for c in points],
+                    label,
+                ]
+                for points, label in callouts
+            ),
             key=lambda m: m[0],
         )
         # spread apart, then centred again on where they belong
@@ -354,18 +376,15 @@ class Plot:
         for i in range(1, len(spread)):
             spread[i] = max(spread[i], spread[i - 1] + BALLOON_SPACING)
         shift = sum(m[0] for m in marks) / len(marks) - sum(spread) / len(spread)
-        for along, (_, anchor, label) in zip(spread, marks, strict=True):
+        for along, (_, anchors, label) in zip(spread, marks, strict=True):
             at = (along + shift, line) if horizontal else (line, along + shift)
-            d = math.dist(anchor, at)
-            if d > BALLOON:
-                k = (d - BALLOON) / d
-                sheet.line(
-                    [
-                        anchor,
-                        (anchor[0] + (at[0] - anchor[0]) * k, anchor[1] + (at[1] - anchor[1]) * k),
-                    ]
-                )
-            sheet.circle(anchor, 0.5, fill="black")
+            for anchor in anchors:
+                d = math.dist(anchor, at)
+                if d > BALLOON:
+                    t = (d - BALLOON) / d
+                    end = anchor[0] + (at[0] - anchor[0]) * t, anchor[1] + (at[1] - anchor[1]) * t
+                    sheet.line([anchor, end])
+                sheet.circle(anchor, 0.5, fill="black")
             sheet.balloon(at, label)
 
     def _draw_row(
@@ -708,6 +727,8 @@ class Feature:
     of slanted faces, the axes of holes; for some, the axis of the view that
     shows them best (along a hole, a slanted face edge-on). `opens` are the
     sides of the blank the cut reaches, the side it is cut into first.
+    Identical features (cuts differing only in where they are) share their
+    `label`, the number they are called out by.
     """
 
     number: int
@@ -716,10 +737,13 @@ class Feature:
     opens: list[Side]
     coords: list[tuple[int, float, int | None]]  # axis, position, axis of a view to show it in
     holes: list[tuple[int, Vec3, float]]  # axis, a point on it, radius
+    label: int = 0
 
 
 def features(part: ResolvedPart) -> list[Feature]:
-    """The features of a part, one per cut that removes anything, numbered."""
+    """The features of a part, one per cut that removes anything, numbered,
+    and labelled by their descriptions without positions (identical ones
+    alike)."""
     from OCP.BRepAdaptor import BRepAdaptor_Surface
     from OCP.BRepClass3d import BRepClass3d_SolidClassifier
     from OCP.TopAbs import TopAbs_IN
@@ -799,8 +823,11 @@ def features(part: ResolvedPart) -> list[Feature]:
                     coords += [(a, tuple(face_box.min)[a], None), (a, tuple(face_box.max)[a], None)]
         coords = [(a, v, seen) for a, v, seen in coords if lo[a] + eps < v < hi[a] - eps]
         centre = tuple(box.center())
-        text = local(cut.describe(), part.part)
+        text = local(cut_shape(cut), part.part)
         result.append(Feature(len(result) + 1, text, centre, opens, coords, holes))
+    labels: dict[str, int] = {}
+    for feat in result:
+        feat.label = labels.setdefault(feat.text, len(labels) + 1)
     return result
 
 
@@ -888,7 +915,7 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
         dimensioned = {s for (s, _), fs in chosen.items() if feat.number in {f.number for f in fs}}
         shown = [s for s in sides if s in dimensioned] or [s for s in feat.opens if s in plots]
         plot = plots[shown[0]] if shown else plots[defaults[0]]
-        plot.balloons.append((plot.view.project(feat.centre), str(feat.number)))
+        plot.balloons.append((plot.view.project(feat.centre), str(feat.label)))
         for axis, point, radius in feat.holes:
             for p in plots.values():
                 if p.view.axis(axis) is None:
@@ -897,7 +924,13 @@ def part_sheet(model: ResolvedModel, part: ResolvedPart) -> Sheet:
     iso = plots.pop(None)
     views = list(plots.values())
     group = _group(model, part)
-    notes = [f"{f.number}  {f.text}" for f in feats]
+    # a note per label, with the count of identical features
+    counts = Counter(f.label for f in feats)
+    texts = {f.label: f.text for f in feats}
+    notes = [
+        f"{label}  {counts[label]} x {text}" if counts[label] > 1 else f"{label}  {text}"
+        for label, text in texts.items()
+    ]
     if len(group) > 1:
         notes.insert(0, f"{len(group)} pieces: {group.members()}")
     notes = _wrap(notes)
@@ -985,6 +1018,7 @@ def _details(
     chains they took: side, feature, axis."""
     entries: dict[int, list[tuple[Side, int, list[float]]]] = {}  # side, axis, values
     centres: dict[int, Vec3] = {}
+    labels = {f.number: f.label for shown in chosen.values() for f in shown}
     for (side, axis), shown in chosen.items():
         plot = plots[side]
         i, sign = plot.view.axis(axis)
@@ -1052,7 +1086,7 @@ def _details(
         window = ((u0, v0), (u1, v1))
         visible = [c for line in parent.visible for c in _clip(line, window)]
         hidden = [c for line in parent.hidden for c in _clip(line, window)]
-        label = f"{parent.label}: {_ranges(numbers)}"
+        label = f"{parent.label}: {_ranges([labels[n] for n in numbers])}"
         detail = Plot(parent.view, None, label, visible, hidden, window, side=side)
         detail.numbers = sorted(numbers)
         detail.zoom, detail.parent, detail.crop = DETAIL_ZOOM, (parent, ((u0 + u1) / 2, v1)), True
@@ -1068,7 +1102,7 @@ def _details(
         for n in sorted(numbers):
             point = parent.view.project(centres[n])
             if u0 <= point[0] <= u1 and v0 <= point[1] <= v1:
-                detail.balloons.append((point, str(n)))
+                detail.balloons.append((point, str(labels[n])))
         details.append(detail)
     return details, moved
 
