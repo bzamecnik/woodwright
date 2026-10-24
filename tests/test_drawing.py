@@ -11,6 +11,7 @@ from woodwright.drawing import (
     _ranges,
     _stagger,
     assembly_sheet,
+    cover_sheet,
     features,
     part_sheet,
     parts_sheet,
@@ -124,12 +125,20 @@ def test_assembly_and_parts_sheets() -> None:
     assert ">left_right<" in parts and ">1 mirror image<" in parts
 
 
+def test_cover_sheet() -> None:
+    model = get("projects.cabinet_door")().resolve()
+    svg = cover_sheet(model, [("date", "2026-10-24")]).svg()
+    for text in (">Cabinet door<", ">overall<", ">material<", ">2026-10-24<"):
+        assert text in svg
+    assert "ISOMETRIC" not in svg  # a picture, not a view
+
+
 def test_export_writes_drawings(tmp_path: Path) -> None:
     model = get("joints.mortise_tenon")().resolve()
     export_model(model, tmp_path)
     drawings = sorted(p.name for p in (tmp_path / "drawings").iterdir())
     assert drawings == ["assembly.svg", "parts.svg", "rail.svg", "stile.svg"]
-    assert (tmp_path / "plans.pdf").read_bytes().count(b"/Type /Page\n") == 4
+    assert (tmp_path / "plans.pdf").read_bytes().count(b"/Type /Page\n") == 6
 
 
 def test_identical_parts_share_a_sheet(tmp_path: Path) -> None:

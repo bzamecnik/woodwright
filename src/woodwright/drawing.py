@@ -1324,6 +1324,60 @@ def parts_sheet(model: ResolvedModel) -> Sheet:
     return sheet
 
 
+COVER_TITLE = 12.0  # height of the name on the cover
+COVER_INFO = 4.0  # of the lines below the picture
+
+
+def cover_sheet(model: ResolvedModel, lines: list[tuple[str, str]] = ()) -> Sheet:
+    """A cover for the plans: the name, a large isometric view of the whole
+    thing (no dimensions, no hidden lines), and below it its overall size,
+    parts and materials, then `lines` (e.g. the date)."""
+    shape = model.compound()
+    box = shape.bounding_box()
+    lo, hi = tuple(box.min), tuple(box.max)
+    visible, _ = ISO.lines(shape)
+    plot = Plot(ISO, None, "", visible, [], _bounds(ISO, lo, hi))
+    sheet = Sheet(*A4)
+    info = [row for row in _assembly_title(model, lo, hi) if row[0] != "assembly"]
+    info += list(lines)
+    title_top = sheet.height - 2 * MARGIN
+    picture_top = title_top - COVER_TITLE - 2 * MARGIN
+    picture_bottom = 2 * MARGIN + len(info) * COVER_INFO * 1.6 + MARGIN
+    (u0, v0), (u1, v1) = plot.bounds
+    plot.scale = min(
+        (sheet.width - 4 * MARGIN) / (u1 - u0), (picture_top - picture_bottom) / (v1 - v0)
+    )
+    width, height = plot.size
+    left = (sheet.width - width) / 2
+    bottom = picture_bottom + (picture_top - picture_bottom - height) / 2
+    plot.origin = (left - u0 * plot.scale, bottom - v0 * plot.scale)
+    weight = "visible" + plot.weight()
+    for line in plot.visible:
+        sheet.line([plot.at(p) for p in line], weight)
+
+    title = model.name.replace("_", " ")
+    sheet.text(
+        (2 * MARGIN, title_top - COVER_TITLE),
+        title[:1].upper() + title[1:],
+        size=COVER_TITLE,
+        anchor="start",
+        bold=True,
+    )
+    sheet.line(
+        [
+            (2 * MARGIN, title_top - COVER_TITLE - 5),
+            (sheet.width - 2 * MARGIN, title_top - COVER_TITLE - 5),
+        ],
+        "frame",
+    )
+    y = 2 * MARGIN + (len(info) - 1) * COVER_INFO * 1.6
+    for key, value in info:
+        sheet.text((2 * MARGIN, y), key, size=COVER_INFO * 0.7, anchor="start")
+        sheet.text((2 * MARGIN + 25, y), value, size=COVER_INFO, anchor="start")
+        y -= COVER_INFO * 1.6
+    return sheet
+
+
 def _assembly_title(model: ResolvedModel, lo: Vec3, hi: Vec3) -> list[tuple[str, str]]:
     width, depth, height = (b - a for a, b in zip(lo, hi, strict=True))
     return [

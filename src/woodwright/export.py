@@ -1,13 +1,15 @@
 """Exporting resolved models: STEP, STL, hidden-line SVG views, shop drawings
 and the cut list."""
 
+from datetime import date
+from importlib.metadata import version
 from pathlib import Path
 
 import build123d as bd
 
 from woodwright.assembly import ResolvedModel
-from woodwright.drawing import assembly_sheet, part_sheet, parts_sheet
-from woodwright.pdf import Page, write_plans
+from woodwright.drawing import assembly_sheet, cover_sheet, part_sheet, parts_sheet
+from woodwright.pdf import Page, Plans, write_plans
 
 VIEW_DIRECTION = (1, -1.6, 0.9)  # from the front right, a bit above
 
@@ -92,6 +94,12 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
             pages.append((group.name, Page(f"{i}  {group.name}", sheet)))
         for file, page in pages:
             page.sheet.write(out(f"drawings/{file}.svg"))
-        write_plans(out("plans.pdf"), model.name, [page for _, page in pages])
+        made = [
+            ("date", date.today().isoformat()),
+            ("made with", f"woodwright {version('woodwright')}"),
+        ]
+        cover = cover_sheet(model, made)
+        plans = Plans(model.name, [page for _, page in pages], cover=cover)
+        write_plans(out("plans.pdf"), plans)
     out("cut_list.txt").write_text(model.cut_list() + "\n")
     return written

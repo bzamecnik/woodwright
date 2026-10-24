@@ -3,7 +3,7 @@ from pathlib import Path
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 
-from woodwright.pdf import Page, draw_sheet, write_plans
+from woodwright.pdf import Page, Plans, draw_sheet, write_plans
 from woodwright.sheet import Sheet
 
 
@@ -36,9 +36,9 @@ def test_sheet_to_svg_and_pdf(tmp_path: Path) -> None:
 def test_plans_collate_sheets_of_any_size(tmp_path: Path) -> None:
     path = tmp_path / "plans.pdf"
     pages = [Page("Assembly", _sheet()), Page("1  leg", Sheet(297, 250)), Page("2  rail", _sheet())]
-    write_plans(path, "table", pages)
+    write_plans(path, Plans("table", pages, cover=_sheet()))
     pdf = path.read_bytes()
-    assert pdf.count(b"/Type /Page\n") == 3
+    assert pdf.count(b"/Type /Page\n") == 5  # with the cover and contents
     assert b"/MediaBox [ 0 0 841.8898 708.6614 ]" in pdf  # 297 x 250 mm
     for title in (b"(Assembly)", b"(1  leg)", b"(2  rail)"):  # bookmarks
         assert title in pdf
