@@ -63,7 +63,8 @@ installs it with everything it needs, and you then type a few commands.
    ```
    This makes a folder `output/projects/cabinet_door` in the folder the
    terminal is in (your home folder, unless you moved with `cd`). In it:
-   - `plans.pdf` – all the drawings below in one PDF, to print or send;
+   - `plans.pdf` – the plans in one PDF, to print or send: a cover, contents,
+     all the drawings below, the cut list and the code they were made from;
    - `cut_list.txt` – each part with its size and its cuts (tenons, mortises,
      grooves...), a plain text file;
    - `drawings/` – shop drawings to build from, open them in a web browser
@@ -86,7 +87,17 @@ installs it with everything it needs, and you then type a few commands.
    ```shell
    uvx --python 3.14 woodwright export my_door.py
    ```
-   The results are in `output/my_door/door`. What each example can change
+   The results are in `output/my_door/door`. To describe your piece in
+   its plans, add a text below, for example:
+   ```python
+   door.description = """
+       A glazed door for a wall cabinet.
+
+       - **Wood**: oak, planed all round.
+       - Fit the glass after the finish.
+       """
+   ```
+   (headings start with `#`, list items with `-` or `1.`). What each example can change
    (sizes, stock thickness...) is listed at the top of its code in
    [the example library](https://github.com/bzamecnik/woodwright/tree/HEAD/src/woodwright/examples);
    copying an example's code into your file is the way on to your own designs.

@@ -606,7 +606,8 @@ groove (C2). Identical parts are grouped since M11 (A3).
 
 **Status.** Done: STEP and STL, hidden-line SVG views of the assembly, its
 exploded view and each part, a text cut list naming every cut, the export
-command line; since 2026-10-23 dimensioned shop drawings (M10), since 2026-10-24 identical parts and cuts grouped (M11). Open:
+command line; since 2026-10-23 dimensioned shop drawings (M10), since 2026-10-24 identical parts and cuts grouped (M11) and the plans as
+one PDF (M12). Open:
 everything else above (backlog E).
 
 ### M7: Furniture 🟡 started
@@ -1261,7 +1262,7 @@ Open:
   left_front_leg.top_face") is that of the first member of the group.
 - Identical subassemblies (doors of a cabinet, with A2).
 
-### M12: Plans as one PDF (E6) 🟡 planned
+### M12: Plans as one PDF (E6) ✅ done
 
 The drawings are a folder of SVG files: fine on screen, awkward to print,
 send or take to the shop. Hobby and semi-professional plans come as one
@@ -1316,9 +1317,25 @@ All pages A4 landscape like the sheets (a taller sheet keeps its height).
 6. Appendix: the design's source and the versions.
 7. Export the examples, check by eye, docs.
 
+**Status.** Steps 1–7 done on 2026-10-24, as planned. Decisions on the way:
+
+- The file is `plans.pdf`, beside `drawings/`; it is written whenever the
+  drawings are.
+- The sheets keep Helvetica (not embedded, as the SVG); only a text beyond
+  Latin-1 on a sheet uses the embedded font. Arial has Helvetica's metrics,
+  so the text pages look the same.
+- The contents and bookmarks number the part sheets as the parts list
+  ("3  leg"); the cover is page 1 without a number.
+- An example's appendix gives its function only (its helpers come with
+  the same version of woodwright, named in the command that remakes it);
+  a design file is given whole.
+- A design file can describe a copied example: `door.description = ...`.
+
 Later: a link or QR code to a project page (reportlab draws QR codes),
 the author and a licence on the cover, a sheet's number in its title block
-("sheet 4 of 11"), assembly instructions as their own section.
+("sheet 4 of 11"), assembly instructions as their own section, a blank
+line between the parts in the cut list, descriptions of the other
+projects.
 
 ### Next steps: backlog (to be prioritized)
 
@@ -1412,7 +1429,7 @@ check as a library check; E2/E3, cut list formats and snapshots.
 - E4. Documentation: a user guide, rendered examples (e.g. on GitHub
   Pages).
 - E5. First "build a real piece" attempt from the generated outputs only.
-- E6. 🟡 The plans as one PDF: cover, contents, drawings, cut list (M12).
+- E6. ✅ The plans as one PDF: cover, contents, drawings, cut list (M12).
 
 **F. New kinds of geometry** (see Later)
 
