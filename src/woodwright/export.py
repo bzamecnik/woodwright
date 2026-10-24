@@ -9,7 +9,7 @@ import build123d as bd
 
 from woodwright.assembly import ResolvedModel
 from woodwright.drawing import assembly_sheet, cover_sheet, part_sheet, parts_sheet
-from woodwright.pdf import Page, Plans, write_plans
+from woodwright.pdf import Page, Plans, Source, write_plans
 
 VIEW_DIRECTION = (1, -1.6, 0.9)  # from the front right, a bit above
 
@@ -54,14 +54,17 @@ def exploded(model: ResolvedModel, factor: float = 0.5) -> bd.Compound:
     return bd.Compound(label=f"{model.name}_exploded", children=children)
 
 
-def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> list[Path]:
+def export_model(
+    model: ResolvedModel, out_dir: Path, views: bool = True, source: Source | None = None
+) -> list[Path]:
     """Write the assembly (STEP, STL), each part (STL) and the cut list to `out_dir`.
 
     With `views`, also hidden-line SVG views of the assembly, its exploded
     view and each part in its own frame, and shop drawings in `drawings/`:
     a dimensioned sheet per part (one per group of identical parts) and, for
     more than one part, the assembly and its parts (see `woodwright.drawing`),
-    and the sheets collated in `plans.pdf` (see `woodwright.pdf`).
+    and the sheets collated in `plans.pdf` (see `woodwright.pdf`), with the
+    design's `source` in an appendix if given.
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -106,6 +109,7 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
             cover=cover,
             cut_list=model.cut_list(),
             description=model.description,
+            source=source,
         )
         write_plans(out("plans.pdf"), plans)
     out("cut_list.txt").write_text(model.cut_list() + "\n")

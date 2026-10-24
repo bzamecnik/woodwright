@@ -105,3 +105,12 @@ def test_plans_with_a_description_beyond_latin_1(tmp_path: Path) -> None:
     assert b"(Description)" in pdf
     if fonts() != STANDARD_FONTS:  # a TrueType font was found and embedded
         assert b"/FontFile2" in pdf
+
+
+def test_wrap_code_under_its_indent() -> None:
+    line = "    top = asm.add(Board('top', oak, length=1200, width=600))  # glued up"
+    assert _wrap(line, 40, columns=False) == [
+        "    top = asm.add(Board('top', oak,",
+        "        length=1200, width=600))  #",
+        "        glued up",
+    ]

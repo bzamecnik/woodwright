@@ -19,11 +19,13 @@ import inspect
 import runpy
 import sys
 from collections.abc import Callable, Iterator
+from importlib.metadata import version
 from pathlib import Path
 
 from woodwright.assembly import Assembly
 from woodwright.examples import ALL, get, name
 from woodwright.export import export_model
+from woodwright.pdf import Source
 
 _RUN_NAME = "__woodwright__"  # so that `if __name__ == "__main__":` blocks don't run
 
@@ -68,11 +70,12 @@ def load_designs(path: Path) -> dict[str, Callable[[], Assembly]]:
 
 def _targets(
     parser: argparse.ArgumentParser, args: argparse.Namespace
-) -> Iterator[tuple[str, Callable[[], Assembly]]]:
-    """(output path relative to --out, assembly factory) for each thing to export."""
+) -> Iterator[tuple[str, Callable[[], Assembly], Source]]:
+    """(output path relative to --out, assembly factory, its source) for each
+    thing to export."""
     if args.all:
         for example in ALL:
-            yield name(example).replace(".", "/"), example
+            yield name(example).replace(".", "/"), example, _example_source(example)
     for target in args.names:
         file, _, selected = target.partition(".py:")
         if selected or target.endswith(".py"):
@@ -90,14 +93,29 @@ def _targets(
                     "`door = projects.cabinet_door(width=450)`, or define a function "
                     "returning one, annotated `-> Assembly`"
                 )
+            code = path.read_text()
             for key, design in designs.items():
-                yield f"{path.stem}/{key}", design
+                command = _command(f"{path.name}:{key}" if len(designs) > 1 else path.name)
+                yield f"{path.stem}/{key}", design, Source(path.name, code, command)
         else:
             try:
                 example = get(target)
             except KeyError as e:
                 parser.error(e.args[0])
-            yield target.replace(".", "/"), example
+            yield target.replace(".", "/"), example, _example_source(example)
+
+
+def _example_source(example: Callable[[], Assembly]) -> Source:
+    """An example's function (the helpers it calls are in the same version)."""
+    module = inspect.getsourcefile(example)
+    label = f"woodwright/examples/{Path(module).name}" if module else "woodwright/examples"
+    return Source(
+        f"{name(example)}, in {label}", inspect.getsource(example), _command(name(example))
+    )
+
+
+def _command(target: str) -> str:
+    return f"uvx --python 3.14 woodwright=={version('woodwright')} export {target}"
 
 
 def main(argv: list[str] | None = None, prog: str = "woodwright") -> int:
@@ -132,8 +150,8 @@ def main(argv: list[str] | None = None, prog: str = "woodwright") -> int:
 
     if args.all == bool(args.names):
         parser.error("give either example names, design files or --all")
-    for target, design in list(_targets(parser, args)):
+    for target, design, source in list(_targets(parser, args)):
         out_dir = args.out / target
-        export_model(design().resolve(), out_dir, views=not args.no_views)
+        export_model(design().resolve(), out_dir, views=not args.no_views, source=source)
         print(f"{target.replace('/', '.')} -> {out_dir}")
     return 0

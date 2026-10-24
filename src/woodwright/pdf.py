@@ -13,6 +13,7 @@ the contents take a second pass for their page numbers.
 
 import inspect
 import os
+import platform
 import re
 import textwrap
 from dataclasses import dataclass
@@ -105,15 +106,26 @@ class Page:
 
 
 @dataclass
+class Source:
+    """The code a design was made from, for the appendix of its plans."""
+
+    name: str  # a file name, or an example's
+    code: str
+    command: str | None = None  # that exports the design again
+
+
+@dataclass
 class Plans:
     """What goes into the plans of an assembly, in this order: a cover,
-    contents, a description, the drawing sheets, the cut list."""
+    contents, a description, the drawing sheets, the cut list, and an
+    appendix with the source and the versions it was made with."""
 
     name: str
     sheets: list[Page]
     cover: Sheet | None = None
     cut_list: str | None = None  # as `ResolvedModel.cut_list()`
     description: str | None = None  # in Markdown, see `markdown`
+    source: Source | None = None
 
 
 def write_plans(path: Path, plans: Plans) -> None:
@@ -142,6 +154,8 @@ def write_plans(path: Path, plans: Plans) -> None:
     if plans.cut_list:
         story += [NextPageTemplate("wide"), PageBreak(), _Heading("Cut list")]
         story.append(_monospace(plans.cut_list))
+    if plans.source:
+        story += [NextPageTemplate("wide"), PageBreak(), *_appendix(plans.source)]
     # the first page's template comes first
     first = sheets[0] if plans.cover else None
     first_id = _template_id(first.width, first.height) if first else "text"
@@ -369,17 +383,38 @@ def _inline(text: str) -> str:
     return "".join(out)
 
 
-def _monospace(text: str) -> Preformatted:
-    """Monospaced text, its lines wrapped to the width of a wide page."""
-    lines = [wrapped for line in text.splitlines() for wrapped in _wrap(line, MONO_CHARS)]
+def _appendix(source: Source) -> list[Flowable]:
+    """The source of the design, and the versions it was made with."""
+    styles = _styles()
+    versions = ", ".join(f"{package} {version(package)}" for package in ("woodwright", "build123d"))
+    versions += f", Python {platform.python_version()}"
+    flowables: list[Flowable] = [
+        _Heading("Appendix: source"),
+        Paragraph(f"Made with {escape(versions)}.", styles["body"]),
+    ]
+    if source.command:
+        flowables.append(Paragraph("To make these plans again:", styles["body"]))
+        flowables.append(Preformatted(source.command, styles["code"]))
+    flowables.append(Paragraph(f"<b>{escape(source.name)}</b>", styles["h3"]))
+    flowables.append(_monospace(source.code, columns=False))
+    return flowables
+
+
+def _monospace(text: str, columns: bool = True) -> Preformatted:
+    """Monospaced text, its lines wrapped to the width of a wide page (see `_wrap`)."""
+    lines = [wrapped for line in text.splitlines() for wrapped in _wrap(line, MONO_CHARS, columns)]
     return Preformatted("\n".join(lines), _styles()["mono"])
 
 
-def _wrap(line: str, width: int) -> list[str]:
+def _wrap(line: str, width: int, columns: bool = True) -> list[str]:
     """A line wrapped to `width`, continued under its second column (a list
-    item's text, a cut list line's size) or its indent."""
+    item's text, a cut list line's size) with `columns`, else further in
+    than its indent (code)."""
     match = re.match(r"\s*(- |\S+\s{2,})?", line)
-    indent = " " * match.end() if match.group(1) else " " * (match.end() + 4)
+    if columns and match.group(1):
+        indent = " " * match.end()
+    else:
+        indent = " " * (len(line) - len(line.lstrip()) + 4)
     return textwrap.wrap(line, width, subsequent_indent=indent, drop_whitespace=True) or [""]
 
 

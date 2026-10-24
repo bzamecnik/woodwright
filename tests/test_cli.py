@@ -69,3 +69,10 @@ def test_rejects_a_file_without_assemblies(tmp_path: Path) -> None:
     path.write_text("x = 1\n")
     with pytest.raises(SystemExit):
         main(["export", str(path)])
+
+
+def test_plans_have_the_source_in_an_appendix(design: Path, tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    assert main(["export", f"{design}:corner", "--out", str(out)]) == 0
+    pdf = (out / "my_design" / "corner" / "plans.pdf").read_bytes()
+    assert b"(Appendix: source)" in pdf
