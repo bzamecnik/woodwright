@@ -1170,6 +1170,73 @@ Open:
 - Positions of parts on the assembly sheet (shelf heights, rail positions).
 - PDF with all sheets, for printing.
 
+### M11: Identical parts and cuts (A3, A9) 🟡 planned
+
+A table has four legs cut the same way, a side table eight buttons, a case
+side 24 shelf-pin holes. The cut list and the drawings say each of them
+again: four sheets for the legs, 24 notes for the holes. A woodworker reads
+"4 x leg" and "24 x hole ø5" and makes them in one batch, with one setting
+of the gauge or the fence.
+
+#### Identical parts (A3)
+
+Found from the resolved geometry, not declared, so that every design gets
+it without extra code, and a part changed later (one leg with a drawer
+runner) drops out of its group by itself:
+
+- Two parts are **identical** when they are of the same kind (board or
+  rod), from the same stock, laminated the same way, with the same blank,
+  and the shape of one (blank minus cuts) is that of the other turned over
+  in one of the ways a board can be turned over: end for end, face down,
+  both; and for a square section (and a rod) also a quarter turn about the
+  length. The grain stays along the length. Which way it is turned doesn't
+  matter: the woodworker picks the reference face and edge of each piece.
+- They are a **mirror pair** (opposite hand) when only a mirror image of one
+  matches the other: the left and right sides of a drawer, the legs of a
+  chair with their mortises on different faces. They go in the same group,
+  as "2 as drawn, 2 mirror image", as in shop drawings.
+- Checked with the kernel: cheap filters first (size, volume, centre of
+  mass, under each turn), then the common volume of the two shapes. About
+  a second for the larger projects.
+- A **group** is named by the words its parts' names share (`leg` for
+  `leg_front_left`..., `button` for `button_front_1`...), else after its
+  first part; the first part not mirrored is the one drawn and listed.
+
+#### Identical cuts (A9)
+
+Cuts of one part that differ only in where they are: the same description
+without a position. Most cuts don't state a position (three mortises
+"42 x 8 mm, 6 deep, in bottom_face"); holes do (`at`), so a cut may give
+its offsets separately (`Cut.offsets()`, `describe(at=...)`) and the group
+states them compactly: a grid as its rows and columns ("174 to 526 every 32
+from left_end; 37 from front_edge and back_edge"), else each position.
+
+#### Outputs
+
+- **Cut list**: a line per group of parts, with its count and members
+  ("leg  720 x 60 x 60 mm  oak, 4 pieces: leg_front_left, ..."), and per
+  group of cuts ("- 24 x hole ø5, 12 deep, ..."). The sides are named
+  without the part's name under its line ("in back_edge"), as they would
+  otherwise name only one member of the group.
+- **Part sheets**: one per group (`drawings/leg.svg`), its title block
+  with the quantity and the members, as drawn and mirror image.
+- **Parts sheet**: the parts list a line per group with its quantity; in the
+  exploded view each part is ballooned with its group's number.
+- **Identical features** on a part sheet share a number: one note ("1  24 x
+  hole ø5, 12 deep, in top face"), one balloon per view; their positions
+  are still all dimensioned in the chains.
+
+#### Steps
+
+1. Grouping identical parts and mirror pairs (`woodwright.grouping`,
+   `ResolvedModel.groups`), group names; tests on the projects.
+2. Cut list: groups of parts, sides without the part name, groups of cuts
+   with compact hole positions.
+3. Drawings: a sheet per group of parts, the parts list and exploded view
+   by group.
+4. Drawings: identical features under one number.
+5. Export the examples, check by eye, docs.
+
 ### Next steps: backlog (to be prioritized)
 
 IDs are for reference when prioritizing. Joints and examples come from
