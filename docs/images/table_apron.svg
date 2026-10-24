@@ -1,0 +1,646 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="297.0mm" height="210.0mm" viewBox="0 0 297.00 210.00">
+<style>
+  .visible { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.5 }
+  .visible-m { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.35 }
+  .visible-s { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.25 }
+  .hidden { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.25;stroke-dasharray:2,1 }
+  .hidden-s { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.18;stroke-dasharray:1.5,0.75 }
+  .center { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.18;stroke-dasharray:6,1,1,1 }
+  .thin { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.18 }
+  .frame { fill:none; stroke:black; stroke-linecap:round; stroke-width:0.35 }
+  text { font-family: Helvetica, Arial, sans-serif; fill: black; }
+</style>
+<rect width="297.00" height="210.00" fill="white"/>
+<polyline class="hidden" points="72.47,30.10 72.47,43.85"/>
+<polyline class="hidden" points="67.10,33.85 71.22,33.85"/>
+<polyline class="hidden" points="66.10,33.85 67.10,33.85"/>
+<polyline class="hidden" points="71.22,33.85 71.22,30.10"/>
+<polyline class="hidden" points="72.47,30.10 207.47,30.10"/>
+<polyline class="hidden" points="207.47,30.10 208.72,30.10"/>
+<polyline class="hidden" points="71.22,30.10 72.47,30.10"/>
+<polyline class="hidden" points="72.47,43.85 72.47,30.10"/>
+<polyline class="hidden" points="72.47,45.10 72.47,30.10"/>
+<polyline class="hidden" points="67.10,43.85 72.47,43.85"/>
+<polyline class="hidden" points="66.10,43.85 67.10,43.85"/>
+<polyline class="hidden" points="67.10,43.85 67.10,33.85"/>
+<polyline class="hidden" points="207.47,45.10 207.47,30.10"/>
+<polyline class="hidden" points="72.47,45.10 207.47,45.10"/>
+<polyline class="hidden" points="97.60,32.60 92.35,32.60"/>
+<polyline class="hidden" points="97.60,32.60 97.60,31.60"/>
+<polyline class="hidden" points="92.35,32.60 92.35,31.60"/>
+<polyline class="hidden" points="97.60,31.60 92.35,31.60"/>
+<polyline class="hidden" points="142.60,32.60 137.35,32.60"/>
+<polyline class="hidden" points="142.60,32.60 142.60,31.60"/>
+<polyline class="hidden" points="137.35,32.60 137.35,31.60"/>
+<polyline class="hidden" points="142.60,31.60 137.35,31.60"/>
+<polyline class="hidden" points="187.60,32.60 182.35,32.60"/>
+<polyline class="hidden" points="187.60,32.60 187.60,31.60"/>
+<polyline class="hidden" points="187.60,31.60 182.35,31.60"/>
+<polyline class="hidden" points="182.35,32.60 182.35,31.60"/>
+<polyline class="hidden" points="207.47,30.10 207.47,43.85"/>
+<polyline class="hidden" points="207.47,43.85 207.47,30.10"/>
+<polyline class="hidden" points="208.72,33.85 208.72,30.10"/>
+<polyline class="hidden" points="208.72,33.85 212.85,33.85"/>
+<polyline class="hidden" points="212.85,33.85 212.85,43.85"/>
+<polyline class="hidden" points="207.47,43.85 212.85,43.85"/>
+<polyline class="hidden" points="92.35,32.60 97.60,32.60"/>
+<polyline class="hidden" points="97.60,32.60 97.60,31.60"/>
+<polyline class="hidden" points="92.35,32.60 92.35,31.60"/>
+<polyline class="hidden" points="92.35,31.60 97.60,31.60"/>
+<polyline class="hidden" points="137.35,32.60 142.60,32.60"/>
+<polyline class="hidden" points="142.60,32.60 142.60,31.60"/>
+<polyline class="hidden" points="137.35,32.60 137.35,31.60"/>
+<polyline class="hidden" points="137.35,31.60 142.60,31.60"/>
+<polyline class="hidden" points="182.35,32.60 187.60,32.60"/>
+<polyline class="hidden" points="187.60,32.60 187.60,31.60"/>
+<polyline class="hidden" points="182.35,31.60 187.60,31.60"/>
+<polyline class="hidden" points="182.35,32.60 182.35,31.60"/>
+<polyline class="hidden" points="212.85,43.85 213.85,43.85"/>
+<polyline class="hidden" points="212.85,33.85 213.85,33.85"/>
+<polyline class="visible-m" points="66.10,33.85 71.22,33.85"/>
+<polyline class="visible-m" points="71.22,33.85 71.22,30.10"/>
+<polyline class="visible-m" points="71.22,30.10 72.47,30.10"/>
+<polyline class="visible-m" points="66.10,43.85 72.47,43.85"/>
+<polyline class="visible-m" points="66.10,43.85 66.10,33.85"/>
+<polyline class="visible-m" points="207.47,30.10 208.72,30.10"/>
+<polyline class="visible-m" points="72.47,30.10 207.47,30.10"/>
+<polyline class="visible-m" points="72.47,45.10 72.47,30.10"/>
+<polyline class="visible-m" points="207.47,45.10 207.47,30.10"/>
+<polyline class="visible-m" points="208.72,33.85 208.72,30.10"/>
+<polyline class="visible-m" points="208.72,33.85 213.85,33.85"/>
+<polyline class="visible-m" points="213.85,33.85 213.85,43.85"/>
+<polyline class="visible-m" points="207.47,43.85 213.85,43.85"/>
+<polyline class="visible-m" points="72.47,45.10 207.47,45.10"/>
+<polyline class="thin" points="69.29,37.60 69.29,48.10"/>
+<circle class="thin" cx="69.29" cy="37.60" r="0.50" style="fill:black"/>
+<circle class="thin" cx="69.29" cy="50.70" r="2.60" style="fill:white"/>
+<text x="69.29" y="51.60" font-size="2.5" text-anchor="middle">1</text>
+<polyline class="thin" points="210.66,37.60 216.85,37.60"/>
+<circle class="thin" cx="210.66" cy="37.60" r="0.50" style="fill:black"/>
+<circle class="thin" cx="219.45" cy="37.60" r="2.60" style="fill:white"/>
+<text x="219.45" y="38.50" font-size="2.5" text-anchor="middle">2</text>
+<polyline class="thin" points="66.10,29.10 66.10,21.60"/>
+<polyline class="thin" points="71.22,29.10 71.22,21.60"/>
+<polyline class="thin" points="66.10,23.10 71.22,23.10"/>
+<polyline class="visible" points="65.18,24.02 67.02,22.18"/>
+<polyline class="visible" points="70.31,24.02 72.14,22.18"/>
+<text x="62.60" y="22.30" font-size="2.5" text-anchor="middle">41</text>
+<polyline class="thin" points="71.22,29.10 71.22,21.60"/>
+<polyline class="thin" points="72.47,29.10 72.47,21.60"/>
+<polyline class="thin" points="71.22,23.10 72.47,23.10"/>
+<polyline class="visible" points="70.31,24.02 72.14,22.18"/>
+<polyline class="visible" points="71.56,24.02 73.39,22.18"/>
+<text x="71.85" y="18.20" font-size="2.5" text-anchor="middle">10</text>
+<polyline class="thin" points="72.47,29.10 72.47,21.60"/>
+<polyline class="thin" points="207.47,29.10 207.47,21.60"/>
+<polyline class="thin" points="72.47,23.10 207.47,23.10"/>
+<polyline class="visible" points="71.56,24.02 73.39,22.18"/>
+<polyline class="visible" points="206.56,24.02 208.39,22.18"/>
+<text x="139.97" y="22.30" font-size="2.5" text-anchor="middle">1080</text>
+<polyline class="thin" points="207.47,29.10 207.47,21.60"/>
+<polyline class="thin" points="208.72,29.10 208.72,21.60"/>
+<polyline class="thin" points="207.47,23.10 208.72,23.10"/>
+<polyline class="visible" points="206.56,24.02 208.39,22.18"/>
+<polyline class="visible" points="207.81,24.02 209.64,22.18"/>
+<text x="208.10" y="18.20" font-size="2.5" text-anchor="middle">10</text>
+<polyline class="thin" points="208.72,29.10 208.72,21.60"/>
+<polyline class="thin" points="213.85,29.10 213.85,21.60"/>
+<polyline class="thin" points="208.72,23.10 213.85,23.10"/>
+<polyline class="visible" points="207.81,24.02 209.64,22.18"/>
+<polyline class="visible" points="212.93,24.02 214.77,22.18"/>
+<text x="217.35" y="22.30" font-size="2.5" text-anchor="middle">41</text>
+<polyline class="thin" points="66.10,29.10 66.10,10.50"/>
+<polyline class="thin" points="213.85,29.10 213.85,10.50"/>
+<polyline class="thin" points="66.10,12.00 213.85,12.00"/>
+<polyline class="visible" points="65.18,12.92 67.02,11.08"/>
+<polyline class="visible" points="212.93,12.92 214.77,11.08"/>
+<text x="139.97" y="11.20" font-size="2.5" text-anchor="middle">1182</text>
+<polyline class="thin" points="65.10,45.10 57.60,45.10"/>
+<polyline class="thin" points="65.10,30.10 57.60,30.10"/>
+<polyline class="thin" points="59.10,45.10 59.10,30.10"/>
+<polyline class="visible" points="60.02,46.02 58.18,44.18"/>
+<polyline class="visible" points="60.02,31.02 58.18,29.18"/>
+<text x="58.30" y="37.60" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 58.30 37.60)">120</text>
+<text x="139.97" y="60.80" font-size="3.5" text-anchor="middle">TOP FACE</text>
+<polyline class="hidden" points="66.10,72.30 71.22,72.30"/>
+<polyline class="hidden" points="71.22,72.30 72.47,72.30"/>
+<polyline class="hidden" points="67.10,73.30 71.22,73.30"/>
+<polyline class="hidden" points="71.22,73.30 71.22,72.30"/>
+<polyline class="hidden" points="66.10,72.30 67.10,73.30"/>
+<polyline class="hidden" points="71.22,72.30 71.22,73.30"/>
+<polyline class="hidden" points="72.47,74.05 207.47,74.05"/>
+<polyline class="hidden" points="207.47,73.30 207.47,74.05"/>
+<polyline class="hidden" points="207.47,73.30 208.72,73.30"/>
+<polyline class="hidden" points="208.72,72.30 208.72,73.30"/>
+<polyline class="hidden" points="207.47,72.30 208.72,72.30"/>
+<polyline class="hidden" points="207.47,71.55 207.47,72.30"/>
+<polyline class="hidden" points="72.47,71.55 207.47,71.55"/>
+<polyline class="hidden" points="72.47,71.55 72.47,72.30"/>
+<polyline class="hidden" points="71.22,73.30 72.47,73.30"/>
+<polyline class="hidden" points="72.47,73.30 72.47,74.05"/>
+<polyline class="hidden" points="72.47,73.30 72.47,72.30"/>
+<polyline class="hidden" points="97.60,74.05 92.35,74.05"/>
+<polyline class="hidden" points="97.60,74.05 92.35,74.05"/>
+<polyline class="hidden" points="142.60,74.05 137.35,74.05"/>
+<polyline class="hidden" points="142.60,74.05 137.35,74.05"/>
+<polyline class="hidden" points="187.60,74.05 182.35,74.05"/>
+<polyline class="hidden" points="187.60,74.05 182.35,74.05"/>
+<polyline class="hidden" points="207.47,73.30 207.47,72.30"/>
+<polyline class="hidden" points="208.72,73.30 212.85,73.30"/>
+<polyline class="hidden" points="208.72,73.30 208.72,72.30"/>
+<polyline class="hidden" points="208.72,72.30 213.85,72.30"/>
+<polyline class="hidden" points="97.60,74.05 97.60,73.30"/>
+<polyline class="hidden" points="92.35,73.30 97.60,73.30"/>
+<polyline class="hidden" points="92.35,74.05 92.35,73.30"/>
+<polyline class="hidden" points="97.60,74.05 97.60,73.30"/>
+<polyline class="hidden" points="92.35,74.05 92.35,73.30"/>
+<polyline class="hidden" points="92.35,73.30 97.60,73.30"/>
+<polyline class="hidden" points="142.60,74.05 142.60,73.30"/>
+<polyline class="hidden" points="137.35,73.30 142.60,73.30"/>
+<polyline class="hidden" points="137.35,74.05 137.35,73.30"/>
+<polyline class="hidden" points="142.60,74.05 142.60,73.30"/>
+<polyline class="hidden" points="137.35,74.05 137.35,73.30"/>
+<polyline class="hidden" points="137.35,73.30 142.60,73.30"/>
+<polyline class="hidden" points="187.60,74.05 187.60,73.30"/>
+<polyline class="hidden" points="182.35,73.30 187.60,73.30"/>
+<polyline class="hidden" points="182.35,74.05 182.35,73.30"/>
+<polyline class="hidden" points="187.60,74.05 187.60,73.30"/>
+<polyline class="hidden" points="182.35,73.30 187.60,73.30"/>
+<polyline class="hidden" points="182.35,74.05 182.35,73.30"/>
+<polyline class="hidden" points="212.85,73.30 213.85,72.30"/>
+<polyline class="visible-m" points="66.10,72.30 72.47,72.30"/>
+<polyline class="visible-m" points="72.47,71.55 72.47,74.05"/>
+<polyline class="visible-m" points="67.10,73.30 72.47,73.30"/>
+<polyline class="visible-m" points="66.10,72.30 67.10,73.30"/>
+<polyline class="visible-m" points="72.47,74.05 207.47,74.05"/>
+<polyline class="visible-m" points="207.47,71.55 207.47,74.05"/>
+<polyline class="visible-m" points="207.47,73.30 212.85,73.30"/>
+<polyline class="visible-m" points="207.47,72.30 213.85,72.30"/>
+<polyline class="visible-m" points="72.47,71.55 207.47,71.55"/>
+<polyline class="visible-m" points="212.85,73.30 213.85,72.30"/>
+<polyline class="thin" points="94.97,73.68 137.40,79.31"/>
+<circle class="thin" cx="94.97" cy="73.68" r="0.50" style="fill:black"/>
+<polyline class="thin" points="139.97,73.68 139.97,77.05"/>
+<circle class="thin" cx="139.97" cy="73.68" r="0.50" style="fill:black"/>
+<polyline class="thin" points="184.97,73.68 142.55,79.31"/>
+<circle class="thin" cx="184.97" cy="73.68" r="0.50" style="fill:black"/>
+<circle class="thin" cx="139.97" cy="79.65" r="2.60" style="fill:white"/>
+<text x="139.97" y="80.55" font-size="2.5" text-anchor="middle">3</text>
+<polyline class="thin" points="65.10,74.05 57.60,74.05"/>
+<polyline class="thin" points="65.10,71.55 57.60,71.55"/>
+<polyline class="thin" points="59.10,74.05 59.10,71.55"/>
+<polyline class="visible" points="60.02,74.97 58.18,73.13"/>
+<polyline class="visible" points="60.02,72.47 58.18,70.63"/>
+<text x="58.30" y="68.05" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 58.30 68.05)">20</text>
+<text x="139.97" y="89.75" font-size="3.5" text-anchor="middle">FRONT EDGE</text>
+<polyline class="hidden" points="250.05,72.00 256.05,72.00"/>
+<polyline class="hidden" points="256.05,72.00 234.05,72.00"/>
+<polyline class="hidden" points="234.05,72.00 250.05,72.00"/>
+<polyline class="hidden" points="250.05,73.60 250.05,72.00"/>
+<polyline class="hidden" points="250.05,72.00 250.05,73.60"/>
+<polyline class="hidden" points="256.05,72.00 256.05,73.60"/>
+<polyline class="hidden" points="250.05,73.60 256.05,73.60"/>
+<polyline class="hidden" points="256.05,70.80 256.05,72.00"/>
+<polyline class="hidden" points="256.05,73.60 256.05,74.80"/>
+<polyline class="hidden" points="234.05,73.60 234.05,72.00"/>
+<polyline class="hidden" points="234.05,73.60 256.05,73.60"/>
+<polyline class="hidden" points="232.05,74.80 256.05,74.80"/>
+<polyline class="hidden" points="232.05,70.80 232.05,74.80"/>
+<polyline class="hidden" points="232.05,70.80 256.05,70.80"/>
+<polyline class="hidden" points="234.05,72.00 234.05,73.60"/>
+<polyline class="hidden" points="234.05,73.60 250.05,73.60"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="252.05,74.80 253.65,74.80"/>
+<polyline class="hidden" points="256.05,72.00 234.05,72.00"/>
+<polyline class="hidden" points="234.05,73.60 234.05,72.00"/>
+<polyline class="hidden" points="234.05,73.60 256.05,73.60"/>
+<polyline class="hidden" points="250.05,73.60 250.05,72.00"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,74.80 252.05,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="253.65,74.80 253.65,73.60"/>
+<polyline class="hidden" points="252.05,73.60 253.65,73.60"/>
+<polyline class="visible-m" points="256.05,73.60 256.05,74.80"/>
+<polyline class="visible-m" points="256.05,72.00 256.05,73.60"/>
+<polyline class="visible-m" points="256.05,70.80 256.05,72.00"/>
+<polyline class="visible-m" points="232.05,74.80 256.05,74.80"/>
+<polyline class="visible-m" points="232.05,70.80 232.05,74.80"/>
+<polyline class="visible-m" points="232.05,70.80 256.05,70.80"/>
+<polyline class="visible-m" points="250.05,73.60 256.05,73.60"/>
+<polyline class="visible-m" points="250.05,73.60 234.05,73.60"/>
+<polyline class="visible-m" points="250.05,72.00 256.05,72.00"/>
+<polyline class="visible-m" points="250.05,72.00 234.05,72.00"/>
+<polyline class="visible-m" points="234.05,73.60 234.05,72.00"/>
+<polyline class="visible-m" points="250.05,73.60 250.05,72.00"/>
+<polyline class="thin" points="257.05,74.80 264.55,74.80"/>
+<polyline class="thin" points="257.05,73.60 264.55,73.60"/>
+<polyline class="thin" points="263.05,74.80 263.05,73.60"/>
+<polyline class="visible" points="263.97,75.72 262.13,73.88"/>
+<polyline class="visible" points="263.97,74.52 262.13,72.68"/>
+<text x="262.25" y="77.60" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 262.25 77.60)">6</text>
+<polyline class="thin" points="257.05,73.60 264.55,73.60"/>
+<polyline class="thin" points="257.05,72.00 264.55,72.00"/>
+<polyline class="thin" points="263.05,73.60 263.05,72.00"/>
+<polyline class="visible" points="263.97,74.52 262.13,72.68"/>
+<polyline class="visible" points="263.97,72.92 262.13,71.08"/>
+<text x="266.35" y="72.80" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 266.35 72.80)">8</text>
+<polyline class="thin" points="257.05,72.00 264.55,72.00"/>
+<polyline class="thin" points="257.05,70.80 264.55,70.80"/>
+<polyline class="thin" points="263.05,72.00 263.05,70.80"/>
+<polyline class="visible" points="263.97,72.92 262.13,71.08"/>
+<polyline class="visible" points="263.97,71.72 262.13,69.88"/>
+<text x="262.25" y="68.00" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 262.25 68.00)">6</text>
+<polyline class="thin" points="232.05,75.80 232.05,83.30"/>
+<polyline class="thin" points="234.05,75.80 234.05,83.30"/>
+<polyline class="thin" points="232.05,81.80 234.05,81.80"/>
+<polyline class="visible" points="231.13,82.72 232.97,80.88"/>
+<polyline class="visible" points="233.13,82.72 234.97,80.88"/>
+<text x="228.55" y="81.00" font-size="2.5" text-anchor="middle">10</text>
+<polyline class="thin" points="234.05,75.80 234.05,83.30"/>
+<polyline class="thin" points="250.05,75.80 250.05,83.30"/>
+<polyline class="thin" points="234.05,81.80 250.05,81.80"/>
+<polyline class="visible" points="233.13,82.72 234.97,80.88"/>
+<polyline class="visible" points="249.13,82.72 250.97,80.88"/>
+<text x="242.05" y="81.00" font-size="2.5" text-anchor="middle">80</text>
+<polyline class="thin" points="250.05,75.80 250.05,83.30"/>
+<polyline class="thin" points="256.05,75.80 256.05,83.30"/>
+<polyline class="thin" points="250.05,81.80 256.05,81.80"/>
+<polyline class="visible" points="249.13,82.72 250.97,80.88"/>
+<polyline class="visible" points="255.13,82.72 256.97,80.88"/>
+<text x="253.05" y="81.00" font-size="2.5" text-anchor="middle">30</text>
+<text x="244.05" y="91.30" font-size="3.5" text-anchor="middle">RIGHT END  1:5</text>
+<polyline class="hidden" points="23.10,72.00 45.10,72.00"/>
+<polyline class="hidden" points="29.10,73.60 29.10,72.00"/>
+<polyline class="hidden" points="23.10,73.60 23.10,74.80"/>
+<polyline class="hidden" points="23.10,72.00 23.10,73.60"/>
+<polyline class="hidden" points="23.10,70.80 23.10,72.00"/>
+<polyline class="hidden" points="45.10,73.60 45.10,72.00"/>
+<polyline class="hidden" points="45.10,73.60 23.10,73.60"/>
+<polyline class="hidden" points="47.10,74.80 23.10,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="27.10,74.80 25.50,74.80"/>
+<polyline class="hidden" points="23.10,72.00 45.10,72.00"/>
+<polyline class="hidden" points="45.10,73.60 45.10,72.00"/>
+<polyline class="hidden" points="45.10,73.60 23.10,73.60"/>
+<polyline class="hidden" points="47.10,70.80 47.10,74.80"/>
+<polyline class="hidden" points="47.10,70.80 23.10,70.80"/>
+<polyline class="hidden" points="29.10,73.60 23.10,73.60"/>
+<polyline class="hidden" points="29.10,73.60 45.10,73.60"/>
+<polyline class="hidden" points="29.10,72.00 23.10,72.00"/>
+<polyline class="hidden" points="29.10,73.60 29.10,72.00"/>
+<polyline class="hidden" points="29.10,72.00 45.10,72.00"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,74.80 27.10,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="25.50,74.80 25.50,73.60"/>
+<polyline class="hidden" points="27.10,73.60 25.50,73.60"/>
+<polyline class="hidden" points="45.10,73.60 45.10,72.00"/>
+<polyline class="hidden" points="29.10,73.60 29.10,72.00"/>
+<polyline class="visible-m" points="29.10,72.00 23.10,72.00"/>
+<polyline class="visible-m" points="45.10,72.00 29.10,72.00"/>
+<polyline class="visible-m" points="29.10,72.00 29.10,73.60"/>
+<polyline class="visible-m" points="23.10,72.00 23.10,73.60"/>
+<polyline class="visible-m" points="29.10,73.60 23.10,73.60"/>
+<polyline class="visible-m" points="23.10,70.80 23.10,72.00"/>
+<polyline class="visible-m" points="23.10,73.60 23.10,74.80"/>
+<polyline class="visible-m" points="47.10,74.80 23.10,74.80"/>
+<polyline class="visible-m" points="47.10,70.80 47.10,74.80"/>
+<polyline class="visible-m" points="47.10,70.80 23.10,70.80"/>
+<polyline class="visible-m" points="45.10,72.00 45.10,73.60"/>
+<polyline class="visible-m" points="45.10,73.60 29.10,73.60"/>
+<polyline class="thin" points="22.10,74.80 14.60,74.80"/>
+<polyline class="thin" points="22.10,73.60 14.60,73.60"/>
+<polyline class="thin" points="16.10,74.80 16.10,73.60"/>
+<polyline class="visible" points="17.02,75.72 15.18,73.88"/>
+<polyline class="visible" points="17.02,74.52 15.18,72.68"/>
+<text x="15.30" y="77.60" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 15.30 77.60)">6</text>
+<polyline class="thin" points="22.10,73.60 14.60,73.60"/>
+<polyline class="thin" points="22.10,72.00 14.60,72.00"/>
+<polyline class="thin" points="16.10,73.60 16.10,72.00"/>
+<polyline class="visible" points="17.02,74.52 15.18,72.68"/>
+<polyline class="visible" points="17.02,72.92 15.18,71.08"/>
+<text x="11.20" y="72.80" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 11.20 72.80)">8</text>
+<polyline class="thin" points="22.10,72.00 14.60,72.00"/>
+<polyline class="thin" points="22.10,70.80 14.60,70.80"/>
+<polyline class="thin" points="16.10,72.00 16.10,70.80"/>
+<polyline class="visible" points="17.02,72.92 15.18,71.08"/>
+<polyline class="visible" points="17.02,71.72 15.18,69.88"/>
+<text x="15.30" y="68.00" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 15.30 68.00)">6</text>
+<polyline class="thin" points="23.10,75.80 23.10,83.30"/>
+<polyline class="thin" points="29.10,75.80 29.10,83.30"/>
+<polyline class="thin" points="23.10,81.80 29.10,81.80"/>
+<polyline class="visible" points="22.18,82.72 24.02,80.88"/>
+<polyline class="visible" points="28.18,82.72 30.02,80.88"/>
+<text x="26.10" y="81.00" font-size="2.5" text-anchor="middle">30</text>
+<polyline class="thin" points="29.10,75.80 29.10,83.30"/>
+<polyline class="thin" points="45.10,75.80 45.10,83.30"/>
+<polyline class="thin" points="29.10,81.80 45.10,81.80"/>
+<polyline class="visible" points="28.18,82.72 30.02,80.88"/>
+<polyline class="visible" points="44.18,82.72 46.02,80.88"/>
+<text x="37.10" y="81.00" font-size="2.5" text-anchor="middle">80</text>
+<polyline class="thin" points="45.10,75.80 45.10,83.30"/>
+<polyline class="thin" points="47.10,75.80 47.10,83.30"/>
+<polyline class="thin" points="45.10,81.80 47.10,81.80"/>
+<polyline class="visible" points="44.18,82.72 46.02,80.88"/>
+<polyline class="visible" points="46.18,82.72 48.02,80.88"/>
+<text x="50.60" y="81.00" font-size="2.5" text-anchor="middle">10</text>
+<text x="35.10" y="91.30" font-size="3.5" text-anchor="middle">LEFT END  1:5</text>
+<polyline class="hidden" points="66.10,112.55 71.22,112.55"/>
+<polyline class="hidden" points="71.22,112.55 71.22,116.30"/>
+<polyline class="hidden" points="71.22,116.30 72.47,116.30"/>
+<polyline class="hidden" points="72.47,116.30 72.47,102.55"/>
+<polyline class="hidden" points="66.10,102.55 72.47,102.55"/>
+<polyline class="hidden" points="207.47,116.30 208.72,116.30"/>
+<polyline class="hidden" points="72.47,116.30 207.47,116.30"/>
+<polyline class="hidden" points="72.47,102.55 72.47,116.30"/>
+<polyline class="hidden" points="72.47,101.30 72.47,116.30"/>
+<polyline class="hidden" points="207.47,116.30 207.47,102.55"/>
+<polyline class="hidden" points="207.47,102.55 207.47,116.30"/>
+<polyline class="hidden" points="207.47,101.30 207.47,116.30"/>
+<polyline class="hidden" points="208.72,112.55 208.72,116.30"/>
+<polyline class="hidden" points="208.72,112.55 213.85,112.55"/>
+<polyline class="hidden" points="207.47,102.55 213.85,102.55"/>
+<polyline class="hidden" points="72.47,101.30 207.47,101.30"/>
+<polyline class="hidden" points="92.35,113.80 97.60,113.80"/>
+<polyline class="hidden" points="97.60,113.80 97.60,114.80"/>
+<polyline class="hidden" points="92.35,113.80 92.35,114.80"/>
+<polyline class="hidden" points="92.35,114.80 97.60,114.80"/>
+<polyline class="hidden" points="137.35,113.80 142.60,113.80"/>
+<polyline class="hidden" points="142.60,113.80 142.60,114.80"/>
+<polyline class="hidden" points="137.35,113.80 137.35,114.80"/>
+<polyline class="hidden" points="137.35,114.80 142.60,114.80"/>
+<polyline class="hidden" points="182.35,113.80 187.60,113.80"/>
+<polyline class="hidden" points="187.60,113.80 187.60,114.80"/>
+<polyline class="hidden" points="182.35,114.80 187.60,114.80"/>
+<polyline class="hidden" points="182.35,113.80 182.35,114.80"/>
+<polyline class="visible-m" points="66.10,102.55 66.10,112.55"/>
+<polyline class="visible-m" points="67.10,112.55 71.22,112.55"/>
+<polyline class="visible-m" points="66.10,112.55 67.10,112.55"/>
+<polyline class="visible-m" points="71.22,112.55 71.22,116.30"/>
+<polyline class="visible-m" points="72.47,116.30 207.47,116.30"/>
+<polyline class="visible-m" points="207.47,116.30 208.72,116.30"/>
+<polyline class="visible-m" points="71.22,116.30 72.47,116.30"/>
+<polyline class="visible-m" points="72.47,101.30 72.47,116.30"/>
+<polyline class="visible-m" points="67.10,102.55 72.47,102.55"/>
+<polyline class="visible-m" points="66.10,102.55 67.10,102.55"/>
+<polyline class="visible-m" points="67.10,102.55 67.10,112.55"/>
+<polyline class="visible-m" points="207.47,101.30 207.47,116.30"/>
+<polyline class="visible-m" points="72.47,101.30 207.47,101.30"/>
+<polyline class="visible-m" points="97.60,113.80 92.35,113.80"/>
+<polyline class="visible-m" points="97.60,113.80 97.60,114.80"/>
+<polyline class="visible-m" points="92.35,113.80 92.35,114.80"/>
+<polyline class="visible-m" points="97.60,114.80 92.35,114.80"/>
+<polyline class="visible-m" points="142.60,113.80 137.35,113.80"/>
+<polyline class="visible-m" points="142.60,113.80 142.60,114.80"/>
+<polyline class="visible-m" points="137.35,113.80 137.35,114.80"/>
+<polyline class="visible-m" points="142.60,114.80 137.35,114.80"/>
+<polyline class="visible-m" points="187.60,113.80 182.35,113.80"/>
+<polyline class="visible-m" points="187.60,113.80 187.60,114.80"/>
+<polyline class="visible-m" points="187.60,114.80 182.35,114.80"/>
+<polyline class="visible-m" points="182.35,113.80 182.35,114.80"/>
+<polyline class="visible-m" points="208.72,112.55 208.72,116.30"/>
+<polyline class="visible-m" points="208.72,112.55 212.85,112.55"/>
+<polyline class="visible-m" points="212.85,112.55 212.85,102.55"/>
+<polyline class="visible-m" points="207.47,102.55 212.85,102.55"/>
+<polyline class="visible-m" points="213.85,112.55 213.85,102.55"/>
+<polyline class="visible-m" points="212.85,102.55 213.85,102.55"/>
+<polyline class="visible-m" points="212.85,112.55 213.85,112.55"/>
+<polyline class="thin" points="66.10,117.30 66.10,124.80"/>
+<polyline class="thin" points="92.35,117.30 92.35,124.80"/>
+<polyline class="thin" points="66.10,123.30 92.35,123.30"/>
+<polyline class="visible" points="65.18,124.22 67.02,122.38"/>
+<polyline class="visible" points="91.43,124.22 93.27,122.38"/>
+<text x="79.22" y="122.50" font-size="2.5" text-anchor="middle">210</text>
+<polyline class="thin" points="92.35,117.30 92.35,124.80"/>
+<polyline class="thin" points="97.60,117.30 97.60,124.80"/>
+<polyline class="thin" points="92.35,123.30 97.60,123.30"/>
+<polyline class="visible" points="91.43,124.22 93.27,122.38"/>
+<polyline class="visible" points="96.68,124.22 98.52,122.38"/>
+<text x="94.97" y="126.60" font-size="2.5" text-anchor="middle">42</text>
+<polyline class="thin" points="97.60,117.30 97.60,124.80"/>
+<polyline class="thin" points="137.35,117.30 137.35,124.80"/>
+<polyline class="thin" points="97.60,123.30 137.35,123.30"/>
+<polyline class="visible" points="96.68,124.22 98.52,122.38"/>
+<polyline class="visible" points="136.43,124.22 138.27,122.38"/>
+<text x="117.47" y="122.50" font-size="2.5" text-anchor="middle">318</text>
+<polyline class="thin" points="137.35,117.30 137.35,124.80"/>
+<polyline class="thin" points="142.60,117.30 142.60,124.80"/>
+<polyline class="thin" points="137.35,123.30 142.60,123.30"/>
+<polyline class="visible" points="136.43,124.22 138.27,122.38"/>
+<polyline class="visible" points="141.68,124.22 143.52,122.38"/>
+<text x="139.97" y="126.60" font-size="2.5" text-anchor="middle">42</text>
+<polyline class="thin" points="142.60,117.30 142.60,124.80"/>
+<polyline class="thin" points="182.35,117.30 182.35,124.80"/>
+<polyline class="thin" points="142.60,123.30 182.35,123.30"/>
+<polyline class="visible" points="141.68,124.22 143.52,122.38"/>
+<polyline class="visible" points="181.43,124.22 183.27,122.38"/>
+<text x="162.47" y="122.50" font-size="2.5" text-anchor="middle">318</text>
+<polyline class="thin" points="182.35,117.30 182.35,124.80"/>
+<polyline class="thin" points="187.60,117.30 187.60,124.80"/>
+<polyline class="thin" points="182.35,123.30 187.60,123.30"/>
+<polyline class="visible" points="181.43,124.22 183.27,122.38"/>
+<polyline class="visible" points="186.68,124.22 188.52,122.38"/>
+<text x="184.97" y="126.60" font-size="2.5" text-anchor="middle">42</text>
+<polyline class="thin" points="187.60,117.30 187.60,124.80"/>
+<polyline class="thin" points="213.85,117.30 213.85,124.80"/>
+<polyline class="thin" points="187.60,123.30 213.85,123.30"/>
+<polyline class="visible" points="186.68,124.22 188.52,122.38"/>
+<polyline class="visible" points="212.93,124.22 214.77,122.38"/>
+<text x="200.72" y="122.50" font-size="2.5" text-anchor="middle">210</text>
+<text x="139.97" y="136.90" font-size="3.5" text-anchor="middle">BOTTOM FACE</text>
+<polyline class="hidden" points="36.61,42.30 36.61,46.30"/>
+<polyline class="hidden" points="36.61,46.30 36.61,42.30"/>
+<polyline class="hidden" points="36.61,46.30 36.61,42.30"/>
+<polyline class="visible-m" points="36.61,46.30 36.61,42.30"/>
+<polyline class="thin" points="28.23,48.30 28.23,45.50 26.73,44.70 29.73,43.90 28.23,43.10 28.23,40.30"/>
+<polyline class="thin" points="38.61,48.30 38.61,45.50 37.11,44.70 40.11,43.90 38.61,43.10 38.61,40.30"/>
+<polyline class="thin" points="26.23,46.30 32.22,46.30 33.02,44.80 33.82,47.80 34.62,46.30 40.61,46.30"/>
+<polyline class="thin" points="26.23,42.30 32.22,42.30 33.02,40.80 33.82,43.80 34.62,42.30 40.61,42.30"/>
+<polyline class="thin" points="30.23,44.30 30.23,39.30"/>
+<circle class="thin" cx="30.23" cy="44.30" r="0.50" style="fill:black"/>
+<circle class="thin" cx="30.23" cy="36.70" r="2.60" style="fill:white"/>
+<text x="30.23" y="37.60" font-size="2.5" text-anchor="middle">1</text>
+<polyline class="thin" points="34.11,47.30 34.11,54.80"/>
+<polyline class="thin" points="36.61,47.30 36.61,54.80"/>
+<polyline class="thin" points="34.11,53.30 36.61,53.30"/>
+<polyline class="visible" points="33.19,54.22 35.03,52.38"/>
+<polyline class="visible" points="35.69,54.22 37.53,52.38"/>
+<text x="40.11" y="52.50" font-size="2.5" text-anchor="middle">10</text>
+<text x="33.42" y="62.80" font-size="3.5" text-anchor="middle">TOP FACE: 1  1:4</text>
+<polyline class="hidden" points="242.54,46.30 242.54,42.30"/>
+<polyline class="hidden" points="242.54,42.30 242.54,46.30"/>
+<polyline class="hidden" points="242.54,46.30 242.54,42.30"/>
+<polyline class="visible-m" points="242.54,46.30 242.54,42.30"/>
+<polyline class="thin" points="240.54,48.30 240.54,45.50 239.04,44.70 242.04,43.90 240.54,43.10 240.54,40.30"/>
+<polyline class="thin" points="250.92,48.30 250.92,45.50 249.42,44.70 252.42,43.90 250.92,43.10 250.92,40.30"/>
+<polyline class="thin" points="238.54,46.30 244.53,46.30 245.33,44.80 246.13,47.80 246.93,46.30 252.92,46.30"/>
+<polyline class="thin" points="238.54,42.30 244.53,42.30 245.33,40.80 246.13,43.80 246.93,42.30 252.92,42.30"/>
+<polyline class="thin" points="248.92,44.30 248.92,39.30"/>
+<circle class="thin" cx="248.92" cy="44.30" r="0.50" style="fill:black"/>
+<circle class="thin" cx="248.92" cy="36.70" r="2.60" style="fill:white"/>
+<text x="248.92" y="37.60" font-size="2.5" text-anchor="middle">2</text>
+<polyline class="thin" points="242.54,47.30 242.54,54.80"/>
+<polyline class="thin" points="245.04,47.30 245.04,54.80"/>
+<polyline class="thin" points="242.54,53.30 245.04,53.30"/>
+<polyline class="visible" points="241.62,54.22 243.46,52.38"/>
+<polyline class="visible" points="244.12,54.22 245.96,52.38"/>
+<text x="248.54" y="52.50" font-size="2.5" text-anchor="middle">10</text>
+<text x="245.73" y="62.80" font-size="3.5" text-anchor="middle">TOP FACE: 2  1:4</text>
+<polyline class="hidden" points="83.12,151.90 87.12,151.90"/>
+<polyline class="hidden" points="83.12,146.90 87.12,146.90"/>
+<polyline class="hidden" points="83.12,148.90 87.12,148.90"/>
+<polyline class="visible-m" points="83.12,151.90 87.12,151.90"/>
+<polyline class="visible-m" points="87.12,146.90 83.12,146.90"/>
+<polyline class="visible-m" points="87.12,148.90 83.12,148.90"/>
+<polyline class="thin" points="83.12,153.90 83.12,149.60 81.62,148.80 84.62,148.00 83.12,147.20 83.12,142.90"/>
+<polyline class="thin" points="87.12,153.90 87.12,149.60 85.62,148.80 88.62,148.00 87.12,147.20 87.12,142.90"/>
+<polyline class="thin" points="81.12,144.90 83.92,144.90 84.72,143.40 85.52,146.40 86.32,144.90 89.12,144.90"/>
+<polyline class="thin" points="85.12,147.90 90.12,147.90"/>
+<circle class="thin" cx="85.12" cy="147.90" r="0.50" style="fill:black"/>
+<circle class="thin" cx="92.72" cy="147.90" r="2.60" style="fill:white"/>
+<text x="92.72" y="148.80" font-size="2.5" text-anchor="middle">3</text>
+<polyline class="thin" points="82.12,151.90 74.62,151.90"/>
+<polyline class="thin" points="82.12,148.90 74.62,148.90"/>
+<polyline class="thin" points="76.12,151.90 76.12,148.90"/>
+<polyline class="visible" points="77.04,152.82 75.20,150.98"/>
+<polyline class="visible" points="77.04,149.82 75.20,147.98"/>
+<text x="75.32" y="155.40" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 75.32 155.40)">12</text>
+<polyline class="thin" points="82.12,148.90 74.62,148.90"/>
+<polyline class="thin" points="82.12,146.90 74.62,146.90"/>
+<polyline class="thin" points="76.12,148.90 76.12,146.90"/>
+<polyline class="visible" points="77.04,149.82 75.20,147.98"/>
+<polyline class="visible" points="77.04,147.82 75.20,145.98"/>
+<text x="75.32" y="144.10" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 75.32 144.10)">8</text>
+<text x="85.12" y="159.40" font-size="3.5" text-anchor="middle">BOTTOM FACE: 3  1:4</text>
+<polyline class="hidden" points="39.80,107.30 46.20,107.30"/>
+<polyline class="hidden" points="39.80,99.30 46.20,99.30"/>
+<polyline class="hidden" points="46.20,107.30 39.80,107.30"/>
+<polyline class="hidden" points="46.20,107.30 39.80,107.30"/>
+<polyline class="hidden" points="39.80,104.90 46.20,104.90"/>
+<polyline class="hidden" points="39.80,104.90 46.20,104.90"/>
+<polyline class="visible-m" points="39.80,107.30 46.20,107.30"/>
+<polyline class="visible-m" points="39.80,99.30 46.20,99.30"/>
+<polyline class="thin" points="39.80,109.30 39.80,104.50 38.30,103.70 41.30,102.90 39.80,102.10 39.80,97.30"/>
+<polyline class="thin" points="46.20,109.30 46.20,104.50 44.70,103.70 47.70,102.90 46.20,102.10 46.20,97.30"/>
+<polyline class="thin" points="43.00,106.10 43.00,110.30"/>
+<circle class="thin" cx="43.00" cy="106.10" r="0.50" style="fill:black"/>
+<circle class="thin" cx="43.00" cy="112.90" r="2.60" style="fill:white"/>
+<text x="43.00" y="113.80" font-size="2.5" text-anchor="middle">3</text>
+<polyline class="thin" points="38.80,107.30 31.30,107.30"/>
+<polyline class="thin" points="38.80,104.90 31.30,104.90"/>
+<polyline class="thin" points="32.80,107.30 32.80,104.90"/>
+<polyline class="visible" points="33.72,108.22 31.88,106.38"/>
+<polyline class="visible" points="33.72,105.82 31.88,103.98"/>
+<text x="32.00" y="110.10" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 32.00 110.10)">6</text>
+<polyline class="thin" points="38.80,104.90 31.30,104.90"/>
+<polyline class="thin" points="38.80,99.30 31.30,99.30"/>
+<polyline class="thin" points="32.80,104.90 32.80,99.30"/>
+<polyline class="visible" points="33.72,105.82 31.88,103.98"/>
+<polyline class="visible" points="33.72,100.22 31.88,98.38"/>
+<text x="32.00" y="95.80" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 32.00 95.80)">14</text>
+<text x="43.00" y="123.00" font-size="3.5" text-anchor="middle">FRONT EDGE: 3  1:2.5</text>
+<polyline class="visible-s" points="236.79,111.91 238.09,112.27"/>
+<polyline class="visible-s" points="238.09,112.27 238.69,111.85"/>
+<polyline class="visible-s" points="238.69,111.85 238.80,111.88"/>
+<polyline class="visible-s" points="235.20,113.01 236.62,113.39"/>
+<polyline class="visible-s" points="235.20,113.01 236.79,111.91"/>
+<polyline class="visible-s" points="273.70,121.27 273.70,121.54"/>
+<polyline class="visible-s" points="273.38,121.19 273.70,121.27"/>
+<polyline class="visible-s" points="273.38,120.98 273.38,121.19"/>
+<polyline class="visible-s" points="239.01,111.74 273.38,120.98"/>
+<polyline class="visible-s" points="236.62,113.38 236.62,114.06"/>
+<polyline class="visible-s" points="236.62,113.38 239.01,111.74"/>
+<polyline class="visible-s" points="235.45,113.35 236.62,113.66"/>
+<polyline class="visible-s" points="235.20,113.01 235.45,113.35"/>
+<polyline class="visible-s" points="270.99,123.31 271.40,123.02"/>
+<polyline class="visible-s" points="236.62,114.06 270.99,123.31"/>
+<polyline class="visible-s" points="273.38,121.19 271.19,122.69"/>
+<polyline class="visible-s" points="271.19,122.97 271.19,122.69"/>
+<polyline class="visible-s" points="270.99,122.63 270.99,123.31"/>
+<polyline class="visible-s" points="270.99,122.63 273.38,120.98"/>
+<polyline class="visible-s" points="273.38,121.76 273.70,121.54"/>
+<polyline class="visible-s" points="274.15,122.24 272.56,123.33"/>
+<polyline class="visible-s" points="271.19,122.97 272.56,123.33"/>
+<polyline class="visible-s" points="273.10,121.68 273.70,121.27"/>
+<polyline class="visible-s" points="273.10,121.68 274.40,122.04"/>
+<polyline class="visible-s" points="274.40,122.04 272.81,123.13"/>
+<polyline class="visible-s" points="271.19,122.69 272.81,123.13"/>
+<polyline class="visible-s" points="236.62,113.38 270.99,122.63"/>
+<polyline class="visible-s" points="272.56,123.33 272.81,123.13"/>
+<polyline class="visible-s" points="274.15,122.24 274.40,122.04"/>
+<polyline class="thin" points="234.18,114.19 228.00,118.44"/>
+<polyline class="thin" points="271.79,124.31 265.61,128.56"/>
+<polyline class="thin" points="229.24,117.59 266.85,127.71"/>
+<polyline class="visible" points="228.11,118.24 230.36,116.94"/>
+<polyline class="visible" points="265.72,128.36 267.98,127.06"/>
+<text x="248.25" y="121.88" font-size="2.5" text-anchor="middle" transform="rotate(15.06 248.25 121.88)">1182</text>
+<polyline class="thin" points="273.58,124.00 280.82,125.95"/>
+<polyline class="thin" points="275.97,122.36 283.21,124.31"/>
+<polyline class="thin" points="279.37,125.56 281.76,123.92"/>
+<polyline class="visible" points="279.14,126.84 279.61,124.28"/>
+<polyline class="visible" points="281.52,125.20 282.00,122.64"/>
+<text x="280.11" y="124.08" font-size="2.5" text-anchor="middle" transform="rotate(-34.56 280.11 124.08)">120</text>
+<polyline class="thin" points="234.03,113.36 226.79,111.41"/>
+<polyline class="thin" points="234.03,112.68 226.79,110.74"/>
+<polyline class="thin" points="228.24,111.80 228.24,111.13"/>
+<polyline class="visible" points="229.16,112.72 227.32,110.88"/>
+<polyline class="visible" points="229.16,112.04 227.32,110.21"/>
+<text x="227.44" y="111.46" font-size="2.5" text-anchor="middle" transform="rotate(-90.00 227.44 111.46)">20</text>
+<text x="255.00" y="143.24" font-size="3.5" text-anchor="middle">ISOMETRIC</text>
+<text x="10.00" y="185.20" font-size="3" text-anchor="start">2 pieces: apron_front, apron_back</text>
+<text x="10.00" y="189.80" font-size="3" text-anchor="start">1  haunched tenon 80 x 8 mm, 51 long, haunch 10 long, end mitred 45 deg towards bottom_face, on left_end</text>
+<text x="10.00" y="194.40" font-size="3" text-anchor="start">2  haunched tenon 80 x 8 mm, 51 long, haunch 10 long, end mitred 45 deg towards bottom_face, on right_end</text>
+<text x="10.00" y="199.00" font-size="3" text-anchor="start">3  3 x mortise 42 x 8 mm, 6 deep, in bottom_face</text>
+<polyline class="frame" points="197.00,200.00 287.00,200.00 287.00,164.00 197.00,164.00 197.00,200.00"/>
+<text x="199.00" y="198.20" font-size="2" text-anchor="start">scale</text>
+<text x="219.00" y="198.40" font-size="3" text-anchor="start">1:8, mm</text>
+<polyline class="thin" points="197.00,194.00 287.00,194.00"/>
+<text x="199.00" y="192.20" font-size="2" text-anchor="start">material</text>
+<text x="219.00" y="192.40" font-size="3" text-anchor="start">oak</text>
+<polyline class="thin" points="197.00,188.00 287.00,188.00"/>
+<text x="199.00" y="186.20" font-size="2" text-anchor="start">cut size</text>
+<text x="219.00" y="186.40" font-size="3" text-anchor="start">1182 x 120 x 20</text>
+<polyline class="thin" points="197.00,182.00 287.00,182.00"/>
+<text x="199.00" y="180.20" font-size="2" text-anchor="start">make</text>
+<text x="219.00" y="180.40" font-size="3" text-anchor="start">2</text>
+<polyline class="thin" points="197.00,176.00 287.00,176.00"/>
+<text x="199.00" y="174.20" font-size="2" text-anchor="start">of</text>
+<text x="219.00" y="174.40" font-size="3" text-anchor="start">table</text>
+<polyline class="thin" points="197.00,170.00 287.00,170.00"/>
+<text x="199.00" y="168.20" font-size="2" text-anchor="start">part</text>
+<text x="219.00" y="168.40" font-size="3.5" text-anchor="start" font-weight="bold">apron_front_back</text>
+</svg>

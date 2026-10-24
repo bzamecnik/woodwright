@@ -31,6 +31,18 @@ early alpha: the API will still change.
     a desk of beams on edge and a tray that turns over into a flat top. This is only a rough
     approximation with different dimensions: get Rex's <a href="https://www.rexkrueger.com/store/p/quick-stack-workbench">plans</a> for the real thing with detailed instructions if you want to build one.</td>
   </tr>
+  <tr>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/table_plans.pdf"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/table_parts.svg" width="420" alt="The parts sheet of the table: an exploded view with numbered parts and a parts list"></a></td>
+    <td><a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/table_plans.pdf"><img src="https://raw.githubusercontent.com/bzamecnik/woodwright/master/docs/images/table_apron.svg" width="420" alt="The shop drawing of the table's front and back aprons, with dimensioned tenons"></a></td>
+  </tr>
+  <tr>
+    <td colspan="2">Plans to build from, generated in one PDF: <a href="https://github.com/bzamecnik/woodwright/blob/master/docs/images/table_plans.pdf"><b>the plans of a table</b></a>
+    (<a href="https://github.com/bzamecnik/woodwright/blob/master/src/woodwright/examples/projects.py">projects.table</a>).
+    A cover, contents, a description, dimensioned shop drawings (the assembly, its parts
+    exploded and numbered, and a sheet for each part with every tenon and mortise
+    dimensioned, identical parts drawn once), the cut list, and the code the plans were
+    made from. Above: the parts and the front and back aprons.</td>
+  </tr>
 </table>
 
 ## Getting started without programming

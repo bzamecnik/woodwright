@@ -1,8 +1,11 @@
 """Render the pictures for the README: `uv run python docs/images/render.py`."""
 
 import re
+import shutil
+import tempfile
 from pathlib import Path
 
+from woodwright.cli import main
 from woodwright.examples import projects
 from woodwright.export import exploded, svg_view
 
@@ -27,3 +30,12 @@ render(exploded(model), HERE / "chair_exploded.svg")
 model = projects.workbench().resolve()
 render(model.compound(), HERE / "workbench.svg", line_weight=2 * LINE_WEIGHT)
 render(exploded(model), HERE / "workbench_exploded.svg", line_weight=2 * LINE_WEIGHT)
+
+# The table's plans, exported as by the command line, and two of its sheets:
+# the parts (page 5) and an apron (page 7).
+with tempfile.TemporaryDirectory() as tmp:
+    main(["export", "projects.table", "--out", tmp])
+    table = Path(tmp) / "projects" / "table"
+    shutil.copy(table / "plans.pdf", HERE / "table_plans.pdf")
+    shutil.copy(table / "drawings" / "parts.svg", HERE / "table_parts.svg")
+    shutil.copy(table / "drawings" / "apron_front_back.svg", HERE / "table_apron.svg")
