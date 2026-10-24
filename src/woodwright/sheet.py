@@ -1,8 +1,9 @@
-"""A sheet of paper for drawings: lines, text and circles in paper millimetres, as SVG.
+"""A sheet of paper for drawings: lines, text and circles in paper millimetres.
 
 Coordinates have their origin at the bottom left of the sheet, y up, so
 that drawing coordinates map onto them without flipping; the SVG is written
-y down.
+y down. The items are kept as data, rendered to SVG here and onto a PDF page
+by `woodwright.pdf`.
 """
 
 import math
@@ -14,15 +15,15 @@ Point2 = tuple[float, float]
 
 # Line styles: stroke width and dash pattern in mm (ISO 128 line types),
 # visible and hidden lines also in thinner weights for dense views.
-STYLES = {
-    "visible": "stroke-width:0.5",
-    "visible-m": "stroke-width:0.35",
-    "visible-s": "stroke-width:0.25",
-    "hidden": "stroke-width:0.25;stroke-dasharray:2,1",
-    "hidden-s": "stroke-width:0.18;stroke-dasharray:1.5,0.75",
-    "center": "stroke-width:0.18;stroke-dasharray:6,1,1,1",
-    "thin": "stroke-width:0.18",
-    "frame": "stroke-width:0.35",
+STYLES: dict[str, tuple[float, tuple[float, ...]]] = {
+    "visible": (0.5, ()),
+    "visible-m": (0.35, ()),
+    "visible-s": (0.25, ()),
+    "hidden": (0.25, (2, 1)),
+    "hidden-s": (0.18, (1.5, 0.75)),
+    "center": (0.18, (6, 1, 1, 1)),
+    "thin": (0.18, ()),
+    "frame": (0.35, ()),
 }
 FONT = "Helvetica, Arial, sans-serif"
 TEXT = 2.5  # height of dimension text
@@ -36,17 +37,43 @@ def text_width(text: str, size: float = TEXT) -> float:
     return 0.56 * size * len(text)
 
 
+@dataclass(frozen=True)
+class Line:
+    points: list[Point2]
+    style: str
+
+
+@dataclass(frozen=True)
+class Circle:
+    center: Point2
+    radius: float
+    style: str
+    fill: str
+
+
+@dataclass(frozen=True)
+class Text:
+    at: Point2  # the start, middle or end of the baseline, as `anchor`
+    text: str
+    size: float
+    anchor: str  # start, middle or end
+    angle: float  # degrees counterclockwise
+    bold: bool
+
+
+Item = Line | Circle | Text
+
+
 @dataclass
 class Sheet:
     width: float
     height: float
-    items: list[str] = field(default_factory=list)
+    items: list[Item] = field(default_factory=list)
 
     def line(self, points: list[Point2], style: str = "thin") -> None:
         if len(points) < 2:
             return
-        coords = " ".join(f"{x:.2f},{self.height - y:.2f}" for x, y in points)
-        self.items.append(f'<polyline class="{style}" points="{coords}"/>')
+        self.items.append(Line(points, style))
 
     def rect(self, lo: Point2, hi: Point2, style: str = "frame") -> None:
         (x0, y0), (x1, y1) = lo, hi
@@ -55,11 +82,7 @@ class Sheet:
     def circle(
         self, center: Point2, radius: float, style: str = "thin", fill: str = "white"
     ) -> None:
-        x, y = center
-        self.items.append(
-            f'<circle class="{style}" cx="{x:.2f}" cy="{self.height - y:.2f}" '
-            f'r="{radius:.2f}" style="fill:{fill}"/>'
-        )
+        self.items.append(Circle(center, radius, style, fill))
 
     def text(
         self,
@@ -72,13 +95,7 @@ class Sheet:
     ) -> None:
         """Text with its baseline at `at`, turned `angle` degrees counterclockwise;
         `anchor` start, middle or end."""
-        x, y = at[0], self.height - at[1]
-        weight = ' font-weight="bold"' if bold else ""
-        rotate = f' transform="rotate({-angle:.2f} {x:.2f} {y:.2f})"' if angle else ""
-        self.items.append(
-            f'<text x="{x:.2f}" y="{y:.2f}" font-size="{size:g}" '
-            f'text-anchor="{anchor}"{weight}{rotate}>{escape(text)}</text>'
-        )
+        self.items.append(Text(at, text, size, anchor, angle, bold))
 
     def balloon(self, center: Point2, label: str, radius: float = 2.6) -> None:
         """A number in a circle, marking a feature or a part."""
@@ -120,8 +137,8 @@ class Sheet:
 
     def svg(self) -> str:
         style = "\n".join(
-            f"  .{name} {{ fill:none; stroke:black; stroke-linecap:round; {css} }}"
-            for name, css in STYLES.items()
+            f"  .{name} {{ fill:none; stroke:black; stroke-linecap:round; {_css(*style)} }}"
+            for name, style in STYLES.items()
         )
         return "\n".join(
             [
@@ -130,14 +147,39 @@ class Sheet:
                 f'viewBox="0 0 {self.width:.2f} {self.height:.2f}">',
                 f"<style>\n{style}\n  text {{ font-family: {FONT}; fill: black; }}\n</style>",
                 f'<rect width="{self.width:.2f}" height="{self.height:.2f}" fill="white"/>',
-                *self.items,
+                *(self._svg_item(item) for item in self.items),
                 "</svg>",
                 "",
             ]
         )
 
+    def _svg_item(self, item: Item) -> str:
+        match item:
+            case Line(points, style):
+                coords = " ".join(f"{x:.2f},{self.height - y:.2f}" for x, y in points)
+                return f'<polyline class="{style}" points="{coords}"/>'
+            case Circle((x, y), radius, style, fill):
+                return (
+                    f'<circle class="{style}" cx="{x:.2f}" cy="{self.height - y:.2f}" '
+                    f'r="{radius:.2f}" style="fill:{fill}"/>'
+                )
+            case Text((x, y), text, size, anchor, angle, bold):
+                y = self.height - y
+                weight = ' font-weight="bold"' if bold else ""
+                rotate = f' transform="rotate({-angle:.2f} {x:.2f} {y:.2f})"' if angle else ""
+                return (
+                    f'<text x="{x:.2f}" y="{y:.2f}" font-size="{size:g}" '
+                    f'text-anchor="{anchor}"{weight}{rotate}>{escape(text)}</text>'
+                )
+        raise TypeError(item)
+
     def write(self, path: Path) -> None:
         path.write_text(self.svg())
+
+
+def _css(width: float, dash: tuple[float, ...]) -> str:
+    css = f"stroke-width:{width:g}"
+    return css + f";stroke-dasharray:{','.join(f'{d:g}' for d in dash)}" if dash else css
 
 
 def _add(a: Point2, b: Point2) -> Point2:
