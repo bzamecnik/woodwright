@@ -3,7 +3,7 @@ from pathlib import Path
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 
-from woodwright.pdf import Page, Plans, draw_sheet, write_plans
+from woodwright.pdf import Page, Plans, _wrap, draw_sheet, write_plans
 from woodwright.sheet import Sheet
 
 
@@ -36,9 +36,22 @@ def test_sheet_to_svg_and_pdf(tmp_path: Path) -> None:
 def test_plans_collate_sheets_of_any_size(tmp_path: Path) -> None:
     path = tmp_path / "plans.pdf"
     pages = [Page("Assembly", _sheet()), Page("1  leg", Sheet(297, 250)), Page("2  rail", _sheet())]
-    write_plans(path, Plans("table", pages, cover=_sheet()))
+    cut_list = "leg  720 x 60 x 60 mm  oak\n     - mortise 80 x 8 mm, 53 deep, in back_edge"
+    write_plans(path, Plans("table", pages, cover=_sheet(), cut_list=cut_list))
     pdf = path.read_bytes()
-    assert pdf.count(b"/Type /Page\n") == 5  # with the cover and contents
+    assert pdf.count(b"/Type /Page\n") == 6  # with the cover, contents and cut list
     assert b"/MediaBox [ 0 0 841.8898 708.6614 ]" in pdf  # 297 x 250 mm
-    for title in (b"(Assembly)", b"(1  leg)", b"(2  rail)"):  # bookmarks
+    for title in (b"(Assembly)", b"(1  leg)", b"(2  rail)", b"(Cut list)"):  # bookmarks
         assert title in pdf
+
+
+def test_wrap_long_lines_under_their_second_column() -> None:
+    line = "leg     810 x 90 x 90 mm  oak, glued up from 2 boards, 4 pieces: front_leg, back_leg"
+    assert _wrap(line, 50) == [
+        "leg     810 x 90 x 90 mm  oak, glued up from 2",
+        "        boards, 4 pieces: front_leg, back_leg",
+    ]
+    assert _wrap("        - dado 90 mm, 22.5 deep, in top_face", 30) == [
+        "        - dado 90 mm, 22.5",
+        "          deep, in top_face",
+    ]

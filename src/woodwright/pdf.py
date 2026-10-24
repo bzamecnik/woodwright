@@ -11,6 +11,8 @@ filling a page template of the sheet's size, text flows in a column on A4;
 the contents take a second pass for their page numbers.
 """
 
+import re
+import textwrap
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -27,6 +29,7 @@ from reportlab.platypus import (
     PageBreak,
     PageTemplate,
     Paragraph,
+    Preformatted,
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 
@@ -89,11 +92,12 @@ class Page:
 @dataclass
 class Plans:
     """What goes into the plans of an assembly, in this order: a cover,
-    contents, the drawing sheets."""
+    contents, the drawing sheets, the cut list."""
 
     name: str
     sheets: list[Page]
     cover: Sheet | None = None
+    cut_list: str | None = None  # as `ResolvedModel.cut_list()`
 
 
 def write_plans(path: Path, plans: Plans) -> None:
@@ -102,7 +106,7 @@ def write_plans(path: Path, plans: Plans) -> None:
     sheets += [page.sheet for page in plans.sheets]
     sizes = sorted({(sheet.width, sheet.height) for sheet in sheets})
     templates = [_sheet_template(size) for size in sizes]
-    templates.append(_text_template())
+    templates += [_text_template(), _wide_template()]
     doc = _Document(
         str(path),
         pageTemplates=templates,
@@ -117,6 +121,9 @@ def write_plans(path: Path, plans: Plans) -> None:
     for i, page in enumerate(plans.sheets):
         entries = [(0, "Drawings", True)] if i == 0 else []
         story += _sheet_page(page, [*entries, (1, page.title, True)], first=False)
+    if plans.cut_list:
+        story += [NextPageTemplate("wide"), PageBreak(), _Heading("Cut list")]
+        story.append(_monospace(plans.cut_list))
     # the first page's template comes first
     first = sheets[0] if plans.cover else None
     first_id = _template_id(first.width, first.height) if first else "text"
@@ -125,6 +132,8 @@ def write_plans(path: Path, plans: Plans) -> None:
 
 
 TEXT_MARGIN = 25 * mm
+MONO = 8.5  # size of monospaced text (the cut list), points
+MONO_CHARS = int((297 * mm - 2 * TEXT_MARGIN) / (0.6 * MONO))  # per line (Courier)
 STYLES_PDF = {
     "heading": ParagraphStyle(
         "heading", fontName=FONTS[True], fontSize=18, leading=22, spaceAfter=6 * mm
@@ -132,6 +141,7 @@ STYLES_PDF = {
     "toc0": ParagraphStyle(
         "toc0", fontName=FONTS[True], fontSize=11, leading=16, spaceBefore=2 * mm
     ),
+    "mono": ParagraphStyle("mono", fontName="Courier", fontSize=MONO, leading=MONO * 1.25),
     "toc1": ParagraphStyle(
         "toc1", fontName=FONTS[False], fontSize=10, leading=14, leftIndent=8 * mm
     ),
@@ -182,6 +192,20 @@ def _sheet_page(page: Page, entries: list[tuple[int, str, bool]], first: bool) -
     return [template, *([] if first else [PageBreak()]), _SheetFlowable(page, entries)]
 
 
+def _monospace(text: str) -> Preformatted:
+    """Monospaced text, its lines wrapped to the width of a wide page."""
+    lines = [wrapped for line in text.splitlines() for wrapped in _wrap(line, MONO_CHARS)]
+    return Preformatted("\n".join(lines), STYLES_PDF["mono"])
+
+
+def _wrap(line: str, width: int) -> list[str]:
+    """A line wrapped to `width`, continued under its second column (a list
+    item's text, a cut list line's size) or its indent."""
+    match = re.match(r"\s*(- |\S+\s{2,})?", line)
+    indent = " " * match.end() if match.group(1) else " " * (match.end() + 4)
+    return textwrap.wrap(line, width, subsequent_indent=indent, drop_whitespace=True) or [""]
+
+
 def _contents() -> TableOfContents:
     contents = TableOfContents(dotsMinLevel=1)
     contents.levelStyles = [STYLES_PDF["toc0"], STYLES_PDF["toc1"]]
@@ -203,6 +227,15 @@ def _text_template() -> PageTemplate:
     width, height = 297 * mm, 210 * mm
     frame = Frame(TEXT_MARGIN, TEXT_MARGIN, 160 * mm, height - 2 * TEXT_MARGIN, id="text")
     return PageTemplate("text", [frame], onPage=_page_number, pagesize=(width, height))
+
+
+def _wide_template() -> PageTemplate:
+    """A4 landscape, a frame as wide as the page (long lines of monospaced text)."""
+    width, height = 297 * mm, 210 * mm
+    frame = Frame(
+        TEXT_MARGIN, TEXT_MARGIN, width - 2 * TEXT_MARGIN, height - 2 * TEXT_MARGIN, id="wide"
+    )
+    return PageTemplate("wide", [frame], onPage=_page_number, pagesize=(width, height))
 
 
 def _page_number(canvas: Canvas, doc: BaseDocTemplate) -> None:
