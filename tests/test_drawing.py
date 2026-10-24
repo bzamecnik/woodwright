@@ -129,6 +129,7 @@ def test_export_writes_drawings(tmp_path: Path) -> None:
     export_model(model, tmp_path)
     drawings = sorted(p.name for p in (tmp_path / "drawings").iterdir())
     assert drawings == ["assembly.svg", "parts.svg", "rail.svg", "stile.svg"]
+    assert (tmp_path / "plans.pdf").read_bytes().count(b"/Type /Page\n") == 4
 
 
 def test_identical_parts_share_a_sheet(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 A semantic CAD library for woodworking. You describe furniture the way a
 woodworker thinks about it: boards and rods with named sides, and the
 joints between them. woodwright works out the joinery, the cut sizes and where every part
-goes, and produces 3D models (STEP, STL), drawings (SVG) and cut lists.
+goes, and produces 3D models (STEP, STL), drawings (SVG, PDF) and cut lists.
 
 It is built on [build123d](https://github.com/gumyr/build123d). This is an
 early alpha: the API will still change.
@@ -63,6 +63,7 @@ installs it with everything it needs, and you then type a few commands.
    ```
    This makes a folder `output/projects/cabinet_door` in the folder the
    terminal is in (your home folder, unless you moved with `cd`). In it:
+   - `plans.pdf` – all the drawings below in one PDF, to print or send;
    - `cut_list.txt` – each part with its size and its cuts (tenons, mortises,
      grooves...), a plain text file;
    - `drawings/` – shop drawings to build from, open them in a web browser
@@ -123,7 +124,7 @@ frame.join(ww.MortiseTenon(tenon=rail.left_end, mortise=stile.back_edge))
 
 model = frame.resolve()
 print(model.cut_list())
-export_model(model, Path("output/corner"))  # STEP, STL, SVG views, drawings, cut list
+export_model(model, Path("output/corner"))  # STEP, STL, SVG views, drawings, PDF, cut list
 ```
 
 ```text

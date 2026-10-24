@@ -7,6 +7,7 @@ import build123d as bd
 
 from woodwright.assembly import ResolvedModel
 from woodwright.drawing import assembly_sheet, part_sheet, parts_sheet
+from woodwright.pdf import Page, write_plans
 
 VIEW_DIRECTION = (1, -1.6, 0.9)  # from the front right, a bit above
 
@@ -57,7 +58,8 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
     With `views`, also hidden-line SVG views of the assembly, its exploded
     view and each part in its own frame, and shop drawings in `drawings/`:
     a dimensioned sheet per part (one per group of identical parts) and, for
-    more than one part, the assembly and its parts (see `woodwright.drawing`).
+    more than one part, the assembly and its parts (see `woodwright.drawing`),
+    and the sheets collated in `plans.pdf` (see `woodwright.pdf`).
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -81,10 +83,15 @@ def export_model(model: ResolvedModel, out_dir: Path, views: bool = True) -> lis
             svg_view(part.shape, out(f"{part.part.name}.svg"))
     if views:
         (out_dir / "drawings").mkdir(exist_ok=True)
+        pages = []
         if len(model.parts) > 1:
-            assembly_sheet(model).write(out("drawings/assembly.svg"))
-            parts_sheet(model).write(out("drawings/parts.svg"))
-        for group in model.groups:
-            part_sheet(model, group.first).write(out(f"drawings/{group.name}.svg"))
+            pages.append(("assembly", Page("Assembly", assembly_sheet(model))))
+            pages.append(("parts", Page("Parts", parts_sheet(model))))
+        for i, group in enumerate(model.groups, 1):
+            sheet = part_sheet(model, group.first)
+            pages.append((group.name, Page(f"{i}  {group.name}", sheet)))
+        for file, page in pages:
+            page.sheet.write(out(f"drawings/{file}.svg"))
+        write_plans(out("plans.pdf"), model.name, [page for _, page in pages])
     out("cut_list.txt").write_text(model.cut_list() + "\n")
     return written

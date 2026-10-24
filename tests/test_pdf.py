@@ -3,7 +3,7 @@ from pathlib import Path
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 
-from woodwright.pdf import draw_sheet
+from woodwright.pdf import Page, draw_sheet, write_plans
 from woodwright.sheet import Sheet
 
 
@@ -31,3 +31,14 @@ def test_sheet_to_svg_and_pdf(tmp_path: Path) -> None:
     assert pdf.startswith(b"%PDF")
     assert b"[2 1] 0 d" in pdf  # the dashes of a hidden line, in mm
     assert b"(7) Tj" in pdf and rb"(\3708 TOP FACE) Tj" in pdf  # text as text, Latin-1
+
+
+def test_plans_collate_sheets_of_any_size(tmp_path: Path) -> None:
+    path = tmp_path / "plans.pdf"
+    pages = [Page("Assembly", _sheet()), Page("1  leg", Sheet(297, 250)), Page("2  rail", _sheet())]
+    write_plans(path, "table", pages)
+    pdf = path.read_bytes()
+    assert pdf.count(b"/Type /Page\n") == 3
+    assert b"/MediaBox [ 0 0 841.8898 708.6614 ]" in pdf  # 297 x 250 mm
+    for title in (b"(Assembly)", b"(1  leg)", b"(2  rail)"):  # bookmarks
+        assert title in pdf
