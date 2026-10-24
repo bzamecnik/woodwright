@@ -1,4 +1,5 @@
-"""Identical parts, for the cut list and the drawings: "4 x leg".
+"""Identical parts and cuts, for the cut list and the drawings: "4 x leg",
+"24 x hole ø5".
 
 Two parts are identical when they are of the same kind, from the same stock,
 laminated the same way, with blanks of the same size, and the shape of one
@@ -11,15 +12,21 @@ piece as it comes.
 When only a mirror image of one matches the other, they are a mirror pair
 (opposite hand): the left and right sides of a drawer. They are grouped
 too, the mirror images marked.
+
+Cuts of a part are identical when they differ only in where they are (see
+`Cut.offsets`): mortises described alike, holes but for their offsets.
 """
 
 import itertools
+import math
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import build123d as bd
 
-from woodwright.part import Board
+from woodwright.cuts import Cut, Offset, describe_offsets
+from woodwright.part import Board, Part, SideRef
 
 if TYPE_CHECKING:
     from woodwright.assembly import ResolvedPart
@@ -176,3 +183,69 @@ def _transformed(shape: bd.Part, matrix: Matrix3) -> bd.Part:
     trsf = gp_Trsf()
     trsf.SetValues(*matrix[0], 0, *matrix[1], 0, *matrix[2], 0)
     return bd.Part(BRepBuilderAPI_Transform(shape.wrapped, trsf, True).Shape())
+
+
+# --- Identical cuts -------------------------------------------------------------
+
+
+def group_cuts(cuts: list[Cut]) -> list[list[Cut]]:
+    """The cuts grouped into identical ones, in the order of the first of each."""
+    groups: dict[tuple[type, str], list[Cut]] = {}
+    for cut in cuts:
+        groups.setdefault((type(cut), cut_shape(cut)), []).append(cut)
+    return list(groups.values())
+
+
+def cut_shape(cut: Cut) -> str:
+    """A cut's description without where it lies, if it says so (a hole's offsets)."""
+    return cut.describe() if cut.offsets() is None else cut.describe(at="")
+
+
+def describe_cuts(cuts: list[Cut]) -> str:
+    """Identical cuts as one: their count and description, and where they
+    lie if they say so: as the rows and columns of a grid if they make one
+    ('24 x hole ø5, ..., in b.top_face, 174 to 526 every 32 from b.left_end;
+    37 from b.front_edge and b.back_edge'), else each position."""
+    first = cuts[0]
+    if len(cuts) == 1:
+        return first.describe()
+    if first.offsets() is None:
+        return f"{len(cuts)} x {first.describe()}"
+    return f"{len(cuts)} x {first.describe(at=_positions([c.offsets() for c in cuts]))}"
+
+
+def _positions(offsets: list[tuple[Offset, ...]]) -> str:
+    columns = [list(dict.fromkeys(column)) for column in zip(*offsets, strict=True)]
+    if len(set(offsets)) == len(offsets) == math.prod(len(c) for c in columns):
+        return "; ".join(_axis_positions(c) for c in columns)
+    return "; ".join(describe_offsets(o) for o in offsets)
+
+
+def _axis_positions(values: list[Offset]) -> str:
+    """Positions along one axis: '55 and 305 from b.left_end', '37 from
+    b.front_edge and b.back_edge', 'centered'."""
+    by_ref: dict[SideRef, list[float]] = {}
+    for value in filter(None, values):
+        by_ref.setdefault(value[0], []).append(value[1])
+    refs_by_numbers: dict[str, list[str]] = {}
+    for ref, distances in by_ref.items():
+        refs_by_numbers.setdefault(_numbers(distances), []).append(str(ref))
+    phrases = [f"{numbers} from {' and '.join(refs)}" for numbers, refs in refs_by_numbers.items()]
+    return ", ".join(phrases + (["centered"] if None in values else []))
+
+
+def _numbers(values: list[float]) -> str:
+    """'37', '55 and 305', '174 to 526 every 32' (evenly spaced), '10, 20 and 50'."""
+    values = sorted({round(v, 6) for v in values})
+    if len(values) == 1:
+        return f"{values[0]:g}"
+    steps = {round(b - a, 6) for a, b in itertools.pairwise(values)}
+    if len(values) > 2 and len(steps) == 1:
+        return f"{values[0]:g} to {values[-1]:g} every {steps.pop():g}"
+    return ", ".join(f"{v:g}" for v in values[:-1]) + f" and {values[-1]:g}"
+
+
+def local(text: str, part: Part) -> str:
+    """A description with the part's sides named without the part, for a
+    list under its name: 'in back_edge' for 'in stile.back_edge'."""
+    return re.sub(rf"\b{re.escape(part.name)}\.", "", text)

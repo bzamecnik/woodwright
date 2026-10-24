@@ -29,6 +29,7 @@ _EPS = 1e-6
 INF = math.inf
 
 Range = tuple[float, float]
+Offset = tuple[SideRef, float] | None  # from a side, or None: centred
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,14 @@ class Cut:
 
     def describe(self) -> str:
         return type(self).__name__
+
+    def offsets(self) -> tuple[Offset, ...] | None:
+        """Where the cut lies on its side, if its description says so (a
+        hole): per axis of the side, the side measured from and the
+        distance, or None where it is centred. Such a cut describes itself
+        with other positions by `describe(at=...)`, so that cuts differing
+        only in them are listed once ("24 x hole ø5")."""
+        return None
 
 
 # --- Box cuts ---------------------------------------------------------------
@@ -1330,7 +1339,13 @@ class Hole(Cut):
         )
         return bd.Location(plane) * hole
 
-    def describe(self) -> str:
+    def offsets(self) -> tuple[Offset, Offset]:
+        at = {ref.axis: (ref, distance) for ref, distance in (self.at or {}).items()}
+        x_axis, y_axis = self.side._plane_axes
+        return at.get(x_axis), at.get(y_axis)
+
+    def describe(self, at: str | None = None) -> str:
+        """`at`, if given, says where it is, instead of its own offsets."""
         kind = "hole" if self.bottom_diameter is None else "tapered hole"
         if self.depth is None:
             kind = f"through {kind}"
@@ -1347,13 +1362,10 @@ class Hole(Cut):
         if self.countersink is not None:
             text += f", countersunk ø{self.countersink:g}, {self.countersink_angle:g} deg"
         text += f", in {self.side}"
-        at = {ref.axis: (ref, distance) for ref, distance in (self.at or {}).items()}
-        for axis in self.side._plane_axes:
-            if axis in at:
-                ref, distance = at[axis]
-                text += f", {distance:g} from {ref}"
-        if len(at) < 2:
-            text += ", centered"
+        if at is None:
+            at = describe_offsets(self.offsets())
+        if at:
+            text += f", {at}"
         if self.note:
             text += f", {self.note}"
         return text
@@ -1698,6 +1710,12 @@ def _stop(
         c = stop.coordinate - stop.side.sign * distance
         stopped_ranges[stop.axis] = (a, min(b, c)) if stop.side.sign > 0 else (max(a, c), b)
     return stopped_ranges[0], stopped_ranges[1], stopped_ranges[2]
+
+
+def describe_offsets(offsets: tuple[Offset, ...]) -> str:
+    """Where a cut is: '20 from b.left_end, centered'."""
+    given = [f"{distance:g} from {ref}" for ref, distance in filter(None, offsets)]
+    return ", ".join(given + (["centered"] if None in offsets else []))
 
 
 def _describe_stops(text: str, stopped: dict[SideRef, float] | None) -> str:

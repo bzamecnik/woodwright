@@ -1,7 +1,7 @@
 """Grouping identical parts and mirror pairs."""
 
 import woodwright as ww
-from woodwright.examples import projects
+from woodwright.examples import cuts, projects
 from woodwright.grouping import _group_names, group_name
 
 OAK = ww.Stock.board(20, "oak")
@@ -75,3 +75,45 @@ def test_group_names() -> None:
     # groups that would share a name, or take a part's name, tell their parts apart
     assert _group_names([["top_1", "top_4"], ["top_2", "top_3"]]) == ["top_1_4", "top_2_3"]
     assert _group_names([["top"], ["top_1", "top_2"]]) == ["top", "top_1_2"]
+
+
+def test_cut_list_lists_identical_parts_once() -> None:
+    lines = projects.drawer().resolve().cut_list().splitlines()
+    assert "left_right  445 x 150 x 12 mm  oak, 2 pieces: left; mirror image: right" in lines
+    assert "            - groove 6 mm, 5 deep, in bottom_face" in lines
+
+
+def test_cut_list_lists_identical_cuts_once() -> None:
+    lines = cuts.shelf_pin_holes().resolve().cut_list().splitlines()
+    assert lines[1:] == [
+        "       - 24 x hole ø5, 12 deep, drill point 118 deg, in top_face, "
+        "174 to 526 every 32 from left_end; 37 from front_edge and back_edge"
+    ]
+    table = projects.table().resolve().cut_list()
+    assert "- 3 x mortise 42 x 8 mm, 6 deep, in bottom_face\n" in table
+
+
+def test_holes_not_in_a_grid_are_listed_each() -> None:
+    asm = ww.Assembly("holes")
+    b = asm.add(ww.Board("b", OAK, length=300, width=60))
+    for at in ({b.left_end: 20, b.front_edge: 15}, {b.left_end: 50}, {b.left_end: 80}):
+        b.cut(ww.Hole(b.top_face, 5, depth=10, at=at))
+    assert asm.resolve().cut_list().splitlines()[1] == (
+        "   - 3 x hole ø5, 10 deep, in top_face, "
+        "20 from left_end, 15 from front_edge; "
+        "50 from left_end, centered; 80 from left_end, centered"
+    )
+
+
+def test_positions_of_holes_in_a_grid() -> None:
+    asm = ww.Assembly("holes")
+    b = asm.add(ww.Board("b", OAK, length=300, width=60))
+    for x in (20, 50, 150):
+        for at in ({b.left_end: x}, {b.left_end: x, b.front_edge: 10}):
+            b.cut(ww.Hole(b.top_face, 5, depth=10, at=at))
+    assert (
+        asm.resolve()
+        .cut_list()
+        .splitlines()[1]
+        .endswith("20, 50 and 150 from left_end; 10 from front_edge, centered")
+    )

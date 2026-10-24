@@ -93,9 +93,9 @@ def test_cut_list() -> None:
     asm, _, _ = mortise_tenon()
     assert asm.resolve().cut_list().splitlines() == [
         "stile  600 x 60 x 20 mm  oak",
-        "       - mortise 50 x 8 mm, 42 deep, in stile.back_edge",
+        "       - mortise 50 x 8 mm, 42 deep, in back_edge",
         "rail   340 x 60 x 20 mm  oak",
-        "       - tenon 50 x 8 mm, 40 long, on rail.left_end",
+        "       - tenon 50 x 8 mm, 40 long, on left_end",
     ]
 
 

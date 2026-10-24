@@ -7,7 +7,7 @@ from typing import NamedTuple
 import build123d as bd
 
 from woodwright.cuts import BoxCut, Cut
-from woodwright.grouping import PartGroup, group_parts
+from woodwright.grouping import PartGroup, describe_cuts, group_cuts, group_parts, local
 from woodwright.joints import Joint
 from woodwright.part import Part, Point, Rod
 from woodwright.placement import Orientation
@@ -230,15 +230,18 @@ class ResolvedModel:
         return group_parts(self.parts)
 
     def cut_list(self) -> str:
-        """Parts with their cut dimensions and the cuts made into them."""
-        name_width = max(len(resolved.part.name) for resolved in self.parts)
+        """Parts with their cut dimensions and the cuts made into them:
+        identical parts once, with their count and names, and identical cuts
+        of a part once; sides named without the part (`in back_edge`)."""
+        name_width = max(len(group.name) for group in self.groups)
         lines = []
-        for resolved in self.parts:
+        for group in self.groups:
+            resolved = group.first
             part = resolved.part
             size = " x ".join(f"{x:g}" for x in resolved.size)
             if isinstance(part, Rod):
                 size = f"ø{part.diameter:g} x {resolved.size[0]:g}"
-            line = f"{part.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip()
+            line = f"{group.name:<{name_width}}  {size} mm  {part.stock.species}".rstrip()
             if part.mirror:
                 line += ", mirror image"
             plies = part.ply_boxes(*resolved.blank)
@@ -247,8 +250,13 @@ class ResolvedModel:
                 ply = sorted((b - a for a, b in zip(lo[1:], hi[1:], strict=True)), reverse=True)
                 ply_size = " x ".join(f"{x:g}" for x in (hi[0] - lo[0], *ply))
                 line += f", glued up from {len(plies)} boards {ply_size} mm"
+            if len(group) > 1:
+                line += f", {len(group)} pieces: {group.members()}"
             lines.append(line)
-            lines.extend(f"{'':<{name_width}}  - {cut.describe()}" for cut in resolved.cuts)
+            lines.extend(
+                f"{'':<{name_width}}  - {local(describe_cuts(cuts), part)}"
+                for cuts in group_cuts(resolved.cuts)
+            )
         return "\n".join(lines)
 
     def compound(self) -> bd.Compound:
