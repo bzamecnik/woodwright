@@ -28,7 +28,7 @@ jobs:
       id-token: write # for trusted publishing
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.2 # only exact versions are tagged
         with:
           python-version: "3.14"
       - name: Check that the tag is the version in pyproject.toml
