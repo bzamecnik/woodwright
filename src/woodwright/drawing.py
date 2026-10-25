@@ -19,7 +19,7 @@ from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
 import build123d as bd
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_ConstructionError, Standard_Failure
 
 from woodwright.assembly import ResolvedModel, ResolvedPart
 from woodwright.grouping import PartGroup, cut_shape, local
@@ -474,7 +474,9 @@ def _polyline(edge: bd.Edge) -> Polyline:
         else:
             n = int(min(128, max(16, edge.length)))
             points = [edge.position_at(i / n) for i in range(n + 1)]
-    except Standard_Failure:  # a degenerate edge from the projection
+    # A degenerate edge from the projection. (The bindings don't keep OCCT's
+    # hierarchy: a construction error isn't a Standard_Failure in Python.)
+    except Standard_Failure, Standard_ConstructionError:
         points = [bd.Vector(*v) for v in edge.vertices()]
     return [(p.X, p.Y) for p in points]
 
