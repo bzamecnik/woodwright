@@ -8,6 +8,7 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 - `uv sync --group notebook` – also install `jupyter` and `jupyter-cadquery` for interactive viewing
 - `uv run woodwright {list,export}` – the example library (`src/woodwright/examples/`) and design files (`woodwright export my_door.py`), exports to `output/`
 - `uv run pytest` – run tests
+- `uv run docs/gallery.py && uv run --group docs zensical serve` – the docs site (Zensical, `mkdocs.yml`, pages in `docs/`); the example gallery is generated from the exports in `output/` (re-export examples to refresh it), stale ones are reported
 - `uv run ruff format` / `uv run ruff check --fix` – format and lint (also run by the pre-commit hook: `pre-commit install`)
 
 ## Conventions
@@ -15,5 +16,6 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 - Source in `src/woodwright/`, tests in `tests/` (pytest), the example library in `src/woodwright/examples/`.
 - Use type hints wherever they help (public functions, dataclasses); don't contort code to satisfy the checker.
 - Commit coherent pieces of work separately, with a descriptive message.
+- Docs pages' ```python blocks are run by `tests/test_docs.py` (printed output must match the ```text block after); use ```py for fragments.
 - After adding or changing examples, export them to `output/` for the user, listing them by name
   (`uv run woodwright export cuts.dowel cuts.peg ...`), so they can open the results straight away.

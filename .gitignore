@@ -73,3 +73,7 @@ htmlcov/
 # .python-version
 
 output/
+
+# Documentation: the built site and the generated example gallery
+site/
+docs/gallery/

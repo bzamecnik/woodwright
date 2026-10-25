@@ -213,6 +213,13 @@ uv sync --group notebook
 uv run jupyter lab
 ```
 
+Build the documentation (the example gallery shows the examples exported to
+`output/`, so export them first, e.g. `uv run woodwright export --all`):
+```shell
+uv run docs/gallery.py
+uv run --group docs zensical serve  # http://localhost:8000
+```
+
 Run the tests and the linters:
 ```shell
 uv run pytest

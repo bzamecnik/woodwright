@@ -1,0 +1,113 @@
+# The documentation site, built with Zensical (or Material for MkDocs, which
+# reads the same file):
+#
+#   uv run docs/gallery.py                    # the example gallery from output/
+#   uv run --group docs zensical serve        # or: zensical build -> site/
+
+site_name: woodwright
+site_description: A semantic CAD library for woodworking
+site_author: Bohumir Zamecnik
+repo_url: https://github.com/bzamecnik/woodwright
+repo_name: bzamecnik/woodwright
+edit_uri: edit/master/docs/
+copyright: MIT License
+exclude_docs: |
+  *.py
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: brown
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: brown
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+  icon:
+    logo: material/hand-saw
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - tags
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            filters: ["!^_"]
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: install.md
+      - Export the examples: tutorials/examples.md
+      - Change an example: tutorials/parameters.md
+  - Tutorials:
+      - From an example to your own design: tutorials/own-design.md
+      - A design from scratch: tutorials/from-scratch.md
+  - Guide:
+      - How a design is described: guide/concepts.md
+      - Outputs: guide/outputs.md
+      - How it works: guide/internals.md
+  - Examples:
+      - gallery/index.md
+      - By tag: gallery/tags.md
+  - Reference:
+      - reference/index.md
+      - Command line: reference/cli.md
+      - Assemblies: reference/assembly.md
+      - Parts and stock: reference/part.md
+      - Placement: reference/placement.md
+      - Joints: reference/joints.md
+      - Cuts: reference/cuts.md
+      - Rules: reference/rules.md
+      - Export: reference/export.md
+      - Drawings and plans: reference/drawing.md
+  - Design notes:
+      - Vision: vision.md
+      - Plan and roadmap: plan.md
+      - Validation catalogue: validation.md
+      - Initial vision: initial_vision.md
