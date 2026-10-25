@@ -1,0 +1,13 @@
+/* The drawings are black lines on a transparent background: give them paper
+   in the dark scheme. */
+[data-md-color-scheme="slate"] .md-typeset img[src$=".svg"] {
+  background: #fff;
+  border-radius: 0.2rem;
+}
+
+/* Pictures of the examples on the cards of the gallery. */
+.md-typeset .grid.cards img {
+  display: block;
+  margin: 0.4rem auto;
+  max-height: 12rem;
+}
