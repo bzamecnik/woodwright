@@ -6,6 +6,7 @@
 
 site_name: woodwright
 site_description: A semantic CAD library for woodworking
+site_url: https://bzamecnik.github.io/woodwright/
 site_author: Bohumir Zamecnik
 repo_url: https://github.com/bzamecnik/woodwright
 repo_name: bzamecnik/woodwright

@@ -9,6 +9,7 @@ Semantic CAD library for woodworking: a textual language describing furniture pa
 - `uv run woodwright {list,export}` – the example library (`src/woodwright/examples/`) and design files (`woodwright export my_door.py`), exports to `output/`
 - `uv run pytest` – run tests
 - `uv run docs/gallery.py && uv run --group docs zensical serve` – the docs site (Zensical, `mkdocs.yml`, pages in `docs/`); the example gallery is generated from the exports in `output/` (re-export examples to refresh it), stale ones are reported
+- Release: bump `version` in `pyproject.toml`, commit, push a tag `vX.Y.Z` – GitHub Actions (`.github/workflows/release.yml`) tests, publishes on PyPI and deploys the docs on GitHub Pages; CI (`ci.yml`) runs on pushes to master and PRs
 - `uv run ruff format` / `uv run ruff check --fix` – format and lint (also run by the pre-commit hook: `pre-commit install`)
 
 ## Conventions

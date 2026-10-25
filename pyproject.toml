@@ -31,7 +31,7 @@ woodwright = "woodwright.cli:main"
 Homepage = "https://github.com/bzamecnik/woodwright"
 Source = "https://github.com/bzamecnik/woodwright"
 Issues = "https://github.com/bzamecnik/woodwright/issues"
-Documentation = "https://github.com/bzamecnik/woodwright/tree/HEAD/docs"
+Documentation = "https://bzamecnik.github.io/woodwright/"
 
 [build-system]
 requires = ["hatchling"]

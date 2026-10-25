@@ -1,5 +1,9 @@
 # woodwright
 
+[![CI](https://github.com/bzamecnik/woodwright/actions/workflows/ci.yml/badge.svg)](https://github.com/bzamecnik/woodwright/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/woodwright)](https://pypi.org/project/woodwright/)
+[![Docs](https://img.shields.io/badge/docs-github%20pages-brown)](https://bzamecnik.github.io/woodwright/)
+
 A semantic CAD library for woodworking. You describe furniture the way a
 woodworker thinks about it: boards and rods with named sides, and the
 joints between them. woodwright works out the joinery, the cut sizes and where every part
@@ -7,6 +11,10 @@ goes, and produces 3D models (STEP, STL), drawings (SVG, PDF) and cut lists.
 
 It is built on [build123d](https://github.com/gumyr/build123d). This is an
 early alpha: the API will still change.
+
+**Documentation:** <https://bzamecnik.github.io/woodwright/>: installation,
+tutorials, a guide, the API reference and a gallery of all the examples
+with their drawings and plans.
 
 <table>
   <tr>
