@@ -1,6 +1,6 @@
 [project]
 name = "woodwright"
-version = "0.8.0"
+version = "0.9.0"
 description = "A semantic CAD library for woodworking."
 readme = "README.md"
 license = "MIT"
