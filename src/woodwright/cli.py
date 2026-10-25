@@ -18,6 +18,7 @@ import argparse
 import inspect
 import runpy
 import sys
+import traceback
 from collections.abc import Callable, Iterator
 from importlib.metadata import version
 from pathlib import Path
@@ -150,8 +151,20 @@ def main(argv: list[str] | None = None, prog: str = "woodwright") -> int:
 
     if args.all == bool(args.names):
         parser.error("give either example names, design files or --all")
+    # One failing design doesn't stop the others; they are listed at the end.
+    failed = []
     for target, design, source in list(_targets(parser, args)):
         out_dir = args.out / target
-        export_model(design().resolve(), out_dir, views=not args.no_views, source=source)
-        print(f"{target.replace('/', '.')} -> {out_dir}")
+        label = target.replace("/", ".")
+        try:
+            export_model(design().resolve(), out_dir, views=not args.no_views, source=source)
+        except Exception:
+            traceback.print_exc()
+            print(f"{label} failed", file=sys.stderr)
+            failed.append(label)
+            continue
+        print(f"{label} -> {out_dir}")
+    if failed:
+        print(f"{len(failed)} failed: {' '.join(failed)}", file=sys.stderr)
+        return 1
     return 0

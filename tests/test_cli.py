@@ -76,6 +76,27 @@ def test_rejects_a_file_without_assemblies(tmp_path: Path) -> None:
         main(["export", str(path)])
 
 
+def test_a_failing_design_doesnt_stop_the_others(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "two.py"
+    path.write_text(
+        DESIGN
+        + """
+def broken() -> ww.Assembly:
+    asm = corner()
+    asm.add(ww.Board("loose", ww.Stock.board(thickness=20), length=100, width=50))
+    return asm
+"""
+    )
+    out = tmp_path / "out"
+    assert main(["export", str(path), "--out", str(out), "--no-views"]) == 1
+    assert sorted(p.name for p in (out / "two").iterdir()) == ["corner", "door"]
+    err = capsys.readouterr().err
+    assert "not connected to stile by joints: loose" in err
+    assert "1 failed: two.broken" in err
+
+
 def test_plans_have_the_source_in_an_appendix(design: Path, tmp_path: Path) -> None:
     out = tmp_path / "out"
     assert main(["export", f"{design}:corner", "--out", str(out)]) == 0

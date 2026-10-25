@@ -19,6 +19,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1" # keep the log in order, tracebacks next to their example
     steps:
       - uses: actions/checkout@v7
       - name: Install fonts for the plans (Czech and other non-Latin-1 text)
