@@ -1,8 +1,13 @@
+import inspect
+import json
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
 
 from woodwright.cli import load_designs, main
+from woodwright.examples import get
+from woodwright.export import source_hash
 
 DESIGN = """
 import woodwright as ww
@@ -76,3 +81,11 @@ def test_plans_have_the_source_in_an_appendix(design: Path, tmp_path: Path) -> N
     assert main(["export", f"{design}:corner", "--out", str(out)]) == 0
     pdf = (out / "my_design" / "corner" / "plans.pdf").read_bytes()
     assert b"(Appendix: source)" in pdf
+
+
+def test_exports_record_their_source(tmp_path: Path) -> None:
+    assert main(["export", "joints.mortise_tenon", "--out", str(tmp_path), "--no-views"]) == 0
+    meta = json.loads((tmp_path / "joints" / "mortise_tenon" / "meta.json").read_text())
+    assert meta["woodwright"] == version("woodwright")
+    assert meta["views"] is False
+    assert meta["source_hash"] == source_hash(inspect.getsource(get("joints.mortise_tenon")))

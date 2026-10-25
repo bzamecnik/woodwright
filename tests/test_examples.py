@@ -28,6 +28,7 @@ def test_cli_lists_and_exports(tmp_path: Path, capsys: pytest.CaptureFixture[str
         "assembled.step",
         "assembled.stl",
         "cut_list.txt",
+        "meta.json",
         "rail.stl",
         "stile.stl",
     ]

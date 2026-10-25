@@ -1,6 +1,8 @@
 """Exporting resolved models: STEP, STL, hidden-line SVG views, shop drawings
 and the cut list."""
 
+import hashlib
+import json
 from datetime import date
 from importlib.metadata import version
 from pathlib import Path
@@ -54,6 +56,11 @@ def exploded(model: ResolvedModel, factor: float = 0.5) -> bd.Compound:
     return bd.Compound(label=f"{model.name}_exploded", children=children)
 
 
+def source_hash(code: str) -> str:
+    """A fingerprint of a design's code, to tell when its exports are stale."""
+    return hashlib.sha256(code.encode()).hexdigest()[:16]
+
+
 def export_model(
     model: ResolvedModel, out_dir: Path, views: bool = True, source: Source | None = None
 ) -> list[Path]:
@@ -65,6 +72,10 @@ def export_model(
     more than one part, the assembly and its parts (see `woodwright.drawing`),
     and the sheets collated in `plans.pdf` (see `woodwright.pdf`), with the
     design's `source` in an appendix if given.
+
+    `meta.json` records what made the files: the woodwright version, the
+    date and, with `source`, its name and `source_hash` (e.g. for the docs
+    gallery to mark exports older than their code).
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -113,4 +124,13 @@ def export_model(
         )
         write_plans(out("plans.pdf"), plans)
     out("cut_list.txt").write_text(model.cut_list() + "\n")
+    meta: dict[str, object] = {
+        "name": model.name,
+        "woodwright": version("woodwright"),
+        "date": date.today().isoformat(),
+        "views": views,
+    }
+    if source:
+        meta |= {"source": source.name, "source_hash": source_hash(source.code)}
+    out("meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     return written
